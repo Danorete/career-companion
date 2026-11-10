@@ -2,9 +2,12 @@
 
 Read `DECISIONS.md` first. This file says where the build stands so a later session can resume.
 
+This project moved here from a folder in `Danorete/spotify-listening-bi` on 2026-11-10, with its history.
+
 ## How to resume
 
 ```
+git clone https://github.com/Danorete/career-companion.git
 cd career-companion
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python -m pytest -q        # must be green before changing anything

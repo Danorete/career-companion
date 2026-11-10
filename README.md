@@ -12,6 +12,7 @@ Requires Python 3.11 or newer. Don't use the system `/usr/bin/python3`; install 
 (`brew install python@3.12`), `uv`, or `pyenv`.
 
 ```
+git clone https://github.com/Danorete/career-companion.git
 cd career-companion
 python3.12 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
