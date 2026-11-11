@@ -264,6 +264,36 @@ def run_compare(db: Database, gateway: Gateway, import_id: int) -> dict:
     return {"summary": out.summary[:600], "requirements": rows}
 
 
+# ---- setup progress: milestones, not field counts ------------------------------------
+
+SETUP_STEPS = [
+    ("goal", "Say what you're working toward", "Better picks for the next thing to do"),
+    ("project", "Add a project", "Drafts have something to cite"),
+    ("verified", "Verify a claim", "Drafts can state it as fact"),
+    ("profile", "Paste your profile text", "Tempo sees where you're starting"),
+    ("person", "Add a person or role", "Follow-ups and ranking"),
+]
+
+
+def setup_progress(db: Database) -> dict:
+    """Five milestones in the order that reaches a useful draft fastest. Sample rows never count,
+    so loading the samples cannot make an empty account look finished."""
+    def has(sql: str) -> bool:
+        return db.one(sql) is not None
+
+    done = {
+        "goal": has("SELECT 1 FROM memory WHERE kind='goal' AND is_sample=0"),
+        "project": has("SELECT 1 FROM evidence WHERE is_sample=0"),
+        "verified": has("SELECT 1 FROM evidence WHERE is_sample=0 AND status='user_verified_with_artifact'"),
+        "profile": has("SELECT 1 FROM imports WHERE kind='profile_text'"),
+        "person": has("SELECT 1 FROM items WHERE is_sample=0"),
+    }
+    steps = [{"id": sid, "title": title, "unlocks": unlocks, "done": done[sid]} for sid, title, unlocks in SETUP_STEPS]
+    count = sum(1 for st in steps if st["done"])
+    return {"steps": steps, "done": count, "total": len(steps),
+            "percent": round(100 * count / len(steps)), "complete": count == len(steps)}
+
+
 # ---- starter file: bulk-add the user's own information ---------------------------------
 
 def import_starter(db: Database, data: dict) -> dict:

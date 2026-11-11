@@ -10,7 +10,7 @@
     set(k, v) { try { window.localStorage.setItem("cc." + k, JSON.stringify(v)); } catch (e) { /* layout preference only */ } },
   };
   const S = {
-    csrf: "", ai: {}, budget: {}, onboarding: {}, enums: {}, hasSample: false,
+    csrf: "", ai: {}, budget: {}, onboarding: {}, enums: {}, hasSample: false, setup: null, addKind: null,
     tab: "today", minutes: store.get("minutes", 20), skipped: new Set(), session: null, timeUpSaid: null,
     busy: 0, attachImport: null, compare: null, open: new Set(), editEvidence: null, evidenceForm: false, pasteKind: "job_description",
     draft: { action_id: null, purpose: "outreach", audience: "", evidence_ids: new Set(), instruction: "",
@@ -63,6 +63,7 @@
     pasted: ["M3 13l3-8h12l3 8v6H3z", "M3 13h5l1 3h6l1-3h5"],
     settings: ["M4 7h10M18 7h2M4 17h2M10 17h10", "M16 5a2 2 0 1 0 0 4a2 2 0 0 0 0-4z", "M8 15a2 2 0 1 0 0 4a2 2 0 0 0 0-4z"],
     chev: ["M9 6l6 6-6 6"], down: ["M6 9l6 6 6-6"], plus: ["M12 5v14M5 12h14"],
+    check: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M8 12.5l2.8 2.8L16 9.5"], todo: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z"],
     collapse: ["M13 6l6 6-6 6M5 6l6 6-6 6"], send: ["M12 19V5M6 11l6-6 6 6"], bookmark: ["M7 3h10v18l-5-4-5 4z"],
     warn: ["M12 3l10 17H2z", "M12 10v4M12 17v.5"], info: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M12 8v5M12 16v.5"],
     help: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17v.5"],
@@ -149,7 +150,7 @@
   // ---- status, sidebar, session timer ---------------------------------------------------
   async function refreshStatus() {
     const b = await api("GET", "/api/bootstrap");
-    Object.assign(S, { csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample });
+    Object.assign(S, { csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup });
     renderSide(); syncCompanion();
   }
   async function loadToday() {
@@ -173,15 +174,63 @@
         h("div", { class: "grow" }, h("strong", { text: left > 0 ? mins + " min left" : "Time's up" }), h("span", { class: "muted", text: "Session" })),
         btn("End", endSession, "quiet"));
     }
-    fill($("side"),
+    fill($("side-main"),
       h("div", { class: "brand" }, sv("svg", { width: 26, height: 26, viewBox: "0 0 26 26", "aria-hidden": "true" }, sv("circle", { cx: 13, cy: 13, r: 12, fill: "#4338CA" }), sv("circle", { cx: 13, cy: 13, r: 5, fill: "#F1F2F7" })), h("span", { text: "Career Companion" })),
-      NAV.map((n) => link(n, false)), h("div", { class: "side-spacer" }), NAV_MINOR.map((n) => link(n, true)), session,
+      NAV.map((n) => link(n, false)), h("div", { class: "side-spacer" }), NAV_MINOR.map((n) => link(n, true)), session);
+    updateSetupCard();
+    fill($("side-status"),
       h("a", { class: "side-status", href: "#settings", title: S.ai.reason || "" },
         h("span", { class: "mode" }, h("span", { class: "dot " + mode[1] }), mode[0]),
         h("span", { class: "detail muted", text: !S.ai.available ? "Everything else still works." : S.ai.mode === "mock" ? "Canned replies. Nothing leaves this Mac." : "Text you send goes to the AI provider." }),
         h("span", { class: "detail split" }, h("span", { text: "AI budget" }), h("span", { text: money(b.committed_usd || 0) + " / $" + Math.round(b.hard_stop_usd || 16) })),
         (function () { const m = h("span", { class: "detail meter " + level }, h("span", {})); m.firstChild.style.width = Math.min(100, 100 * (b.committed_usd || 0) / (b.hard_stop_usd || 16)) + "%"; return m; })()));
   }
+  // ---- setup progress -------------------------------------------------------------------
+  const SETUP_GO = {
+    goal: ["Add a goal", () => { S.addKind = "goal"; S.open.add("addme"); go("me"); }],
+    project: ["Add a project", () => { S.evidenceForm = true; go("evidence"); }],
+    verified: ["Open Evidence", () => go("evidence")],
+    profile: ["Paste it", () => { S.pasteKind = "profile_text"; go("pasted"); }],
+    person: ["Add one", () => { S.open.add("additem"); go("people"); }],
+  };
+  function setupLabel() { return S.setup.done + " of " + S.setup.total + " steps"; }
+  function progressBar(pct, cls) {
+    const bar = h("div", { class: "meter " + (cls || ""), role: "progressbar", "aria-label": "Setup progress", "aria-valuemin": 0, "aria-valuemax": 100,
+      "aria-valuenow": pct, "aria-valuetext": pct + " percent, " + setupLabel() }, h("span", {}));
+    bar.firstChild.style.width = pct + "%";
+    return bar;
+  }
+  // The sidebar card is built once and updated in place, so the bar slides when the number changes.
+  function updateSetupCard() {
+    const wrap = $("side-setup"), st = S.setup;
+    if (!st || !S.onboarding.done || (st.complete && !store.get("setupPinned", false))) { wrap.replaceChildren(); return; }
+    if (!wrap.firstChild) {
+      wrap.append(h("a", { class: "side-status side-setup", href: "#today", onclick: (e) => { e.preventDefault(); S.open.add("setup"); go("today"); } },
+        h("span", { class: "split" }, h("strong", { text: "Setup" }), h("strong", { class: "pct" })), progressBar(st.percent), h("span", { class: "detail muted steps" })));
+    }
+    const card = wrap.firstChild, bar = card.querySelector(".meter");
+    card.querySelector(".pct").textContent = st.percent + "%";
+    card.querySelector(".steps").textContent = st.complete ? "All " + st.total + " steps done" : setupLabel();
+    card.title = "Open the setup checklist";
+    bar.setAttribute("aria-valuenow", st.percent);
+    bar.setAttribute("aria-valuetext", st.percent + " percent, " + setupLabel());
+    bar.firstChild.style.width = st.percent + "%";
+  }
+  function setupChecklist() {
+    const live = S.ai.available && S.ai.mode === "live";
+    return h("ul", { class: "rows setup-list" },
+      S.setup.steps.map((st) => h("li", { class: st.done ? "is-done" : "" }, icon(st.done ? "check" : "todo", 20),
+        h("div", { class: "grow" }, h("div", { class: "t", text: st.title }), h("div", { class: "muted small", text: "Unlocks: " + st.unlocks + "." })),
+        st.done ? chip("Done", "ok") : btn(SETUP_GO[st.id][0], SETUP_GO[st.id][1]))),
+      h("li", { class: live ? "is-done" : "" }, icon(live ? "check" : "todo", 20),
+        h("div", { class: "grow" }, h("div", { class: "t", text: "Optional: turn on live AI" }), h("div", { class: "muted small", text: "Not counted above. Unlocks real conversation and AI drafting. Mock mode is a complete setup." })),
+        live ? chip("On", "ok") : btn("How", () => go("settings"), "quiet")));
+  }
+  function setupPanel() {
+    return h("div", { class: "stack" }, h("div", { class: "setup-head" }, h("strong", { text: S.setup.percent + "% set up" }), h("span", { class: "muted", text: setupLabel() })),
+      progressBar(S.setup.percent, "tall"), setupChecklist());
+  }
+
   async function endSession() {
     await act(() => api("POST", "/api/session/end"));
     S.session = null;
@@ -268,6 +317,11 @@
     $("dock-pill").addEventListener("click", () => setDock(true));
     const narrow = window.matchMedia("(max-width: 1000px)").matches;
     document.body.classList.toggle("dock-closed", !store.get("dockOpen", !narrow) || narrow);
+    // On a narrow window the panel is a full-screen sheet, so close it when the window shrinks
+    // and put it back the way the user left it when the window widens again.
+    window.matchMedia("(max-width: 1000px)").addEventListener("change", (e) => {
+      document.body.classList.toggle("dock-closed", e.matches || !store.get("dockOpen", true));
+    });
     let width = setDockWidth(store.get("dockW", 400));
     const r = $("resize");
     r.addEventListener("pointerdown", (e) => {
@@ -412,9 +466,8 @@
     const step = (primary, ic, title, sub, onclick) => h("button", { type: "button", class: "first-step" + (primary ? " primary" : ""), onclick }, icon(ic, 22), h("span", {}, h("b", { text: title }), h("span", { text: sub })));
     return h("section", { class: "state" },
       h("h1", { text: "Nothing's waiting on you." }),
-      h("p", { class: "hero-meta", text: "Give me one real thing to work with and I'll take it from there." }),
-      step(true, "docplus", "Add a project", "About 10 minutes. Gives drafts evidence to use.", () => { S.evidenceForm = true; go("evidence"); }),
-      step(false, "clip", "Paste your profile text", "About 5 minutes. Shows me where you're starting.", () => { S.pasteKind = "profile_text"; go("pasted"); }),
+      h("p", { class: "hero-meta", text: S.setup.complete ? "Add a to-do below when something real comes up." : "Give me one real thing to work with and I'll take it from there." }),
+      S.setup.complete ? null : setupPanel(),
       step(false, "evidence", "Import a starter file", "One step. Loads projects, goals and to-dos prepared for you.", () => { S.open.add("starter"); go("settings"); }),
       S.hasSample ? null : h("div", {}, btn("Or look around with labelled sample data", async () => { await act(() => api("POST", "/api/sample/load")); await refreshStatus(); await render(); await greet(); }, "quiet")));
   }
@@ -433,6 +486,7 @@
     const rest = options.slice(1);
     const tucked = h("section", { class: "section", "aria-label": "Everything else" }, h("div", { class: "eyebrow", text: "Tucked away" }));
     const list = h("div", {});
+    if (all.length && !S.setup.complete) list.append(disc("setup", "Finish setup", setupLabel() + " · " + S.setup.percent + "%", setupChecklist()));
     if (rest.length) list.append(disc("others", plural(rest.length, "other thing", "other things") + " you could do", rest.map((o) => o.action.title.replace("[SAMPLE] ", "")).join("; "),
       h("ul", { class: "rows" }, rest.map((o) => h("li", {}, h("div", { class: "grow" }, h("div", { text: o.action.title }), h("div", { class: "muted small", text: o.reasons.slice(0, 2).join(" ") })),
         btn("Do this instead", () => startSession(o.action)))))));
@@ -727,7 +781,8 @@
       }
       page.append(sec);
     }
-    const f = { kind: "voice_sample", text: "", audience: "" };
+    const f = { kind: S.addKind || "voice_sample", text: "", audience: "" };
+    S.addKind = null;
     page.append(h("div", {}, disc("addme", "Add something", "a writing sample, a preference, a boundary",
       h("form", { class: "panel", onsubmit: async (e) => { e.preventDefault(); if (await act(() => api("POST", "/api/memory", f), "Added.")) render(); } },
         h("div", { class: "grid2" },
@@ -741,8 +796,11 @@
   async function renderSettings(root) {
     const [b, activity] = await Promise.all([api("GET", "/api/budget"), api("GET", "/api/activity")]);
     const s = b.status, level = s.level === "hard_stop" ? "bad" : s.level === "warn" ? "warn" : "";
-    const page = h("div", { class: "page" }, pageHead("Settings & data", "AI mode, spending, and everything stored on this Mac."));
+    const page = h("div", { class: "page" }, pageHead("Settings & data", "Setup, AI mode, spending, and everything stored on this Mac."));
     root.append(page);
+    page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Setup" }), setupPanel(),
+      S.setup.complete ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: store.get("setupPinned", false),
+        onchange: (e) => { store.set("setupPinned", e.target.checked); renderSide(); } }), "Keep the setup card in the sidebar") : null));
     const meter = h("div", { class: "meter " + level }, h("span", {}));
     meter.firstChild.style.width = Math.min(100, 100 * s.committed_usd / s.hard_stop_usd) + "%";
     page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "AI" }),
@@ -833,7 +891,7 @@
     renderSide();
     const wait = setTimeout(() => { if (seq === renderSeq) main.replaceChildren(skeleton()); }, 220);
     const fresh = h("div", {});
-    try { await RENDERERS[S.tab](fresh); }
+    try { await refreshStatus(); await RENDERERS[S.tab](fresh); }
     catch (err) { fresh.replaceChildren(errorView(err)); }
     clearTimeout(wait);
     if (seq === renderSeq) main.replaceChildren(...fresh.childNodes);
