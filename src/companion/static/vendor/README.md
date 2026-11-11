@@ -17,4 +17,4 @@ npx esbuild a.js --bundle --minify --format=esm --outfile=anime.js
 npx esbuild m.js --bundle --minify --format=esm --outfile=motion.js
 ```
 
-They are loaded by `fx()` in `app.js`, which always plays; the reduced-motion check is deferred to a public version (see D25).
+They are loaded by `fx()` in `app.js`, which always plays; the reduced-motion check is deferred to a public version (see D26).

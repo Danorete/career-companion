@@ -132,7 +132,7 @@
   }
   // Motion polish only. Anime.js and Motion are vendored under /static/vendor (no CDN) and load on demand;
   // the app behaves the same if they fail to load. Motion always plays: this is a single-user app, and
-  // reduced-motion support is deferred to a public version (D25).
+  // reduced-motion support is deferred to a public version (D26).
   const libs = {};
   const lib = (name) => libs[name] || (libs[name] = import("/static/vendor/" + name + ".js").catch(() => null));
   async function fx(name, run) {
