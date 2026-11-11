@@ -13,10 +13,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from . import services, store
-from .ai import AIClient, AIUnavailable, Gateway, build_client
+from .ai import AIClient, AIUnavailable, CompanionTurn, Gateway, build_client
 from .budget import Budget
 from .config import Settings
 from .db import Database, now
+from .validate import validate_draft
 from .security import COOKIE_NAME, Security, make_guard
 
 STATIC = Path(__file__).parent / "static"
@@ -114,6 +115,7 @@ class ImportIn(In):
 
 
 class ChatIn(In):
+    context_item_id: int | None = None
     message: str = Field(min_length=1, max_length=4000)
     import_id: int | None = None
 
@@ -136,12 +138,23 @@ class DraftGenIn(In):
     include_item_context: bool = False
 
 
+class DraftClaimIn(In):
+    text: str = Field(min_length=1, max_length=2000)
+    evidence_id: int = Field(gt=0)
+
+
+class DraftSuggestIn(DraftGenIn):
+    selection: str = Field(min_length=1, max_length=6000)
+    operation: Literal["shorten", "clarify", "check"]
+
+
 class DraftSaveIn(In):
     draft_id: int | None = None
     action_id: int | None = None
     purpose: Purpose
     audience: str = Field(default="", max_length=60)
     body: str = Field(max_length=20_000)
+    claims: list[DraftClaimIn] | None = Field(default=None, max_length=80)
 
 
 class CompareIn(In):
@@ -259,7 +272,9 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
     def chat(body: ChatIn) -> dict:
         if body.import_id:
             need("imports", body.import_id)
-        return services.chat_turn(db, gateway, settings, body.message, body.import_id)
+        if body.context_item_id:
+            need("items", body.context_item_id)
+        return services.chat_turn(db, gateway, settings, body.message, body.import_id, body.context_item_id)
 
     @app.get("/api/proposals")
     def proposals() -> list[dict]:
@@ -434,9 +449,9 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
 
     @app.get("/api/drafts")
     def drafts_list(action_id: int | None = None) -> list[dict]:
-        if action_id is None:
-            return store.rows(db, "drafts", order="updated_at DESC, id DESC")
-        return store.rows(db, "drafts", "action_id=?", (action_id,), "updated_at DESC, id DESC")
+        drafts = store.rows(db, "drafts", order="updated_at DESC, id DESC") if action_id is None else store.rows(db, "drafts", "action_id=?", (action_id,), "updated_at DESC, id DESC")
+        evidence = {e["id"]: e for e in store.rows(db, "evidence")}
+        return [{**d, "report": validate_draft(d["body"], d["claims"], evidence, d["purpose"])} for d in drafts]
 
     @app.post("/api/drafts/generate")
     def draft_generate(body: DraftGenIn) -> dict:
@@ -444,12 +459,28 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
             need("actions", body.action_id)
         return services.generate_draft(db, gateway, **body.model_dump())
 
+    @app.post("/api/drafts/suggest")
+    def draft_suggest(body: DraftSuggestIn) -> dict:
+        if body.action_id:
+            need("actions", body.action_id)
+        return services.suggest_passage(db, gateway, **body.model_dump())
+
     @app.post("/api/drafts/save")
     def draft_save(body: DraftSaveIn) -> dict:
         if body.draft_id:
             need("drafts", body.draft_id)
         return services.save_draft(db, body.draft_id, action_id=body.action_id, purpose=body.purpose,
-                                   audience=body.audience, body=body.body)
+                                   audience=body.audience, body=body.body, claims=[c.model_dump() for c in body.claims] if body.claims is not None else None)
+
+    @app.get("/api/drafts/{did}/versions")
+    def draft_versions(did: int) -> list[dict]:
+        need("drafts", did)
+        return store.rows(db, "draft_versions", "draft_id=?", (did,), "id DESC")
+
+    @app.post("/api/drafts/{did}/versions/{vid}/restore")
+    def draft_restore(did: int, vid: int) -> dict:
+        need("drafts", did)
+        return services.restore_draft(db, did, vid)
 
     @app.post("/api/drafts/{did}/copied")
     def draft_copied(did: int) -> dict:
@@ -472,6 +503,25 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
         return {"status": budget.status(), "ai": gateway.availability(),
                 "recent": db.q("SELECT ts,call_type,model,status,reserved_usd,cost_usd,in_tok,out_tok,note "
                                "FROM ledger ORDER BY id DESC LIMIT 25")}
+
+    @app.get("/api/ai/readiness")
+    def ai_readiness() -> dict:
+        from .budget import PRICES_VERIFIED_ON, prices_are_fresh
+        return {"ai": gateway.availability(), "configured_mode": settings.ai_mode,
+                "prices_current": prices_are_fresh(), "prices_verified_on": str(PRICES_VERIFIED_ON),
+                "last_test": db.one("SELECT ts,detail FROM activity WHERE event='live_connection_test' ORDER BY id DESC LIMIT 1"),
+                "note": "A local readiness check does not prove provider access or reconcile billing."}
+
+    @app.post("/api/ai/smoke")
+    def ai_smoke() -> dict:
+        if not gateway.client or gateway.client.name != "live":
+            raise AIUnavailable("Start in live mode with a Keychain key and current prices before running this test.")
+        out = gateway.call("companion_turn", "Reply briefly that the connection works. Return no proposals.",
+                           "Connection test only. No user records are included.", CompanionTurn, session_id=None,
+                           meta={"user_message": "Connection test only."})
+        db.log("live_connection_test", "structured_response_received")
+        return {"ok": True, "reply": out.reply[:500], "budget": budget.status(),
+                "note": "Structured response received. Compare the ledger with your provider Console; this does not verify billing accuracy."}
 
     @app.post("/api/budget/reconcile")
     def budget_reconcile(body: ReconcileIn) -> dict:

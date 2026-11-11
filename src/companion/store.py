@@ -44,6 +44,7 @@ STATE_NOTES = {
 JSON_COLS = {
     "evidence": ("metrics", "permitted_uses"),
     "drafts": ("claims", "gaps", "report"),
+    "draft_versions": ("claims", "gaps"),
     "proposals": ("payload",),
 }
 STAMPED = {"memory", "evidence", "items", "actions", "drafts"}  # tables with updated_at

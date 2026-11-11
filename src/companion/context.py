@@ -62,7 +62,7 @@ def _clip(text: str, n: int) -> str:
 # ---- private: planning ----------------------------------------------------------------
 
 def planning_context(db: Database, session: dict, user_message: str, import_row: dict | None,
-                     options_text: str) -> tuple[str, str, dict]:
+                     options_text: str, context_item_id: int | None = None) -> tuple[str, str, dict]:
     parts = ["## About the user (private; never repeat in outward text)"]
     for m in store.rows(db, "memory", order="id ASC"):
         parts.append(f"- {m['kind']}: {_clip(m['text'], 400)}")
@@ -74,6 +74,15 @@ def planning_context(db: Database, session: dict, user_message: str, import_row:
         item = store.get(db, "items", focus["item_id"]) if focus["item_id"] else None
         if item:
             parts.append(f"About: {item['title']} at {item['org']}. Private notes: {_clip(item['private_notes'], 600)}")
+
+    if context_item_id:
+        selected = store.get(db, "items", context_item_id)
+        if selected:
+            parts += ["", "## Record explicitly selected by the user (private planning only)",
+                      selected["title"] + " at " + selected["org"],
+                      "Status: " + selected["status"], "Private notes: " + _clip(selected["private_notes"], 1000)]
+            actions = store.rows(db, "actions", "item_id=? AND state NOT IN ('done','dropped')", (context_item_id,))
+            parts += ["Next actions: " + "; ".join(a["title"] for a in actions[:5])]
 
     parts += ["", "## Evidence library (id, title, status)"]
     for e in store.rows(db, "evidence", order="id ASC")[:40]:

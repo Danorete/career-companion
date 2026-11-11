@@ -140,12 +140,12 @@ def _valid_proposal(p) -> dict | None:
     return None
 
 
-def chat_turn(db: Database, gateway: Gateway, settings: Settings, message: str, import_id: int | None) -> dict:
+def chat_turn(db: Database, gateway: Gateway, settings: Settings, message: str, import_id: int | None, context_item_id: int | None = None) -> dict:
     session = ensure_session(db)
     import_row = store.get(db, "imports", import_id) if import_id else None
     tainted = int(bool(import_row))
     system, user, meta = context.planning_context(
-        db, session, message, import_row, options_text(db, settings, session["minutes"]))
+        db, session, message, import_row, options_text(db, settings, session["minutes"]), context_item_id)
     store.insert(db, "messages", session_id=session["id"], role="user", content=message, has_import=tainted)
     try:
         turn = gateway.call("companion_turn", system, user, CompanionTurn, session_id=session["id"], meta=meta)
@@ -223,23 +223,68 @@ def generate_draft(db: Database, gateway: Gateway, *, action_id: int | None, pur
     report = validate_draft(out.body, claims, _evidence_map(db), purpose)
     draft = store.insert(db, "drafts", action_id=action_id, purpose=purpose, audience=audience, body=out.body,
                          claims=claims, gaps=[g[:300] for g in out.gaps[:10]], report=report, source="ai")
+    snapshot_draft(db, draft)
     _note_draft_saved(db, action_id)
     return {"draft": draft, "excluded_evidence": ctx.excluded}
 
 
+def suggest_passage(db: Database, gateway: Gateway, *, selection: str, operation: str, **fields) -> dict:
+    action = store.get(db, "actions", fields.get("action_id")) if fields.get("action_id") else None
+    ctx = context.draft_context(db, fields["purpose"], fields["audience"], fields["evidence_ids"],
+                                fields["instruction"], fields["shareable_note"],
+                                action["item_id"] if action else None, fields["include_item_context"])
+    instruction = {"shorten": "Shorten the passage without changing its meaning.",
+                   "clarify": "Clarify the passage while preserving the user's voice and factual meaning.",
+                   "check": "Keep the passage unchanged and tag its claims for evidence checking."}[operation]
+    user = ctx.user + "\n## Passage task\n" + instruction + "\n" + context.wrap_untrusted("selected_passage", selection)
+    meta = {**ctx.meta, "selection": selection, "operation": operation}
+    session = active_session(db)
+    out = gateway.call("draft", ctx.system, user, DraftOut, session_id=session["id"] if session else None, meta=meta)
+    claims = [c.model_dump() for c in out.claims]
+    return {"body": out.body, "claims": claims, "gaps": out.gaps,
+            "report": validate_draft(out.body, claims, {e["id"]: e for e in ctx.evidence}, fields["purpose"]),
+            "excluded_evidence": ctx.excluded}
+
+
+def snapshot_draft(db: Database, draft: dict) -> None:
+    fields = {k: draft[k] for k in ("body", "purpose", "audience", "claims", "gaps", "source")}
+    latest = store.rows(db, "draft_versions", "draft_id=?", (draft["id"],), "id DESC LIMIT 1")
+    if not latest or any(latest[0][k] != value for k, value in fields.items()):
+        store.insert(db, "draft_versions", draft_id=draft["id"], **fields)
+
+
 def save_draft(db: Database, draft_id: int | None, *, action_id: int | None, purpose: str, audience: str,
-               body: str) -> dict:
-    """Manual writing and autosave. Works with AI off. Re-checks numbers and banned phrases on every save."""
-    existing = store.get(db, "drafts", draft_id) if draft_id else None
-    claims = existing["claims"] if existing else []
-    report = validate_draft(body, claims, _evidence_map(db), purpose)
-    if existing:
-        draft = store.update(db, "drafts", existing["id"], body=body, report=report, audience=audience)
-    else:
-        draft = store.insert(db, "drafts", action_id=action_id, purpose=purpose, audience=audience, body=body,
-                             claims=[], gaps=[], report=report, source="user")
-    _note_draft_saved(db, (existing or {}).get("action_id") or action_id)
-    return draft  # type: ignore[return-value]
+               body: str, claims: list[dict] | None = None) -> dict:
+    """Atomically retain the old and new text; unchanged autosaves do not create versions."""
+    with db.tx():
+        existing = store.get(db, "drafts", draft_id) if draft_id else None
+        if existing:
+            snapshot_draft(db, existing)
+        claims = claims if claims is not None else (existing["claims"] if existing else [])
+        report = validate_draft(body, claims, _evidence_map(db), purpose)
+        if existing:
+            draft = store.update(db, "drafts", existing["id"], body=body, report=report, audience=audience, purpose=purpose, claims=claims)
+        else:
+            draft = store.insert(db, "drafts", action_id=action_id, purpose=purpose, audience=audience, body=body,
+                                 claims=claims, gaps=[], report=report, source="user")
+        snapshot_draft(db, draft)
+        _note_draft_saved(db, (existing or {}).get("action_id") or action_id)
+    return draft
+
+
+def restore_draft(db: Database, draft_id: int, version_id: int) -> dict:
+    with db.tx():
+        current = store.get(db, "drafts", draft_id)
+        version = store.get(db, "draft_versions", version_id)
+        if not current or not version or version["draft_id"] != draft_id:
+            raise store.RuleError("That version does not belong to this draft.")
+        snapshot_draft(db, current)
+        fields = {k: version[k] for k in ("body", "purpose", "audience", "claims", "gaps", "source")}
+        fields["report"] = validate_draft(version["body"], version["claims"], _evidence_map(db), version["purpose"])
+        restored = store.update(db, "drafts", draft_id, **fields)
+        snapshot_draft(db, restored)
+        db.log("draft_restored", f"id={draft_id} version={version_id}")
+    return restored
 
 
 def run_compare(db: Database, gateway: Gateway, import_id: int) -> dict:

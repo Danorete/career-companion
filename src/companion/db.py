@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -50,6 +50,12 @@ CREATE TABLE IF NOT EXISTS drafts (
     claims TEXT NOT NULL DEFAULT '[]', gaps TEXT NOT NULL DEFAULT '[]',
     report TEXT NOT NULL DEFAULT '{}', source TEXT NOT NULL,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+
+CREATE TABLE IF NOT EXISTS draft_versions (
+    id INTEGER PRIMARY KEY, draft_id INTEGER NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,
+    body TEXT NOT NULL, purpose TEXT NOT NULL, audience TEXT NOT NULL,
+    claims TEXT NOT NULL DEFAULT '[]', gaps TEXT NOT NULL DEFAULT '[]', source TEXT NOT NULL,
+    created_at TEXT NOT NULL);
 
 CREATE TABLE IF NOT EXISTS outcomes (
     id INTEGER PRIMARY KEY, item_id INTEGER REFERENCES items(id) ON DELETE CASCADE,
@@ -103,7 +109,7 @@ CREATE TABLE IF NOT EXISTS activity (
 
 USER_TABLES = (
     "kv", "memory", "evidence", "items", "actions", "drafts", "outcomes", "reminders",
-    "ideas", "imports", "proposals", "sessions", "messages", "ledger", "activity",
+    "ideas", "imports", "proposals", "sessions", "messages", "ledger", "activity", "draft_versions",
 )
 
 

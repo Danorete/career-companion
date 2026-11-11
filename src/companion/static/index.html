@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#F1F2F7">
-  <title>Career Companion</title>
+  <meta name="theme-color" content="#F5F5F7">
+  <title>Link — Your career, connected</title>
+  <link rel="icon" href="/static/link-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -26,6 +27,7 @@
         </div>
         <button id="dock-collapse" type="button" class="icon-btn" aria-label="Collapse companion panel"></button>
       </header>
+      <section id="studio-context" class="studio-context" aria-label="Current workspace guidance"></section>
       <div id="chat-log" class="chat-log" role="log" aria-live="polite" aria-label="Conversation with Tempo"></div>
       <div id="chat-attach" class="chat-attach"></div>
       <form id="chat-form" class="composer">
@@ -35,6 +37,8 @@
       </form>
     </aside>
   </div>
+  <nav id="mobile-tabs" class="mobile-tabs" aria-label="Main navigation"></nav>
+  <nav id="mobile-more" class="mobile-more hidden" aria-label="More sections"></nav>
   <button id="dock-pill" type="button" class="dock-pill"></button>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/static/app.js"></script>

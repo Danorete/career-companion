@@ -173,6 +173,15 @@ class MockAI:
 
     def _draft(self, req: AIRequest) -> DraftOut:
         ev = req.meta.get("evidence", [])
+        if "selection" in req.meta:
+            text = req.meta["selection"]
+            operation = req.meta["operation"]
+            if operation == "shorten":
+                text = text.split(". ")[0].rstrip(".") + "."
+            elif operation == "clarify":
+                text = " ".join(text.split())
+            claims = [Claim(text=e["claim"], evidence_id=e["id"]) for e in ev if e["claim"] in text]
+            return DraftOut(body=text, claims=claims, gaps=[])
         lines = ["[MOCK DRAFT, not real AI output]"]
         claims = []
         for e in ev[:3]:

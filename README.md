@@ -1,4 +1,8 @@
-# Career Companion
+# Link
+
+Your career, connected. A local career companion with a native-inspired interface.
+
+The Python package, `companion` command, and existing data folder retain their names so upgrades keep your information in place.
 
 A personal, local career tool: a workspace with a companion docked beside it. It tells you the one thing to do
 next, keeps your place, checks draft claims against your own evidence, and never touches LinkedIn. You send,
@@ -16,7 +20,7 @@ git clone https://github.com/Danorete/career-companion.git
 cd career-companion
 python3.12 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m pytest -q      # 127 tests, about 9 seconds
+.venv/bin/python -m pytest -q      # run the current test suite
 .venv/bin/companion run
 ```
 
@@ -73,9 +77,9 @@ each skippable. The workspace appears afterwards.
 - **Today**: one recommended action beside a session ring. Pick 15, 20 or 30 minutes and start; the ring
   counts down. Other options, reminders, and the idea parking lot are tucked into rows below. An empty
   account offers two first steps: add a project, or paste your profile text.
-- **People & roles**: who you're talking to and what you're going for, to-dos, one-click outcomes with undo.
+- **People & roles**: status, last recorded interaction, next action, and one-click outcomes with undo. Explicitly select a record to discuss its private planning context with Tempo.
 - **Evidence**: claims with a status, numbers, approved uses, banned phrases, and a confidential flag.
-- **Drafts**: set up, write (yourself or with the companion), check. Every save is checked against evidence.
+- **Drafts**: write beside an adjustable evidence inspector, inspect linked claims, preview passage suggestions, compare prior versions and restore them. Every save is checked against current evidence.
 - **About me**: everything the companion remembers, editable and deletable.
 - **Pasted material** and **Settings & data** sit lower in the sidebar: reference text, AI mode, spending,
   export, delete, activity log. AI mode and budget are always visible at the bottom of the sidebar.
@@ -91,7 +95,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`127 passed` on Python 3.13, Linux, 2026-11-10. Not yet run on macOS. Coverage by acceptance criterion:
+`135 passed` on Linux, Python 3.12, 2026-11-11. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -141,7 +145,7 @@ pairs measured; no sideways scrolling at any size.
 - Reminders appear only when the app is open. There are no notifications and no background work.
 - Replies are not streamed, so a live reply appears all at once after a pause.
 - Pasting a résumé does not create evidence entries by itself. A starter file does that in bulk; someone still has to write the file.
-- Light theme only. The earlier automatic dark mode was removed in the redesign and has not been redrawn.
+- Appearance supports light, dark, and system mode. Preferences are stored in this browser.
 - The session ring is a timer, not an alarm: nothing sounds, and it only updates while the app is open.
 - Panel width and collapsed state are stored in the browser (layout only, no personal data).
 - The ranking weights are a first guess. Change them in `src/companion/ranking.py` after real sessions.
@@ -151,3 +155,19 @@ pairs measured; no sideways scrolling at any size.
 
 **Out of scope for version one**: LinkedIn integration or automation, URL fetching, background AI calls,
 people discovery, accounts, billing, hosting, desktop packaging.
+
+## Interface reference
+
+Link's web controls adapt the [iOS 27 Builder community kit](https://www.figma.com/design/AukfOZC1FQTHjg1plgzdEz/?node-id=6171-452): capsule search fields, prominent capsule buttons, and a floating mobile tab bar. The implementation uses the existing HTML/CSS/JavaScript stack; it does not embed Figma renders or require SwiftUI. Glass surfaces have opaque fallbacks, and motion follows the system reduced-motion preference. On mobile, Today, People, Evidence and Drafts are direct tabs; About me, Pasted material and Settings remain available under More.
+
+## Workflow improvements
+
+- Click a tagged claim to select its passage, then expand its evidence, source and verification status. Claims without links remain explicitly unverified by this interface.
+- Version history compares old and current text. Restore rechecks the old wording against the current evidence library and keeps the overwritten text in history. History starts when a draft is first saved or edited after this upgrade. Deleting a draft also deletes its versions.
+- Select draft text to shorten, clarify, or check it. Suggestions use the outward-drafting allowlist, require an explicit accept, and do not replace text if you have edited it since requesting the suggestion. Mock suggestions are labelled.
+- Failed saves keep edits in memory for retry, including when navigating between sections. A browser-close warning appears for unsaved work. This is not crash recovery: unsaved text can be lost if the browser or process is terminated. Saved drafts and history live in the local database.
+- Import plain text or Markdown from a résumé or README, review extracted passages, and approve entries as unverified evidence. PDF text must be copied/pasted; no remote extraction or model call runs during import.
+- Command/Control+K searches local people, evidence, drafts and commands. Appearance settings offer light/dark/system. The writing inspector supports drag, arrow keys, Home and End; its width is remembered.
+- Settings includes provider readiness and a user-triggered live connection test. The test sends a fixed diagnostic prompt without user records through the normal budget gate. It uses API budget. No real-provider call was made while developing this upgrade; compare the app ledger with the provider Console before relying on billing accuracy.
+
+The database adds a `draft_versions` table on startup without relocating existing records. The `companion` command and data directory stay the same.

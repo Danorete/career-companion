@@ -60,3 +60,24 @@ Design reference (two directions, private to the owner): https://claude.ai/artif
   workspace spend limit in the provider Console, run `companion set-key`, start with
   `COMPANION_AI_MODE=live`, send one chat message, and compare the Budget tab with the Console.
 - Everything listed as out of scope in decision D18.
+
+## Link workflow upgrade — 2026-11-11
+
+Implemented sequentially, from workflow value to polish:
+
+1. Claim-to-evidence inspector with editor passage selection.
+2. Persistent draft history, comparison and evidence-revalidated restoration.
+3. Preview/accept selected-passage actions (shorten, clarify, check).
+4. Serialized autosave, in-memory recovery, explicit retry and unload warning.
+5. Relationship status/last interaction/next action and explicit record-scoped planning.
+6. Local text/Markdown evidence import with editable preview and approval.
+7. Live readiness and explicit budget-gated connection test (real provider verification remains pending).
+8. Command/Control+K local record search.
+9. Actual task first on Today.
+10. Persistent light/dark/system appearance.
+11. Accessible, remembered evidence-inspector width.
+12. Fluid companion expansion that preserves the editor and scroll position.
+
+Backend: 135 tests pass on Linux. Browser workflow checks include version restore, suggestion acceptance, a simulated save outage and retry, import, command search and readiness. The new database table is additive. Unsaved text recovery is in-memory, not protection against browser crashes.
+
+Still requires the owner's environment: a real live-provider call and billing reconciliation; macOS/Safari verification. `graphify` is unavailable here, so its query/update commands could not run.
