@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "src/companion/app.py": {
-    "mtime": 1794407092.655599,
-    "seen": 1794407109.289129,
-    "ast_hash": "464be19ab1f7c2fab0774871d045270c",
+    "mtime": 1794411953.9776206,
+    "seen": 1794411982.3853915,
+    "ast_hash": "2578b716145124f11cd4890218561b7d",
     "semantic_hash": ""
   },
   "src/companion/budget.py": {
@@ -78,15 +78,15 @@
     "semantic_hash": ""
   },
   "src/companion/services.py": {
-    "mtime": 1794407092.655599,
-    "seen": 1794407109.2891376,
-    "ast_hash": "20127ac468f65e3188b7ea38ad9acd55",
+    "mtime": 1794411953.9776206,
+    "seen": 1794411982.3854024,
+    "ast_hash": "f48d02229e838c2b206bb067755af808",
     "semantic_hash": ""
   },
   "src/companion/static/app.js": {
-    "mtime": 1794411898.5048819,
-    "seen": 1794411908.6963108,
-    "ast_hash": "9deed58e832a267a52c5b06e761d64ed",
+    "mtime": 1794411953.9776206,
+    "seen": 1794411982.3854032,
+    "ast_hash": "49349ee1a6b36393b6fc674633c3b37f",
     "semantic_hash": ""
   },
   "src/companion/static/login.js": {
@@ -150,9 +150,9 @@
     "semantic_hash": ""
   },
   "tests/test_workflows.py": {
-    "mtime": 1794407092.6570928,
-    "seen": 1794407109.28915,
-    "ast_hash": "301823c02b9ec530dac3df57ed10d337",
+    "mtime": 1794411953.9776206,
+    "seen": 1794411982.3854141,
+    "ast_hash": "c9a21364a843fd9dce2ac9470b97d5cb",
     "semantic_hash": ""
   },
   ".claude/CLAUDE.md": {
@@ -168,21 +168,21 @@
     "semantic_hash": ""
   },
   "DECISIONS.md": {
-    "mtime": 1794411898.5098252,
-    "seen": 1794411908.6963282,
-    "ast_hash": "7b158fcfc2770e949a8ea79c9d951997",
+    "mtime": 1794411953.9776206,
+    "seen": 1794411982.3854187,
+    "ast_hash": "b9dd659e762463dbd9b2bb8aef8b6a3b",
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1794407092.6547167,
-    "seen": 1794407109.2891536,
-    "ast_hash": "bc5f157f2927a55f5ae8148a3a92d950",
+    "mtime": 1794411953.9776206,
+    "seen": 1794411982.38542,
+    "ast_hash": "6fdbb51b89e54e8c85960e2b3e48b02b",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794407092.6547167,
-    "seen": 1794407109.2891543,
-    "ast_hash": "83d57f9c5586b783eea2a9dfced1ff75",
+    "mtime": 1794411953.9776206,
+    "seen": 1794411982.3854215,
+    "ast_hash": "3b945b91ea083aa31583ddd7320fc535",
     "semantic_hash": ""
   },
   "src/companion/static/fonts/LICENSE-Inter.txt": {
@@ -198,9 +198,9 @@
     "semantic_hash": ""
   },
   "src/companion/static/index.html": {
-    "mtime": 1794407986.0017667,
-    "seen": 1794407994.3218906,
-    "ast_hash": "c9487884a98f702abc87ff68b322eb47",
+    "mtime": 1794411953.9776206,
+    "seen": 1794411982.3854246,
+    "ast_hash": "c89103c29073105fd059849c48d4e78e",
     "semantic_hash": ""
   },
   "src/companion/static/login.html": {
