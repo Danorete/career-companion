@@ -130,11 +130,22 @@
     }
     return data;
   }
+  // Motion polish only. Anime.js and Motion are vendored under /static/vendor (no CDN) and load on demand;
+  // the app behaves the same if they fail to load or if the person prefers reduced motion.
+  const calm = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const libs = {};
+  const lib = (name) => libs[name] || (libs[name] = import("/static/vendor/" + name + ".js").catch(() => null));
+  async function fx(name, run) {
+    if (calm.matches) return;
+    const m = await lib(name);
+    if (m) try { run(m); } catch (err) { /* decoration only */ }
+  }
   let toastTimer = null;
   function toast(msg) {
     const t = $("toast");
     t.textContent = msg;
     t.classList.remove("hidden");
+    fx("motion", ({ animate }) => animate(t, { opacity: [0, 1], transform: ["translateX(-50%) translateY(10px)", "translateX(-50%) translateY(0)"] }, { duration: 0.2 }));
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.add("hidden"), 4500);
   }
@@ -217,6 +228,7 @@
     const el = h("div", { class: "msg " + role, text });
     $("chat-log").append(el);
     el.scrollIntoView({ block: "end" });
+    fx("motion", ({ animate }) => animate(el, { opacity: [0, 1], transform: ["translateY(6px)", "translateY(0)"] }, { duration: 0.18 }));
     return el;
   }
   function proposalCard(p) {
@@ -844,9 +856,17 @@
     S.tab = RENDERERS[tab] ? tab : "today";
     document.title = "Career Companion";
     // Moving focus to the new page lets keyboard and screen-reader users land in it directly.
-    render().then(() => { if (S.onboarding.done) { $("main").scrollTop = 0; $("main").focus({ preventScroll: true }); } });
+    render().then(() => {
+      if (!S.onboarding.done) return;
+      $("main").scrollTop = 0; $("main").focus({ preventScroll: true });
+      fx("anime", ({ animate, stagger }) => {
+        const blocks = document.querySelectorAll("#main .page > *");
+        if (blocks.length) animate(blocks, { opacity: [0, 1], translateY: [10, 0], delay: stagger(35), duration: 320, ease: "outQuad" });
+      });
+    });
   }
 
+  lib("anime"); lib("motion");
   (async function init() {
     startDock();
     try {

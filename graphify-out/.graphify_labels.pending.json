@@ -9,13 +9,15 @@
   "7": "test_workflows.py",
   "8": "test_validate_and_ranking.py",
   "9": "Settings",
-  "10": "validate.py",
-  "11": "Progress",
+  "10": "motion.js",
+  "11": "anime.js",
   "12": "CLAUDE.md",
   "13": ".claude/CLAUDE.md",
   "14": "career-companion",
   "15": "login.js",
   "16": "tests/__init__.py",
   "17": "Web Interface Guidelines",
-  "18": "chrome-devtools"
+  "18": "chrome-devtools",
+  "19": "LICENSE-animejs.md",
+  "20": "LICENSE-motion.md"
 }
