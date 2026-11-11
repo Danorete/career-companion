@@ -1,8 +1,8 @@
 {
   ".claude/settings.json": {
-    "mtime": 1794407102.6746318,
-    "seen": 1794407109.2891183,
-    "ast_hash": "c5ef5828930623f871c28e4a9d5c0cbf",
+    "mtime": 1794407749.4301846,
+    "seen": 1794407994.321828,
+    "ast_hash": "3c4a7badb00e7f8231725b59a8098fa2",
     "semantic_hash": ""
   },
   "pyproject.toml": {
@@ -84,9 +84,9 @@
     "semantic_hash": ""
   },
   "src/companion/static/app.js": {
-    "mtime": 1794407092.655599,
-    "seen": 1794407109.2891383,
-    "ast_hash": "02743b5f1eb59226650758c7f3752bd1",
+    "mtime": 1794407959.860342,
+    "seen": 1794407994.321863,
+    "ast_hash": "f63baa4a8dae27278c260ff2c5eca62a",
     "semantic_hash": ""
   },
   "src/companion/static/login.js": {
@@ -198,15 +198,27 @@
     "semantic_hash": ""
   },
   "src/companion/static/index.html": {
-    "mtime": 1794407092.6566205,
-    "seen": 1794407109.289157,
-    "ast_hash": "bc9fa1726ce41a29fc954a5ea09e8f6c",
+    "mtime": 1794407986.0017667,
+    "seen": 1794407994.3218906,
+    "ast_hash": "c9487884a98f702abc87ff68b322eb47",
     "semantic_hash": ""
   },
   "src/companion/static/login.html": {
-    "mtime": 1794407092.6566205,
-    "seen": 1794407109.2891576,
-    "ast_hash": "833b7e556101782fbf46c8f488405c52",
+    "mtime": 1794407959.86075,
+    "seen": 1794407994.321892,
+    "ast_hash": "5bdbce144fc6769148758ccf30f6e829",
+    "semantic_hash": ""
+  },
+  ".mcp.json": {
+    "mtime": 1794407759.0181851,
+    "seen": 1794407994.321835,
+    "ast_hash": "039e4f467d1f11eb1bb2c473b063b730",
+    "semantic_hash": ""
+  },
+  ".claude/skills/web-design-guidelines/SKILL.md": {
+    "mtime": 1794407771.0080502,
+    "seen": 1794407994.3218815,
+    "ast_hash": "98087aedd18375666dbb093c859b2949",
     "semantic_hash": ""
   }
 }

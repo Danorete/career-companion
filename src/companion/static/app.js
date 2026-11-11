@@ -34,6 +34,7 @@
   // ---- DOM helpers ----------------------------------------------------------------------
   function h(tag, props, ...kids) {
     const el = document.createElement(tag);
+    if (tag === "input" || tag === "textarea") el.setAttribute("autocomplete", "off");
     for (const [k, v] of Object.entries(props || {})) {
       if (k === "class") el.className = v;
       else if (k === "text") el.textContent = v;
@@ -723,7 +724,7 @@
           h("div", { class: "row" }, chip(MEMORY[m.kind], "accent"), m.audience ? chip("for " + m.audience) : null,
             chip(m.provenance === "user_confirmed" ? "Suggested by Tempo, confirmed by you" : m.provenance === "sample" ? "Sample data" : m.provenance === "imported_file" ? "Imported from your file" : "Typed by you", m.provenance === "sample" ? "warn" : "")),
           ta, h("div", { class: "row" }, btn("Save", () => act(() => api("PUT", "/api/memory/" + m.id, { kind: m.kind, text: ta.value, audience: m.audience }), "Saved.")),
-            btn("Delete", async () => { await act(() => api("DELETE", "/api/memory/" + m.id), "Deleted."); render(); }, "quiet"))));
+            btn("Delete", async () => { if (window.confirm("Delete this entry from About me?")) { await act(() => api("DELETE", "/api/memory/" + m.id), "Deleted."); render(); } }, "quiet"))));
       }
       page.append(sec);
     }
