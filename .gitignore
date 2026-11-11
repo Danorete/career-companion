@@ -8,3 +8,6 @@ data/
 *.sqlite3-wal
 *.sqlite3-shm
 export-*.json
+
+# Graphify cache
+graphify-out/cache/
