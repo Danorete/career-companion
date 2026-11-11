@@ -84,9 +84,9 @@
     "semantic_hash": ""
   },
   "src/companion/static/app.js": {
-    "mtime": 1794408145.7760105,
-    "seen": 1794408192.925171,
-    "ast_hash": "05297b31ff002a877b67adb5e5a499f2",
+    "mtime": 1794408475.0517309,
+    "seen": 1794408511.0941951,
+    "ast_hash": "4f2b0a4ea3de37c8310cc533890beb4f",
     "semantic_hash": ""
   },
   "src/companion/static/login.js": {
@@ -168,9 +168,9 @@
     "semantic_hash": ""
   },
   "DECISIONS.md": {
-    "mtime": 1794408191.538339,
-    "seen": 1794408192.9251912,
-    "ast_hash": "2fc599b7ef933ef011bf59e43e4f39d8",
+    "mtime": 1794408475.0526726,
+    "seen": 1794408511.0942101,
+    "ast_hash": "cfe208e210140e5794de9adccf1c3966",
     "semantic_hash": ""
   },
   "PROGRESS.md": {
@@ -219,36 +219,6 @@
     "mtime": 1794407771.0080502,
     "seen": 1794407994.3218815,
     "ast_hash": "98087aedd18375666dbb093c859b2949",
-    "semantic_hash": ""
-  },
-  "src/companion/static/vendor/anime.js": {
-    "mtime": 1794408145.7618794,
-    "seen": 1794408192.925174,
-    "ast_hash": "644678f9dd68fa545cc93b16fae63532",
-    "semantic_hash": ""
-  },
-  "src/companion/static/vendor/motion.js": {
-    "mtime": 1794408145.7631595,
-    "seen": 1794408192.9251752,
-    "ast_hash": "4957ccae8a331e88290e74ecd6363315",
-    "semantic_hash": ""
-  },
-  "src/companion/static/vendor/LICENSE-animejs.md": {
-    "mtime": 1794408145.7643857,
-    "seen": 1794408192.9251978,
-    "ast_hash": "ba77acdc9cece60e260010fbf774c3bf",
-    "semantic_hash": ""
-  },
-  "src/companion/static/vendor/LICENSE-motion.md": {
-    "mtime": 1794408145.7656374,
-    "seen": 1794408192.9251986,
-    "ast_hash": "f67d6e0b9cdcc7b31a7ff058e664e133",
-    "semantic_hash": ""
-  },
-  "src/companion/static/vendor/README.md": {
-    "mtime": 1794408191.5384543,
-    "seen": 1794408192.9251995,
-    "ast_hash": "d022e1845dcb17a37e1b4045b7cf9d83",
     "semantic_hash": ""
   }
 }

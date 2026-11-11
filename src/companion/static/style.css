@@ -257,6 +257,8 @@ body.login { display: grid; place-items: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  /* Short fades and transitions stay. Only endless loops and smooth scrolling stop. */
+  .orb.is-thinking .ring-a, .skeleton span { animation: none !important; }
+  html { scroll-behavior: auto !important; }
   .orb.is-thinking .ring-a { stroke-dasharray: 3 5; }
 }
