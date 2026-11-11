@@ -1,17 +1,17 @@
 # Graph Report - career-companion  (2026-11-11)
 
 ## Corpus Check
-- 33 files · ~30,554 words
+- 33 files · ~30,527 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 2, .woff2 2, .lock 1)
 
 ## Summary
-- 573 nodes · 1593 edges · 20 communities (14 shown, 6 thin omitted)
-- Extraction: 82% EXTRACTED · 18% INFERRED · 0% AMBIGUOUS · INFERRED: 288 edges (avg confidence: 0.9)
+- 573 nodes · 1594 edges · 20 communities (14 shown, 6 thin omitted)
+- Extraction: 82% EXTRACTED · 18% INFERRED · 0% AMBIGUOUS · INFERRED: 289 edges (avg confidence: 0.9)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `f6c4729e`
+- Built from commit: `a3e4b3dc`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -48,6 +48,8 @@
 10. `insert()` - 23 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `Decisions` --references--> `fx()`  [INFERRED]
+  DECISIONS.md → src/companion/static/app.js
 - `Verified platform facts (official docs, checked 2026-11-10)` --references--> `Usage`  [INFERRED]
   DECISIONS.md → src/companion/budget.py
 - `Test results` --references--> `test_egress_refuses_everything_but_the_provider_api()`  [INFERRED]
@@ -55,8 +57,6 @@
 - `Test results` --references--> `test_failed_call_is_charged_conservatively()`  [INFERRED]
   README.md → tests/test_ai_gateway.py
 - `Test results` --references--> `test_model_cannot_change_action_state_or_evidence()`  [INFERRED]
-  README.md → tests/test_privacy_and_injection.py
-- `Test results` --references--> `test_tainted_turn_is_withheld_from_later_context()`  [INFERRED]
   README.md → tests/test_privacy_and_injection.py
 
 ## Import Cycles
@@ -122,23 +122,23 @@ Nodes (4): How to resume, Next, in order, Not started, deliberately, Progress
 
 ## Knowledge Gaps
 - **2 isolated node(s):** `career-companion`, `npx`
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 144 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 143 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `create_app()` connect `create_app` to `ai.py`, `Database`, `Budget`, `test_security.py`, `app.py`, `test_workflows.py`, `Settings`?**
-  _High betweenness centrality (0.146) - this node is a cross-community bridge._
+- **Why does `Usage` connect `Budget` to `ai.py`, `test_workflows.py`?**
+  _High betweenness centrality (0.212) - this node is a cross-community bridge._
 - **Are the 5 inferred relationships involving `create_app()` (e.g. with `AIClient` and `AIUnavailable`) actually correct?**
   _`create_app()` has 5 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `career-companion`, `npx` to the rest of the system?**
   _2 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `ai.py` be split into smaller, more focused modules?**
   _Cohesion score 0.0679563492063492 - nodes in this community are weakly interconnected._
-- **Why does `Database` connect `Database` to `ai.py`, `create_app`, `Budget`, `app.py`, `Settings`?**
-  _High betweenness centrality (0.090) - this node is a cross-community bridge._
 - **Are the 34 inferred relationships involving `Database` (e.g. with `Gateway` and `Budget`) actually correct?**
   _`Database` has 34 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Database` be split into smaller, more focused modules?**
   _Cohesion score 0.07382091592617908 - nodes in this community are weakly interconnected._
+- **Are the 49 inferred relationships involving `db()` (e.g. with `action_add()` and `action_delete()`) actually correct?**
+  _`db()` has 49 INFERRED edges - model-reasoned connections that need verification._

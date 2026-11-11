@@ -17,4 +17,4 @@ npx esbuild a.js --bundle --minify --format=esm --outfile=anime.js
 npx esbuild m.js --bundle --minify --format=esm --outfile=motion.js
 ```
 
-They are loaded by `fx()` in `app.js`, which always plays short fades; under reduced motion it drops the slide and keeps the fade.
+They are loaded by `fx()` in `app.js`, which always plays; the reduced-motion check is deferred to a public version (see D25).

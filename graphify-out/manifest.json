@@ -84,9 +84,9 @@
     "semantic_hash": ""
   },
   "src/companion/static/app.js": {
-    "mtime": 1794408475.0517309,
-    "seen": 1794408511.0941951,
-    "ast_hash": "4f2b0a4ea3de37c8310cc533890beb4f",
+    "mtime": 1794408624.0332007,
+    "seen": 1794408646.9892058,
+    "ast_hash": "ffc0655e7496805bb4d3abdc35d287f4",
     "semantic_hash": ""
   },
   "src/companion/static/login.js": {
@@ -168,9 +168,9 @@
     "semantic_hash": ""
   },
   "DECISIONS.md": {
-    "mtime": 1794408475.0526726,
-    "seen": 1794408511.0942101,
-    "ast_hash": "cfe208e210140e5794de9adccf1c3966",
+    "mtime": 1794408624.0338356,
+    "seen": 1794408646.98923,
+    "ast_hash": "bbfd4ea2e99c36ed83bcaccfcaaa706d",
     "semantic_hash": ""
   },
   "PROGRESS.md": {
