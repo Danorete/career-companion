@@ -34,6 +34,7 @@
   // ---- DOM helpers ----------------------------------------------------------------------
   function h(tag, props, ...kids) {
     const el = document.createElement(tag);
+    if (tag === "input" || tag === "textarea") el.setAttribute("autocomplete", "off");
     for (const [k, v] of Object.entries(props || {})) {
       if (k === "class") el.className = v;
       else if (k === "text") el.textContent = v;
@@ -130,11 +131,21 @@
     }
     return data;
   }
+  // Motion polish only. Anime.js and Motion are vendored under /static/vendor (no CDN) and load on demand;
+  // the app behaves the same if they fail to load. Motion always plays: this is a single-user app, and
+  // reduced-motion support is deferred to a public version (D26).
+  const libs = {};
+  const lib = (name) => libs[name] || (libs[name] = import("/static/vendor/" + name + ".js").catch(() => null));
+  async function fx(name, run) {
+    const m = await lib(name);
+    if (m) try { run(m); } catch (err) { /* decoration only */ }
+  }
   let toastTimer = null;
   function toast(msg) {
     const t = $("toast");
     t.textContent = msg;
     t.classList.remove("hidden");
+    fx("motion", ({ animate }) => animate(t, { opacity: [0, 1], transform: ["translateX(-50%) translateY(10px)", "translateX(-50%) translateY(0)"] }, { duration: 0.2 }));
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.add("hidden"), 4500);
   }
@@ -265,6 +276,7 @@
     const el = h("div", { class: "msg " + role, text });
     $("chat-log").append(el);
     el.scrollIntoView({ block: "end" });
+    fx("motion", ({ animate }) => animate(el, { opacity: [0, 1], transform: ["translateY(6px)", "translateY(0)"] }, { duration: 0.18 }));
     return el;
   }
   function proposalCard(p) {
@@ -777,7 +789,7 @@
           h("div", { class: "row" }, chip(MEMORY[m.kind], "accent"), m.audience ? chip("for " + m.audience) : null,
             chip(m.provenance === "user_confirmed" ? "Suggested by Tempo, confirmed by you" : m.provenance === "sample" ? "Sample data" : m.provenance === "imported_file" ? "Imported from your file" : "Typed by you", m.provenance === "sample" ? "warn" : "")),
           ta, h("div", { class: "row" }, btn("Save", () => act(() => api("PUT", "/api/memory/" + m.id, { kind: m.kind, text: ta.value, audience: m.audience }), "Saved.")),
-            btn("Delete", async () => { await act(() => api("DELETE", "/api/memory/" + m.id), "Deleted."); render(); }, "quiet"))));
+            btn("Delete", async () => { if (window.confirm("Delete this entry from About me?")) { await act(() => api("DELETE", "/api/memory/" + m.id), "Deleted."); render(); } }, "quiet"))));
       }
       page.append(sec);
     }
@@ -901,9 +913,17 @@
     S.tab = RENDERERS[tab] ? tab : "today";
     document.title = "Career Companion";
     // Moving focus to the new page lets keyboard and screen-reader users land in it directly.
-    render().then(() => { if (S.onboarding.done) { $("main").scrollTop = 0; $("main").focus({ preventScroll: true }); } });
+    render().then(() => {
+      if (!S.onboarding.done) return;
+      $("main").scrollTop = 0; $("main").focus({ preventScroll: true });
+      fx("anime", ({ animate, stagger }) => {
+        const blocks = document.querySelectorAll("#main .page > *");
+        if (blocks.length) animate(blocks, { opacity: [0, 1], translateY: [10, 0], delay: stagger(35), duration: 320, ease: "outQuad" });
+      });
+    });
   }
 
+  lib("anime"); lib("motion");
   (async function init() {
     startDock();
     try {
