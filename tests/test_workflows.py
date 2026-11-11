@@ -330,3 +330,57 @@ def test_imported_private_memory_still_stays_out_of_drafting(client, mock_ai):
     draft_request = [r for r in mock_ai.requests if r.call_type == "draft"][-1]
     assert "CANARY-IMPORTED-PRIVATE" not in draft_request.system + draft_request.user
     assert "Analysed 9 files." in draft_request.user
+
+
+# ---- setup progress ---------------------------------------------------------------------
+
+def setup(client):
+    return client.get("/api/bootstrap").json()["setup"]
+
+
+def done_ids(client):
+    return [s["id"] for s in setup(client)["steps"] if s["done"]]
+
+
+def test_setup_starts_at_zero_with_five_steps(client):
+    s = setup(client)
+    assert (s["percent"], s["done"], s["total"], s["complete"]) == (0, 0, 5, False)
+    assert [st["id"] for st in s["steps"]] == ["goal", "project", "verified", "profile", "person"]
+    assert all(st["title"] and st["unlocks"] for st in s["steps"])
+
+
+def test_setup_ignores_sample_data(client):
+    client.post("/api/sample/load", json={})
+    assert client.get("/api/evidence").json() and client.get("/api/items").json()
+    assert setup(client)["percent"] == 0
+
+
+def test_each_setup_step_flips_on_its_own(client):
+    client.post("/api/items", json={"kind": "relationship", "title": "Synthetic Person"})
+    assert done_ids(client) == ["person"]
+    client.post("/api/imports", json={"kind": "resume", "label": "x", "content": "not profile text"})
+    assert done_ids(client) == ["person"]                      # only profile text counts for that step
+    client.post("/api/imports", json={"kind": "profile_text", "label": "x", "content": "About me"})
+    assert done_ids(client) == ["profile", "person"]
+    client.post("/api/memory", json={"kind": "preference", "text": "not a goal"})
+    assert "goal" not in done_ids(client)
+    client.post("/api/memory", json={"kind": "goal", "text": "Synthetic goal"})
+    ev = evidence(client).json()
+    assert done_ids(client) == ["goal", "project", "profile", "person"] and setup(client)["percent"] == 80
+    body = {"title": ev["title"], "claim": ev["claim"], "permitted_uses": ["outreach"],
+            "status": "user_verified_with_artifact", "source_ref": "synthetic link"}
+    client.put(f"/api/evidence/{ev['id']}", json=body)
+    s = setup(client)
+    assert (s["percent"], s["done"], s["complete"]) == (100, 5, True)
+
+
+def test_setup_drops_when_something_is_deleted(client):
+    ev = evidence(client).json()
+    assert setup(client)["percent"] == 20
+    client.delete(f"/api/evidence/{ev['id']}")
+    assert setup(client)["percent"] == 0
+
+
+def test_starter_file_counts_toward_setup_but_never_as_verified(client):
+    client.post("/api/starter/import", json=STARTER)
+    assert done_ids(client) == ["goal", "project", "person"]   # imported evidence is never pre-verified

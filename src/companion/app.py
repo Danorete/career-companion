@@ -228,6 +228,7 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
     def bootstrap(request: Request) -> dict:
         return {"csrf": security.csrf_for(request.cookies.get(COOKIE_NAME)), "ai": gateway.availability(),
                 "budget": budget.status(), "onboarding": services.onboarding_state(db),
+                "setup": services.setup_progress(db),
                 "has_sample": bool(db.one("SELECT 1 FROM evidence WHERE is_sample=1 UNION SELECT 1 FROM actions WHERE is_sample=1")),
                 "enums": {"memory_private": store.PRIVATE_MEMORY_KINDS, "memory_public": store.PUBLIC_VOICE_KINDS,
                           "uses": store.USES, "evidence_statuses": store.EVIDENCE_STATUSES,

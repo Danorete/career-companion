@@ -16,7 +16,7 @@ git clone https://github.com/Danorete/career-companion.git
 cd career-companion
 python3.12 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m pytest -q      # 122 tests, about 8 seconds
+.venv/bin/python -m pytest -q      # 127 tests, about 9 seconds
 .venv/bin/companion run
 ```
 
@@ -79,6 +79,9 @@ each skippable. The workspace appears afterwards.
 - **About me**: everything the companion remembers, editable and deletable.
 - **Pasted material** and **Settings & data** sit lower in the sidebar: reference text, AI mode, spending,
   export, delete, activity log. AI mode and budget are always visible at the bottom of the sidebar.
+- **Setup progress**: a card in the sidebar shows how far setup has got (for example "60%, 3 of 5 steps").
+  Each step says what it unlocks and links to where you do it. Sample data doesn't count, and live AI is
+  optional. The card disappears at 100%.
 - **The companion panel**: shows whether it is ready, thinking, waiting for your OK, or off. Drag its edge
   (or focus the edge and use the arrow keys) to resize; collapse it to a corner pill.
 
@@ -88,7 +91,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`122 passed` on Python 3.13, Linux, 2026-11-10. Not yet run on macOS. Coverage by acceptance criterion:
+`127 passed` on Python 3.13, Linux, 2026-11-10. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -103,6 +106,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 | $16 stop, unknown usage counted conservatively | `test_budget.py`, `test_failed_call_is_charged_conservatively` |
 | Local endpoints protected | `test_security.py` (22 tests) |
 | Session timer starts only on a chosen action, and ends | `test_session_timer_info_and_end` |
+| Setup progress: starts at 0, ignores samples, each step independent, drops on delete | `test_setup_*` and `test_each_setup_step_flips_on_its_own` (5 tests) |
 | Starter file: one-step import, never pre-verified, safe to repeat, validated | `test_starter_file_*` (4 tests), `test_imported_private_memory_still_stays_out_of_drafting` |
 
 The interface was also driven in headless Chromium at 1470 x 860 (13-inch MacBook Air), 1710 x 1010 and
