@@ -62,6 +62,22 @@ class CompareOut(BaseModel):
     requirements: list[Requirement]
 
 
+class MetricOut(BaseModel):
+    value: str
+    unit: str
+    label: str
+
+
+class EvidenceCandidate(BaseModel):
+    title: str
+    claim: str
+    metrics: list[MetricOut]
+
+
+class ExtractOut(BaseModel):
+    entries: list[EvidenceCandidate]
+
+
 # ---- call profiles --------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -75,6 +91,7 @@ PROFILES: dict[str, Profile] = {
     "companion_turn": Profile("claude-sonnet-5-5", 1200, "medium"),
     "draft": Profile("claude-sonnet-5-5", 1800, "medium"),
     "compare": Profile("claude-sonnet-5-5", 1800, "medium"),
+    "extract": Profile("claude-sonnet-5-5", 4000, "medium"),
 }
 # Cheapest thinking setting each model accepts (verified 2026-11-10).
 THINKING: dict[str, dict[str, str]] = {
@@ -189,6 +206,14 @@ class MockAI:
             claims.append(Claim(text=e["claim"], evidence_id=e["id"]))
         gaps = [] if ev else ["No eligible evidence was selected, so this draft makes no factual claims."]
         return DraftOut(body="\n\n".join(lines), claims=claims, gaps=gaps)
+
+    def _extract(self, req: AIRequest) -> ExtractOut:
+        entries = []
+        for chunk in re.split(r"\n\s*\n|\n(?=[-•*] )", str(req.meta.get("material", ""))):
+            chunk = " ".join(chunk.strip(" -•*\t\n").split())
+            if len(chunk) >= 25:
+                entries.append(EvidenceCandidate(title=chunk[:60], claim=chunk[:400], metrics=[]))
+        return ExtractOut(entries=entries[:20])
 
     def _compare(self, req: AIRequest) -> CompareOut:
         ev = req.meta.get("evidence", [])

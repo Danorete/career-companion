@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS ideas (
 -- Pasted, untrusted material.
 CREATE TABLE IF NOT EXISTS imports (
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL, label TEXT NOT NULL, content TEXT NOT NULL,
-    created_at TEXT NOT NULL);
+    created_at TEXT NOT NULL, item_id INTEGER REFERENCES items(id) ON DELETE SET NULL);
 
 -- Model suggestions waiting for a click.
 CREATE TABLE IF NOT EXISTS proposals (
@@ -134,6 +134,9 @@ class Database:
         for pragma in ("journal_mode=WAL", "foreign_keys=ON", "secure_delete=ON"):
             self.conn.execute(f"PRAGMA {pragma}")
         self.conn.executescript(SCHEMA)
+        # Additive migrations for databases created by earlier versions. Existing rows are untouched.
+        if "item_id" not in {r["name"] for r in self.conn.execute("PRAGMA table_info(imports)")}:
+            self.conn.execute("ALTER TABLE imports ADD COLUMN item_id INTEGER REFERENCES items(id) ON DELETE SET NULL")
         self.conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         try:
             os.chmod(self.path, 0o600)

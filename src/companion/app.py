@@ -143,6 +143,36 @@ class DraftClaimIn(In):
     evidence_id: int = Field(gt=0)
 
 
+class ItemCreateIn(ItemIn):
+    posting: str = Field(default="", max_length=60_000)
+
+
+class PostingIn(In):
+    content: str = Field(min_length=1, max_length=60_000)
+
+
+class ExtractIn(In):
+    text: str = Field(min_length=40, max_length=60_000)
+
+
+class BulkEntry(In):
+    title: str = Field(min_length=1, max_length=200)
+    claim: str = Field(min_length=1, max_length=2000)
+    metrics: list[Metric] = Field(default_factory=list, max_length=20)
+    confidential: bool = False
+
+
+class EvidenceBulkIn(In):
+    entries: list[BulkEntry] = Field(min_length=1, max_length=40)
+    source_ref: str = Field(min_length=1, max_length=500)
+    confirmed: bool = False
+    permitted_uses: list[Literal[store.USES]] = Field(default_factory=list)  # type: ignore[valid-type]
+
+
+class ConfirmAllIn(In):
+    source_ref: str = Field(min_length=1, max_length=500)
+
+
 class DraftSuggestIn(DraftGenIn):
     selection: str = Field(min_length=1, max_length=6000)
     operation: Literal["shorten", "clarify", "check"]
@@ -321,6 +351,19 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
         store.check_evidence(fields)
         return store.update(db, "evidence", eid, is_sample=0, **fields)  # type: ignore[return-value]
 
+    @app.post("/api/evidence/extract")
+    def evidence_extract(body: ExtractIn) -> dict:
+        return services.extract_evidence(db, gateway, body.text)
+
+    @app.post("/api/evidence/bulk")
+    def evidence_bulk(body: EvidenceBulkIn) -> dict:
+        data = body.model_dump()
+        return services.add_evidence_bulk(db, data["entries"], data["source_ref"], data["confirmed"], data["permitted_uses"])
+
+    @app.post("/api/evidence/confirm-all")
+    def evidence_confirm_all(body: ConfirmAllIn) -> dict:
+        return services.confirm_all_evidence(db, body.source_ref)
+
     @app.delete("/api/evidence/{eid}")
     def evidence_delete(eid: int) -> dict:
         return {"deleted": store.delete(db, "evidence", eid)}
@@ -332,11 +375,20 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
         for it in items:
             it["outcomes"] = store.rows(db, "outcomes", "item_id=?", (it["id"],))
             it["actions"] = store.rows(db, "actions", "item_id=?", (it["id"],))
+            it["posting"] = services.posting_for(db, it["id"])
         return items
 
     @app.post("/api/items")
-    def item_add(body: ItemIn) -> dict:
-        return store.insert(db, "items", **body.model_dump())
+    def item_add(body: ItemCreateIn) -> dict:
+        fields = body.model_dump()
+        posting = fields.pop("posting").strip()
+        item = store.insert(db, "items", **fields)
+        item["posting"] = services.attach_posting(db, item, posting) if posting else None
+        return item
+
+    @app.post("/api/items/{iid}/posting")
+    def item_posting(iid: int, body: PostingIn) -> dict:
+        return services.attach_posting(db, need("items", iid), body.content)
 
     @app.put("/api/items/{iid}")
     def item_edit(iid: int, body: ItemIn) -> dict:

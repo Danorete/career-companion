@@ -25,7 +25,7 @@
   const S = {
     csrf: "", ai: {}, budget: {}, onboarding: {}, enums: {}, hasSample: false, setup: null, addKind: null,
     tab: "today", minutes: store.get("minutes", 20), skipped: new Set(), session: null, timeUpSaid: null,
-    contextItem: null, busy: 0, attachImport: null, compare: null, open: new Set(), editEvidence: null, evidenceForm: false, pasteKind: "job_description",
+    contextItem: null, itemCompare: null, busy: 0, attachImport: null, compare: null, open: new Set(), editEvidence: null, evidenceForm: false, pasteKind: "job_description",
     draft: { action_id: null, purpose: "outreach", audience: "", evidence_ids: new Set(), instruction: "",
              shareable_note: "", include_item_context: false, current: null },
   };
@@ -675,6 +675,35 @@
   }
 
   // ---- People & roles -------------------------------------------------------------------
+  function compareTable(result) {
+    return h("div", { class: "stack" }, h("p", { text: result.summary }),
+      h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ["They ask for", "Your evidence", "Gap"].map((t) => h("th", { scope: "col", text: t })))),
+        h("tbody", {}, result.requirements.map((r) => h("tr", {}, h("td", { text: r.requirement }),
+          h("td", {}, r.evidence.length ? r.evidence.map((e) => h("div", {}, e.title + " ", chip(e.status === "user_verified_with_artifact" ? "verified" : "unverified", e.status === "user_verified_with_artifact" ? "ok" : "warn"))) : h("span", { class: "muted", text: "None" })),
+          h("td", { text: r.gap })))))),
+      h("p", { class: "muted small", text: "A match means an entry relates to the requirement, not that it proves you meet it." }));
+  }
+  function postingBlock(it) {
+    if (it.kind !== "opportunity") return null;
+    const box = h("textarea", { rows: 4, maxlength: 60000, "aria-label": "Job posting text", placeholder: "Paste the whole posting, requirements included." });
+    const saveBox = h("div", { class: "stack" }, box, h("div", {}, btn("Save posting", async () => {
+      if (!box.value.trim()) { toast("Paste the posting first."); return; }
+      if (await act(() => api("POST", "/api/items/" + it.id + "/posting", { content: box.value }), "Posting saved.")) render();
+    })));
+    if (!it.posting) return help("Add the job posting", "Paste it here once. It stays with this role and is used for the comparison.", saveBox);
+    const shown = S.itemCompare && S.itemCompare.id === it.id ? S.itemCompare.result : null;
+    return h("div", { class: "stack" },
+      h("div", { class: "row" }, chip("Posting saved · " + it.posting.length.toLocaleString() + " characters", "ok"),
+        h("button", { type: "button", class: "btn", disabled: !S.ai.available, onclick: async (ev) => {
+          ev.currentTarget.disabled = true;
+          const result = await thinking(() => act(() => api("POST", "/api/compare", { import_id: it.posting.id })));
+          if (result) S.itemCompare = { id: it.id, result };
+          render();
+        } }, shown ? "Compare again" : "Compare with my evidence"),
+        shown ? btn("Hide comparison", () => { S.itemCompare = null; render(); }, "quiet") : null),
+      shown ? compareTable(shown) : null,
+      help("Replace the posting", saveBox));
+  }
   function todoRow(a, deletable) {
     const closed = a.state === "done" || a.state === "dropped";
     return h("li", {}, h("span", { class: "grow" }, a.title, " ", chip(STATE[a.state], a.state === "done" ? "ok" : "")),
@@ -687,12 +716,19 @@
     const page = h("div", { class: "page" }, pageHead("People & roles", "Who you're talking to, what you're going for, and what happened.",
       help("What do outcomes mean?", "One click records what you observed: a reply, an interview, silence.", "It's a record, not proof that any particular wording caused it.")), sampleNotice());
     root.append(page);
-    const f = { kind: "opportunity", title: "", org: "" };
-    const addForm = h("form", { class: "panel", onsubmit: async (e) => { e.preventDefault(); if (await act(() => api("POST", "/api/items", f), "Added.")) render(); } },
+    const f = { kind: "opportunity", title: "", org: "", posting: "" };
+    const postingField = field("Job posting (optional): paste the whole thing, requirements included",
+      h("textarea", { rows: 4, maxlength: 60000, oninput: (e) => { f.posting = e.target.value; } }));
+    const addForm = h("form", { class: "panel", onsubmit: async (e) => {
+      e.preventDefault();
+      const body = { ...f, posting: f.kind === "opportunity" ? f.posting : "" };
+      if (await act(() => api("POST", "/api/items", body), body.posting.trim() ? "Added, with its posting." : "Added.")) render();
+    } },
       h("div", { class: "grid2" },
-        field("Type", select([["opportunity", "Role or programme"], ["relationship", "Person"]], f.kind, (v) => { f.kind = v; })),
+        field("Type", select([["opportunity", "Role or programme"], ["relationship", "Person"]], f.kind, (v) => { f.kind = v; postingField.classList.toggle("hidden", v !== "opportunity"); })),
         field("Name or title", h("input", { required: true, maxlength: 200, oninput: (e) => { f.title = e.target.value; } })),
         field("Organisation", h("input", { maxlength: 200, oninput: (e) => { f.org = e.target.value; } }))),
+      postingField,
       h("div", {}, h("button", { type: "submit", class: "btn primary" }, "Add")));
     if (!items.length) page.append(h("section", { class: "section" }, h("h3", { text: "No one here yet" }), h("p", { class: "muted", text: "Add the first person or role you're actually pursuing." }), addForm));
     const listing = h("div", {});
@@ -719,9 +755,10 @@
           chip(OUTCOME[o.type] + " · " + o.occurred_on, ["interview", "offer", "reply"].includes(o.type) ? "ok" : ""),
           btn("Undo", async () => { await act(() => api("DELETE", "/api/outcomes/" + o.id)); render(); }, "quiet")))) : null,
         it.actions.length ? h("ul", { class: "rows" }, it.actions.map((a) => todoRow(a, false))) : null,
+        postingBlock(it),
         help("Notes and details", h("div", { class: "stack" },
           field("Private notes (planning only, never sent to drafting)", h("textarea", { rows: 2, maxlength: 8000, value: it.private_notes, oninput: (e) => { edit.private_notes = e.target.value; } })),
-          field("Context you're happy to use in a draft", h("textarea", { rows: 2, maxlength: 2000, value: it.shareable_context, oninput: (e) => { edit.shareable_context = e.target.value; } })),
+          field("Short context you're happy to use in a draft (a sentence or two; the posting has its own place above)", h("textarea", { rows: 2, maxlength: 2000, value: it.shareable_context, oninput: (e) => { edit.shareable_context = e.target.value; } })),
           field("Status", select([["active", "Active"], ["waiting", "Waiting on them"], ["closed", "Closed"]], it.status, (v) => { edit.status = v; })),
           h("div", { class: "row" },
             btn("Save", async () => { const body = { kind: edit.kind, title: edit.title, org: edit.org, private_notes: edit.private_notes, shareable_context: edit.shareable_context, status: edit.status };
@@ -739,37 +776,65 @@
     return text.split("\n").map((l) => l.split("|").map((p) => p.trim())).filter((p) => p[0]).map((p) => ({ value: p[0], unit: p[1] || "", label: p[2] || "" }));
   }
   function evidenceImporter() {
-    const text = h("textarea", {rows: 6, maxlength: 60000, "aria-label": "Résumé or README text", placeholder: "Paste your résumé or project README. Nothing is sent to AI."});
-    const source = h("input", {maxlength: 500, value: "Pasted résumé or README", "aria-label": "Imported source label"});
+    const text = h("textarea", {rows: 6, maxlength: 60000, "aria-label": "Résumé text", placeholder: "Paste your master résumé here, or choose a text file."});
+    const source = h("input", {maxlength: 500, value: "Master résumé", "aria-label": "Source label"});
     const preview = h("div", {class: "stack"});
-    let permittedUse = "profile";
+    let uses = "all";
     const file = h("input", {type: "file", accept: ".txt,.md,text/plain,text/markdown", "aria-label": "Choose text or Markdown file", onchange: async event => {
       const selected = event.target.files[0]; if (!selected) return;
       if (selected.size > 200000) { toast("Choose a text file under 200 KB."); return; }
       const content = await selected.text();
-      if (content.length > 60000) { toast("Choose a passage under 60,000 characters."); return; }
+      if (content.length > 60000) { toast("Choose a file under 60,000 characters."); return; }
       text.value = content; source.value = selected.name;
     }});
-    const review = () => {
-      const chunks = [...new Set(text.value.split(/\n\s*\n|\n(?=[-•*] )/).map(t => t.trim()).filter(t => t.length >= 25))].slice(0, 20);
-      const candidates = chunks.map(chunk => ({include: true, title: chunk.split("\n")[0].replace(/^#+\s*/, "").slice(0, 120), claim: chunk.slice(0, 2000), confidential: false}));
-      fill(preview, h("p", {class: "muted small", text: "These are extracted passages, not verified claims. Edit them, remove personal details, and choose what belongs in your evidence library. Up to 20 passages are shown."}),
-        candidates.map(candidate => h("div", {class: "panel"},
-          h("label", {class: "check"}, h("input", {type: "checkbox", checked: true, onchange: e => candidate.include = e.target.checked}), "Include this passage"),
-          field("Evidence title", h("input", {value: candidate.title, maxlength: 200, oninput: e => candidate.title = e.target.value})),
-          field("Claim to review", h("textarea", {rows: 3, value: candidate.claim, maxlength: 2000, oninput: e => candidate.claim = e.target.value})),
-          h("label", {class: "check"}, h("input", {type: "checkbox", onchange: e => candidate.confidential = e.target.checked}), "Confidential: hold back from AI drafting"))),
-        candidates.length ? btn("Add selected passages as unverified evidence", async () => {
-          const chosen = candidates.filter(c => c.include);
-          if (!chosen.length || chosen.some(c => !c.title.trim() || !c.claim.trim())) { toast("Select at least one passage with a title and claim."); return; }
-          const result = await act(() => api("POST", "/api/starter/import", {career_companion_starter: 1, evidence: chosen.map(c => ({title:c.title, claim:c.claim, source_ref:source.value, status:"unverified_user_claim", permitted_uses:[permittedUse], confidential:c.confidential}))}));
-          if (result) { toast("Added " + result.added.evidence + " entries; skipped " + result.skipped + " duplicates."); render(); }
-        }, "primary") : h("p", {text: "No passages found. Paste a paragraph describing your work."}));
+    const show = (candidates, note) => {
+      const addButton = (label, confirmed, cls) => btn(label, async () => {
+        const chosen = candidates.filter(c => c.include);
+        if (!chosen.length || chosen.some(c => !c.title.trim() || !c.claim.trim())) { toast("Tick at least one entry that has a title and a claim."); return; }
+        if (!source.value.trim()) { toast("Give the source a name, for example Master résumé."); return; }
+        const result = await act(() => api("POST", "/api/evidence/bulk", {
+          entries: chosen.map(c => ({title: c.title, claim: c.claim, metrics: c.metrics, confidential: c.confidential})),
+          source_ref: source.value, confirmed, permitted_uses: uses === "all" ? S.enums.uses : [uses]}));
+        if (result) { toast("Added " + result.added + (result.skipped ? ". Skipped " + result.skipped + " you already had." : ".")); S.open.delete("resume"); render(); }
+      }, cls);
+      if (!candidates.length) { fill(preview, h("p", {text: "Nothing usable was found. Paste a few lines describing your work."})); return; }
+      const count = () => candidates.filter(c => c.include).length;
+      fill(preview, h("p", {class: "muted small", text: note}),
+        candidates.map(c => h("div", {class: "panel"},
+          h("div", {class: "row"}, h("label", {class: "check"}, h("input", {type: "checkbox", checked: c.include, onchange: e => { c.include = e.target.checked; }}), "Include"),
+            c.already_have ? chip("Already in your evidence", "warn") : null),
+          c.number_warnings.length ? h("div", {class: "notice warn"}, icon("warn", 18), "Check before adding: " + c.number_warnings.join(", ") + " is not in the text you pasted.") : null,
+          field("Title", h("input", {value: c.title, maxlength: 200, oninput: e => { c.title = e.target.value; }})),
+          field("Claim", h("textarea", {rows: 2, value: c.claim, maxlength: 2000, oninput: e => { c.claim = e.target.value; }})),
+          c.metrics.length ? h("p", {class: "small muted", text: "Numbers recorded: " + c.metrics.map(m => m.value + " " + m.unit).join("; ")}) : null,
+          h("label", {class: "check"}, h("input", {type: "checkbox", onchange: e => { c.confidential = e.target.checked; }}), "Confidential: hold back from AI drafting"))),
+        h("p", {class: "small", text: "Confirmed means you stand behind each entry, with “" + source.value + "” recorded as the source. You can still edit or delete any of them."}),
+        h("div", {class: "row"}, addButton("Add as confirmed evidence", true, "primary"), addButton("Add as unverified", false, "")));
+      preview.scrollIntoView({block: "nearest"});
     };
-    return h("details", {class: "disc import-evidence"}, h("summary", {}, h("span", {class: "t", text: "Import from résumé or README"})),
-      h("div", {class: "stack"}, h("p", {class: "muted small", text: "Use plain text or Markdown, or paste text copied from a PDF. Extraction stays local; nothing is added until you approve it."}),
-        file, text, field("Source label", source), field("Approve selected entries for", select(S.enums.uses.map(u => [u,u]), permittedUse, value => permittedUse = value)),
-        btn("Preview evidence passages", review), preview));
+    const withAi = async (ev) => {
+      if (text.value.trim().length < 40) { toast("Paste your résumé first."); return; }
+      const button = ev.currentTarget; button.disabled = true;
+      const out = await thinking(() => act(() => api("POST", "/api/evidence/extract", {text: text.value})));
+      button.disabled = false;
+      if (!out) return;
+      await refreshStatus();
+      show(out.candidates.map(c => ({...c, include: !c.already_have, confidential: false})),
+        "Tempo found " + out.candidates.length + " entries. Read them once, untick or fix anything wrong, then add them together." + (out.truncated ? " Only the first 30,000 characters were read." : ""));
+    };
+    const withoutAi = () => {
+      const chunks = [...new Set(text.value.split(/\n\s*\n|\n(?=[-•*] )/).map(t => t.trim()).filter(t => t.length >= 25))].slice(0, 20);
+      show(chunks.map(chunk => ({include: true, title: chunk.split("\n")[0].replace(/^#+\s*/, "").slice(0, 120), claim: chunk.slice(0, 2000), metrics: [], number_warnings: [], already_have: false, confidential: false})),
+        "These are passages split from your text, without AI. Edit them into claims, then add them together. Up to 20 are shown.");
+    };
+    return disc("resume", "Import from your résumé", "paste it once and review the entries together",
+      h("p", {class: "muted small", text: S.ai.available && S.ai.mode === "live" ? "Tempo reads the résumé text you paste (it is sent to the AI provider) and writes one entry per role or project. Nothing is added until you approve it."
+        : "Nothing is added until you approve it. " + (S.ai.available ? "In mock mode the entries are rough splits of your text." : "AI is off, so use the split without AI.")}),
+      file, text,
+      h("div", {class: "grid2"}, field("Source label", source),
+        field("Approve the entries for", select([["all", "Everything"]].concat(S.enums.uses.map(u => [u, u + " only"])), uses, value => { uses = value; }))),
+      h("div", {class: "row"}, h("button", {type: "button", class: "btn primary", disabled: !S.ai.available, onclick: withAi}, "Extract with Tempo"), btn("Split into passages without AI", withoutAi)),
+      preview);
   }
   async function renderEvidence(root) {
     const list = await api("GET", "/api/evidence");
@@ -777,7 +842,16 @@
       help("How is this used?", "A draft can only state facts that link to an entry here. Numbers are checked against the value and unit you record.",
         "“Verified” means you've noted where the proof is. “Do not claim” entries are never sent to drafting. Confidential entries aren't either.")), sampleNotice());
     root.append(page);
-    page.append(evidenceImporter());
+    page.append(h("div", {}, evidenceImporter()));
+    const pending = list.filter((e) => e.status === "unverified_user_claim" && !e.is_sample);
+    if (pending.length) page.append(h("div", { class: "notice center" }, icon("info", 18),
+      h("span", { class: "grow", text: plural(pending.length, "entry is", "entries are") + " marked as not yet verified." }),
+      btn("Confirm all " + pending.length, async () => {
+        if (!window.confirm("Mark all " + pending.length + " as verified? You are saying you stand behind each one. Entries with no source will record “Confirmed by me”.")) return;
+        const stamp = "Confirmed by me, " + new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+        const out = await act(() => api("POST", "/api/evidence/confirm-all", { source_ref: stamp }));
+        if (out) { toast("Confirmed " + out.confirmed + "."); render(); }
+      }, "primary")));
     const showForm = S.evidenceForm || S.editEvidence || !list.length;
     const e0 = S.editEvidence || { title: "", claim: "", metrics: [], source_ref: "", status: "unverified_user_claim", permitted_uses: [], do_not_claim: "", confidential: false };
     const f = { ...e0, permitted_uses: new Set(e0.permitted_uses), metricsText: e0.metrics.map((m) => [m.value, m.unit, m.label].join(" | ")).join("\n") };

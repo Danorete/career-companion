@@ -81,3 +81,21 @@ Implemented sequentially, from workflow value to polish:
 Backend: 135 tests pass on Linux. Browser workflow checks include version restore, suggestion acceptance, a simulated save outage and retry, import, command search and readiness. The new database table is additive. Unsaved text recovery is in-memory, not protection against browser crashes.
 
 Still requires the owner's environment: a real live-provider call and billing reconciliation; macOS/Safari verification. `graphify` is unavailable here, so its query/update commands could not run.
+
+## Less typing — 2026-11-12 (decision D27)
+
+Prompted by the first real session, where adding one role took two screens and silently cut the posting off.
+
+1. People & roles: the add form takes the job posting too. Each role shows its posting, "Compare with my
+   evidence" and the result in place. An existing role can have a posting added or replaced.
+2. Evidence: "Import from your résumé" now has "Extract with Tempo" (one AI call, résumé text only) with a
+   single review list, and "Add as confirmed evidence" for the whole list. The no-AI split is still there.
+3. Evidence: "Confirm all N" marks every unverified entry as verified in one click.
+
+Backend: `imports.item_id` (additive, migrated in place; schema version 3), `POST /api/items` accepts
+`posting`, `POST /api/items/{id}/posting`, `POST /api/evidence/extract`, `/bulk`, `/confirm-all`, and an
+`extract` AI call profile. 143 tests pass. Checked in headless Chromium in mock mode.
+
+Not done: `graphify update .` (graphify is not installed in the cloud session, so `graphify-out/` is stale
+for these changes). The extraction prompt has not been run against the live model.
+
