@@ -180,10 +180,16 @@ def complete_next_action(db: Database, item_id: int, today: date) -> dict:
     if not current:
         raise store.RuleError("There is no next action to mark done.")
     db.run("UPDATE reminders SET state='done' WHERE action_id=? AND state='pending'", (current["id"],))
-    store.set_action_state(db, current["id"], "done")
-    store.insert(db, "interactions", item_id=item_id, source="confirmed_action", note="Done: " + current["title"],
-                 when_kind="exact", occurred_on=today.isoformat(), sort_date=today.isoformat())
+    record_done(db, store.set_action_state(db, current["id"], "done"), today)
     return person_detail(db, item_id)
+
+
+def record_done(db: Database, action: dict, today: date) -> None:
+    """A to-do the user marked done themselves becomes a timeline entry for the person it was about."""
+    item = store.get(db, "items", action["item_id"]) if action.get("item_id") else None
+    if item and item["kind"] == "relationship":
+        store.insert(db, "interactions", item_id=item["id"], source="confirmed_action", note="Done: " + action["title"],
+                     when_kind="exact", occurred_on=today.isoformat(), sort_date=today.isoformat())
 
 
 # ---- quick logs -----------------------------------------------------------------------

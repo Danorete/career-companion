@@ -1,4 +1,4 @@
-// Link: a local career workspace with a native-inspired interaction system.
+// Link: a local workspace for making and keeping connections.
 // All dynamic text is inserted as text nodes, never as HTML, so model output and pasted
 // material cannot inject markup or script. No inline style attributes: the page's
 // Content-Security-Policy forbids them, so styling is by class and dimensions by CSSOM.
@@ -20,18 +20,27 @@
   applyTheme();
   const draftWorkspaces = new Map();
   window.addEventListener("beforeunload", event => {
-    if ([...draftWorkspaces.values()].some(w => w.dirty || w.saving)) { event.preventDefault(); event.returnValue = ""; }
+    const log = S.logDraft && (S.logDraft.note.trim() || S.logDraft.exchange.trim());
+    if (log || [...draftWorkspaces.values()].some(w => w.dirty || w.saving)) { event.preventDefault(); event.returnValue = ""; }
   });
   const S = {
     csrf: "", ai: {}, budget: {}, onboarding: {}, enums: {}, hasSample: false, setup: null, addKind: null,
-    tab: "today", minutes: store.get("minutes", 20), skipped: new Set(), session: null, timeUpSaid: null,
+    tab: "today", arg: null, demo: false, styles: [], addPerson: null, peopleFilter: "all", peopleQuery: "", settingsTab: "you", editLog: null, editPerson: false, minutes: store.get("minutes", 20), skipped: new Set(), session: null, timeUpSaid: null,
     contextItem: null, itemCompare: null, busy: 0, attachImport: null, compare: null, open: new Set(), editEvidence: null, evidenceForm: false, pasteKind: "job_description",
     draft: { action_id: null, purpose: "outreach", audience: "", evidence_ids: new Set(), instruction: "",
-             shareable_note: "", include_item_context: false, current: null },
+             shareable_note: "", include_item_context: false, current: null, item_id: null, interaction_ids: new Set() },
   };
-  const NAV = [["today", "Today", "today"], ["people", "People & roles", "people"], ["evidence", "Evidence", "evidence"],
-               ["drafts", "Drafts", "drafts"], ["me", "About me", "me"]];
-  const NAV_MINOR = [["pasted", "Pasted material", "pasted"], ["settings", "Settings & data", "settings"]];
+  const NAV = [["today", "Today", "today"], ["people", "People", "person"], ["log", "Quick log", "log"]];
+  const NAV_MINOR = [["career", "Career tools", "career"], ["settings", "Settings", "settings"]];
+  const CAREER = [["roles", "Roles", "career"], ["evidence", "Evidence", "evidence"], ["drafts", "Drafts", "drafts"], ["pasted", "Pasted material", "pasted"]];
+  const CATEGORY = { want_to_meet: "Want to meet", getting_acquainted: "Getting acquainted", stay_in_touch: "Stay in touch", paused: "Paused" };
+  const SOURCE = { user_recap: "Your recap", pasted_exchange: "From a pasted exchange", confirmed_action: "Action you confirmed" };
+  // Which sidebar entry is lit for the page being shown.
+  function navId() {
+    if (S.tab === "person") return "people";
+    if (S.tab === "drafts" && S.draft.item_id) return "people";
+    return CAREER.some(([id]) => id === S.tab) ? "career" : S.tab;
+  }
   const PURPOSES = [["outreach", "First message"], ["follow_up", "Follow-up"], ["profile", "Profile text"],
                     ["application", "Résumé or application text"], ["post", "Post"], ["interview_prep", "Interview answer"]];
   const KIND_TO_PURPOSE = { outreach: "outreach", follow_up: "follow_up", profile_edit: "profile",
@@ -74,6 +83,9 @@
     evidence: ["M6 3h9l4 4v14H6z", "M9 14l2 2 4-4"],
     drafts: ["M4 20h4L19 9l-4-4L4 16z"],
     me: ["M12 4a4 4 0 1 0 0 8a4 4 0 0 0 0-8z", "M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"],
+    person: ["M12 4a4 4 0 1 0 0 8a4 4 0 0 0 0-8z", "M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"],
+    career: ["M5 7h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z", "M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"],
+    log: ["M4 5h16v11H10l-5 4v-4H4z", "M12 8v5M9.5 10.5h5"],
     pasted: ["M3 13l3-8h12l3 8v6H3z", "M3 13h5l1 3h6l1-3h5"],
     settings: ["M4 7h10M18 7h2M4 17h2M10 17h10", "M16 5a2 2 0 1 0 0 4a2 2 0 0 0 0-4z", "M8 15a2 2 0 1 0 0 4a2 2 0 0 0 0-4z"],
     chev: ["M9 6l6 6-6 6"], down: ["M6 9l6 6 6-6"], plus: ["M12 5v14M5 12h14"],
@@ -154,13 +166,14 @@
     if (m) try { run(m); } catch (err) { /* decoration only */ }
   }
   let toastTimer = null;
-  function toast(msg) {
+  // `action` adds one button to the message, for example Undo.
+  function toast(msg, action) {
     const t = $("toast");
-    t.textContent = msg;
+    fill(t, h("span", { text: msg }), action ? h("button", { type: "button", class: "toast-action", onclick: () => { t.classList.add("hidden"); action.run(); } }, action.label) : null);
     t.classList.remove("hidden");
     fx("motion", ({ animate }) => animate(t, { opacity: [0, 1], transform: ["translateX(-50%) translateY(10px)", "translateX(-50%) translateY(0)"] }, { duration: 0.2 }));
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => t.classList.add("hidden"), 4500);
+    toastTimer = setTimeout(() => t.classList.add("hidden"), action ? 10000 : 4500);
   }
   async function act(fn, okMsg) {
     try { const out = await fn(); if (okMsg) toast(okMsg); return out === undefined ? true : out; }
@@ -173,7 +186,7 @@
 
   function startCommandPalette() {
     const dialog = h("dialog", {class: "command-palette", "aria-label": "Search Link"});
-    const input = h("input", {type: "search", placeholder: "Search people, evidence, drafts or commands…", "aria-label": "Search Link commands and records", autocomplete: "off"});
+    const input = h("input", {type: "search", placeholder: "Search people, roles, evidence, drafts or commands…", "aria-label": "Search Link commands and records", autocomplete: "off"});
     const results = h("div", {class: "command-results"});
     const close = () => dialog.close();
     dialog.append(h("div", {class: "row"}, h("div", {class: "grow"}, input), btn("Close", close, "quiet")), results);
@@ -199,15 +212,18 @@
     const open = async () => {
       if (dialog.open) { close(); return; }
       trigger = document.activeElement; dialog.showModal(); input.value = ""; input.focus();
-      records = NAV.concat(NAV_MINOR).map(([tab,label]) => ({label: "Open " + label, kind: "Section", run: () => go(tab)}));
-      records.push({label: "New draft", kind: "Create", run: () => { S.draft.current = null; S.draft.action_id = null; draftWorkspaces.delete("new:unlinked"); go("drafts"); }},
-        {label: "Add evidence", kind: "Create", run: () => { S.evidenceForm = true; go("evidence"); }});
+      records = NAV.concat(NAV_MINOR, CAREER).map(([tab, label]) => ({ label: "Open " + label, kind: "Section", run: () => go(tab) }));
+      records.push({ label: "Quick log", kind: "Create", run: () => openQuickLog(S.tab === "person" ? S.arg : null) },
+        { label: "Add a person", kind: "Create", run: () => { S.addPerson = {}; go("people"); } },
+        { label: "New draft", kind: "Create", run: () => { Object.assign(S.draft, { current: null, action_id: null, item_id: null }); S.draft.interaction_ids.clear(); draftWorkspaces.delete("new:unlinked"); go("drafts"); } },
+        { label: "Add evidence", kind: "Create", run: () => { S.evidenceForm = true; go("evidence"); } });
       show();
-      const data = await Promise.allSettled([api("GET", "/api/items"), api("GET", "/api/evidence"), api("GET", "/api/drafts")]);
-      const [items, evidence, drafts] = data.map(r => r.status === "fulfilled" ? r.value : []);
-      records.push(...items.map(item => ({label: item.title + (item.org ? " · " + item.org : ""), kind: "Person / role", run: () => { S.recordQuery = item.title; go("people"); }})),
-        ...evidence.map(e => ({label: e.title, kind: "Evidence", run: () => { S.recordQuery = e.title; go("evidence"); }})),
-        ...drafts.map(d => ({label: d.body.slice(0, 90) || "Untitled draft", kind: "Draft", run: () => { S.draft.current = d; S.draft.action_id = d.action_id; S.draft.purpose = d.purpose; S.draft.audience = d.audience; go("drafts"); }})));
+      const data = await Promise.allSettled([api("GET", "/api/people"), api("GET", "/api/items"), api("GET", "/api/evidence"), api("GET", "/api/drafts")]);
+      const [people, items, evidence, drafts] = data.map((r) => (r.status === "fulfilled" ? r.value : []));
+      records.push(...people.map((p) => ({ label: p.name + (p.org ? " · " + p.org : ""), kind: "Person", run: () => go("person/" + p.id) })),
+        ...items.filter((i) => i.kind === "opportunity").map((item) => ({ label: item.title + (item.org ? " · " + item.org : ""), kind: "Role", run: () => { S.recordQuery = item.title; go("roles"); } })),
+        ...evidence.map((e) => ({ label: e.title, kind: "Evidence", run: () => { S.recordQuery = e.title; go("evidence"); } })),
+        ...drafts.map((d) => ({ label: d.body.slice(0, 90) || "Untitled draft", kind: "Draft", run: () => openDraft(d) })));
       if (dialog.open) show();
     };
     document.addEventListener("keydown", event => {
@@ -219,7 +235,7 @@
   // ---- status, sidebar, session timer ---------------------------------------------------
   async function refreshStatus() {
     const b = await api("GET", "/api/bootstrap");
-    Object.assign(S, { csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup });
+    Object.assign(S, { csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup, demo: !!b.demo, styles: b.companion_styles || [] });
     renderSide(); syncCompanion();
   }
   async function loadToday() {
@@ -235,7 +251,7 @@
   function renderSide() {
     const b = S.budget, level = b.level === "hard_stop" ? "bad" : b.level === "warn" ? "warn" : "";
     const mode = !S.ai.available ? ["AI is off", "bad"] : S.ai.mode === "mock" ? ["Mock AI", "warn"] : ["Live AI", ""];
-    const link = ([id, label, ic], minor) => h("a", { class: "nav-link" + (minor ? " minor" : ""), href: "#" + id, "aria-current": S.tab === id ? "page" : null }, icon(ic, minor ? 16 : 18), h("span", {text: label}));
+    const link = ([id, label, ic], minor) => h("a", { class: "nav-link" + (minor ? " minor" : ""), href: "#" + id, "aria-current": navId() === id ? "page" : null }, icon(ic, minor ? 16 : 18), h("span", {text: label}));
     let session = null;
     if (S.session) {
       const left = secondsLeft(), mins = Math.max(0, Math.ceil(left / 60));
@@ -244,7 +260,7 @@
         btn("End", endSession, "quiet"));
     }
     fill($("side-main"),
-      h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}), h("small", {text: "Your career, connected"}))),
+      h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}), h("small", {text: S.demo ? "Demo · fictional people" : "Your people, connected"}))),
       h("div", {class: "nav-caption", text: "Workspace"}), NAV.map((n) => link(n, false)), h("div", { class: "side-spacer" }), NAV_MINOR.map((n) => link(n, true)), session);
     renderMobileTabs();
     updateSetupCard();
@@ -264,21 +280,22 @@
     if (button) { button.setAttribute("aria-expanded", "false"); if (restoreFocus) button.focus(); }
   }
   function renderMobileTabs() {
-    const tabs = NAV.slice(0, 4).map(([id, label, ic]) => h("a", {
-      class: "mobile-tab", href: "#" + id, "aria-current": S.tab === id ? "page" : null,
+    const current = navId();
+    const tabs = NAV.map(([id, label, ic]) => h("a", {
+      class: "mobile-tab", href: "#" + id, "aria-current": current === id ? "page" : null,
       onclick: () => closeMore()
-    }, icon(ic, 21), h("span", {text: id === "people" ? "People" : label})));
-    const more = h("button", {id: "mobile-more-button", type: "button", class: "mobile-tab", "aria-expanded": String(moreOpen),
-      "aria-controls": "mobile-more", "aria-label": "More sections", "data-selected": String(!NAV.slice(0, 4).some(([id]) => id === S.tab)),
+    }, icon(ic, 21), h("span", { text: label })));
+    const more = h("button", { id: "mobile-more-button", type: "button", class: "mobile-tab", "aria-expanded": String(moreOpen),
+      "aria-controls": "mobile-more", "aria-label": "More sections", "data-selected": String(!NAV.some(([id]) => id === current)),
       onclick: () => {
         moreOpen = !moreOpen;
         $("mobile-more").classList.toggle("hidden", !moreOpen);
         more.setAttribute("aria-expanded", String(moreOpen));
       }
-    }, h("span", {class: "more-dots", "aria-hidden": "true", text: "•••"}), h("span", {text: "More"}));
+    }, h("span", { class: "more-dots", "aria-hidden": "true", text: "•••" }), h("span", { text: "More" }));
     fill($("mobile-tabs"), tabs, more);
-    fill($("mobile-more"), [NAV[4], ...NAV_MINOR].map(([id, label, ic]) => h("a", {
-      class: "mobile-more-link", href: "#" + id, "aria-current": S.tab === id ? "page" : null,
+    fill($("mobile-more"), NAV_MINOR.map(([id, label, ic]) => h("a", {
+      class: "mobile-more-link", href: "#" + id, "aria-current": current === id ? "page" : null,
       onclick: () => closeMore()
     }, icon(ic, 20), label)));
   }
@@ -290,11 +307,11 @@
   });
   // ---- setup progress -------------------------------------------------------------------
   const SETUP_GO = {
-    goal: ["Add a goal", () => { S.addKind = "goal"; S.open.add("addme"); go("me"); }],
+    goal: ["Add a goal", () => { S.addKind = "goal"; S.open.add("addme"); S.settingsTab = "you"; go("settings"); }],
     project: ["Add a project", () => { S.evidenceForm = true; go("evidence"); }],
     verified: ["Open Evidence", () => go("evidence")],
     profile: ["Paste it", () => { S.pasteKind = "profile_text"; go("pasted"); }],
-    person: ["Add one", () => { S.open.add("additem"); go("people"); }],
+    person: ["Add one", () => { S.addPerson = {}; go("people"); }],
   };
   function setupLabel() { return S.setup.done + " of " + S.setup.total + " steps"; }
   function progressBar(pct, cls) {
@@ -303,22 +320,8 @@
     bar.firstChild.style.width = pct + "%";
     return bar;
   }
-  // The sidebar card is built once and updated in place, so the bar slides when the number changes.
-  function updateSetupCard() {
-    const wrap = $("side-setup"), st = S.setup;
-    if (!st || !S.onboarding.done || (st.complete && !store.get("setupPinned", false))) { wrap.replaceChildren(); return; }
-    if (!wrap.firstChild) {
-      wrap.append(h("a", { class: "side-status side-setup", href: "#today", onclick: (e) => { e.preventDefault(); S.open.add("setup"); go("today"); } },
-        h("span", { class: "split" }, h("strong", { text: "Setup" }), h("strong", { class: "pct" })), progressBar(st.percent), h("span", { class: "detail muted steps" })));
-    }
-    const card = wrap.firstChild, bar = card.querySelector(".meter");
-    card.querySelector(".pct").textContent = st.percent + "%";
-    card.querySelector(".steps").textContent = st.complete ? "All " + st.total + " steps done" : setupLabel();
-    card.title = "Open the setup checklist";
-    bar.setAttribute("aria-valuenow", st.percent);
-    bar.setAttribute("aria-valuetext", st.percent + " percent, " + setupLabel());
-    bar.firstChild.style.width = st.percent + "%";
-  }
+  // Career setup now lives on the Career tools page, so the sidebar stays about people.
+  function updateSetupCard() { $("side-setup").replaceChildren(); }
   function setupChecklist() {
     const live = S.ai.available && S.ai.mode === "live";
     return h("ul", { class: "rows setup-list" },
@@ -327,7 +330,7 @@
         st.done ? chip("Done", "ok") : btn(SETUP_GO[st.id][0], SETUP_GO[st.id][1]))),
       h("li", { class: live ? "is-done" : "" }, icon(live ? "check" : "todo", 20),
         h("div", { class: "grow" }, h("div", { class: "t", text: "Optional: turn on live AI" }), h("div", { class: "muted small", text: "Not counted above. Unlocks real conversation and AI drafting. Mock mode is a complete setup." })),
-        live ? chip("On", "ok") : btn("How", () => go("settings"), "quiet")));
+        live ? chip("On", "ok") : btn("How", () => { S.settingsTab = "ai"; go("settings"); }, "quiet")));
   }
   function setupPanel() {
     return h("div", { class: "stack" }, h("div", { class: "setup-head" }, h("strong", { text: S.setup.percent + "% set up" }), h("span", { class: "muted", text: setupLabel() })),
@@ -367,7 +370,7 @@
   function say(role, text) {
     const el = h("div", { class: "msg " + role, text });
     $("chat-log").append(el);
-    el.scrollIntoView({ block: "end" });
+    if (!$("dock").inert) el.scrollIntoView({ block: "end" });
     fx("motion", ({ animate }) => animate(el, { opacity: [0, 1], transform: ["translateY(6px)", "translateY(0)"] }, { duration: 0.18 }));
     return el;
   }
@@ -386,7 +389,7 @@
       h("div", { text: what + " Nothing is saved until you say so." }),
       h("div", { class: "row" }, btn("Save it", () => decide(true), "dark"), btn("No thanks", () => decide(false))));
     $("chat-log").append(card);
-    card.scrollIntoView({ block: "end" });
+    if (!$("dock").inert) card.scrollIntoView({ block: "end" });
     syncCompanion();
   }
   function renderAttach() {
@@ -410,13 +413,13 @@
       const position = $("main").scrollTop;
       document.body.classList.toggle("dock-closed", !open);
       $("main").scrollTop = position;
-      if (open) $("chat-input").focus({preventScroll: true}); else $("dock-pill").focus({preventScroll: true});
+      if (open) { $("chat-log").scrollTop = $("chat-log").scrollHeight; $("chat-input").focus({preventScroll: true}); } else $("dock-pill").focus({preventScroll: true});
       return;
     }
 
     const finish = () => {
       document.body.classList.toggle("dock-closed", !open);
-      if (open) $("chat-input").focus(); else $("dock-pill").focus();
+      if (open) { $("chat-log").scrollTop = $("chat-log").scrollHeight; $("chat-input").focus(); } else $("dock-pill").focus();
     };
     if (reduced) { finish(); return; }
     if (open) document.body.classList.remove("dock-closed");
@@ -490,25 +493,43 @@
     if (question && !window.confirm(question)) return;
     const out = await act(() => api("POST", "/api/actions/" + action.id + "/state", { state }));
     if (!out) return;
-    if (state === "done") say("companion", "Marked done: " + action.title + ". When you hear back, record it under People & roles.");
+    if (state === "done") say("companion", "Marked done: " + action.title + ".");
     render();
   }
-  function openFor(action) {
-    if (action.kind === "job_compare") { S.pasteKind = "job_description"; go("pasted"); return; }
-    Object.assign(S.draft, { action_id: action.id, purpose: KIND_TO_PURPOSE[action.kind] || "outreach", current: null });
+  function openDraft(d) {
+    const D = S.draft;
+    if (D.item_id !== (d.item_id || null)) { D.interaction_ids.clear(); Object.assign(D, { instruction: "", shareable_note: "", include_item_context: false }); }
+    Object.assign(D, { current: d, action_id: d.action_id, item_id: d.item_id || null, purpose: d.purpose, audience: d.audience });
     go("drafts");
   }
-  async function startSession(action) {
+  // `item` is the person or role the to-do belongs to, when there is one.
+  function openFor(action, item) {
+    if (item && item.kind === "relationship") { go("person/" + item.id); return; }
+    if (action.kind === "job_compare") { S.pasteKind = "job_description"; go("pasted"); return; }
+    Object.assign(S.draft, { action_id: action.id, item_id: null, purpose: KIND_TO_PURPOSE[action.kind] || "outreach", current: null });
+    S.draft.interaction_ids.clear();
+    go("drafts");
+  }
+  async function startSession(action, item) {
     const session = await act(() => api("POST", "/api/session/start", { minutes: S.minutes, action_id: action.id }));
     if (!session) return;
     S.session = session;
-    say("companion", action.kind === "job_compare"
-      ? S.minutes + " minutes on: " + action.title + ". Paste the job description and I'll line it up against your evidence."
-      : S.minutes + " minutes on: " + action.title + ". Pick the evidence to lean on, then write it yourself or with me. I'll keep your place.");
+    say("companion", item && item.kind === "relationship" ? S.minutes + " minutes on: " + action.title + ". I've opened what you recorded, so you can pick up from there."
+      : action.kind === "job_compare" ? S.minutes + " minutes on: " + action.title + ". Paste the job description and I'll line it up against your evidence."
+      : S.minutes + " minutes on: " + action.title + ". Write it yourself or with me. I'll keep your place.");
     renderSide();
-    openFor(action);
+    openFor(action, item);
   }
-  function go(tab) { if (window.location.hash === "#" + tab) { S.tab = tab; render(); } else window.location.hash = tab; }
+  function applyRoute() {
+    const [name, arg] = window.location.hash.replace("#", "").split("/");
+    if (name === "me") { S.tab = "settings"; S.settingsTab = "you"; S.arg = null; return; }
+    S.tab = RENDERERS[name] ? name : "today";
+    S.arg = arg && /^\d+$/.test(arg) ? Number(arg) : null;
+    if (name === "settings" && SETTINGS_TABS.some(([id]) => id === arg)) S.settingsTab = arg;
+    if (name === "people" && (arg === "all" || CATEGORY[arg])) S.peopleFilter = arg;
+    if (S.tab === "person" && !S.arg) S.tab = "people";
+  }
+  function go(target) { if (window.location.hash === "#" + target) { applyRoute(); render(); } else window.location.hash = target; }
   function dueText(deadline, today) {
     const days = Math.round((Date.parse(deadline) - Date.parse(today)) / 86400000);
     if (days < 0) return "Overdue by " + plural(-days, "day", "days");
@@ -518,14 +539,14 @@
     return "Due " + (days < 7 ? d.toLocaleDateString(undefined, { weekday: "long" }) : d.toLocaleDateString(undefined, { day: "numeric", month: "short" }));
   }
   function sampleNotice() {
-    return S.hasSample ? h("div", { class: "notice warn center" }, icon("info", 18), h("span", { class: "grow", text: "Sample data is loaded. Anything marked [SAMPLE] is fictional." }),
+    return S.hasSample && !S.demo ? h("div", { class: "notice warn center" }, icon("info", 18), h("span", { class: "grow", text: "Sample data is loaded. Anything marked [SAMPLE] is fictional." }),
       btn("Remove it", async () => { await act(() => api("POST", "/api/sample/remove"), "Sample data removed."); await refreshStatus(); render(); }, "quiet")) : null;
   }
 
-  // ---- onboarding: the companion, one question at a time ---------------------------------
+  // ---- onboarding: two short questions, each skippable ------------------------------------
   function renderOnboarding(root) {
     const o = S.onboarding;
-    const answer = h("textarea", { id: "onb-answer", rows: 3, maxlength: 4000, "aria-describedby": "onb-hint" });
+    const answer = h("textarea", { id: "onb-answer", rows: 2, maxlength: 4000, "aria-describedby": "onb-hint", placeholder: "Or say it in your own words…" });
     const submit = async (text) => {
       const next = await act(() => api("POST", "/api/onboarding/answer", { text }));
       if (!next) return;
@@ -533,22 +554,28 @@
       if (next.done) {
         document.body.classList.remove("onboarding");
         await render();
-        say("companion", "Thanks. That's saved under About me, where you can change or delete any of it.");
+        say("companion", "Thanks. That's saved in Settings, where you can change or delete it at any time.");
         await greet();
       } else { await render(); }
     };
+    const options = h("div", { class: "onb-options", role: "group", "aria-label": "Suggested answers" }, o.options.map((opt) =>
+      h("button", { type: "button", class: "onb-option", "aria-pressed": "false", onclick: (e) => {
+        for (const b of options.children) b.setAttribute("aria-pressed", String(b === e.currentTarget));
+        answer.value = opt; answer.focus();
+      } }, opt)));
+    answer.addEventListener("input", () => { for (const b of options.children) b.setAttribute("aria-pressed", String(b.textContent === answer.value)); });
     answer.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(answer.value.trim()); } });
     root.append(h("section", { class: "onb", "aria-labelledby": "onb-q" },
-      h("div", { class: "onb-who" }, h("span", { class: "orb is-ready" }, orbSvg(56)), h("div", {}, h("div", { class: "name", text: "Tempo" }), h("div", { class: "muted small", text: "Your career companion" }))),
-      o.step === 0 ? h("p", { text: "I keep your place, tell you the one thing I'd do next, and push back when a claim isn't backed up. I can't see LinkedIn or your inbox, and I never send anything. You do that." }) : null,
+      h("div", { class: "onb-who" }, h("span", { class: "orb is-ready" }, orbSvg(56)), h("div", {}, h("div", { class: "name", text: "Tempo" }), h("div", { class: "muted small", text: "Your companion in Link" }))),
+      o.step === 0 ? h("p", { text: "I help you keep track of the people you meet and what you meant to do next. I only know what you tell me: I can't see your contacts, your inbox or any social network, and I never send anything. You do that." }) : null,
       h("div", { class: "onb-progress" }, h("span", { text: "Question " + (o.step + 1) + " of " + o.total }),
         h("div", { class: "onb-bar", "aria-hidden": "true" }, Array.from({ length: o.total }, (_, i) => h("span", { class: i <= o.step ? "done" : "" })))),
       h("h1", { id: "onb-q" }, h("label", { for: "onb-answer", text: o.question })),
-      answer, h("p", { id: "onb-hint", class: "muted small", text: o.hint || "" }),
+      options, answer, h("p", { id: "onb-hint", class: "muted small", text: o.hint || "" }),
       h("div", { class: "row" }, btn("Continue", () => submit(answer.value.trim()), "primary big"), btn("Skip", () => submit(""), "quiet")),
-      help("Where do my answers go?", "They're saved on this Mac under About me. You can edit or delete any of them later, and skipping is fine.",
-        "They help with planning only. They are never passed to drafting.")));
-    setTimeout(() => answer.focus(), 0);
+      help("Where do my answers go?", "They're saved on this Mac, under Settings. You can edit or delete them later, and skipping is fine.",
+        "They shape how Tempo plans with you. They are never passed to drafting.")));
+    setTimeout(() => { const first = options.querySelector("button"); (first || answer).focus(); }, 0);
   }
 
   // ---- Today ----------------------------------------------------------------------------
@@ -572,8 +599,8 @@
       onclick: (e) => { const open = target.classList.toggle("hidden") === false; e.currentTarget.setAttribute("aria-expanded", String(open)); } }, label, icon("down", 14));
     const dealt = h("div", { class: "row hidden", id: "dealt" },
       a.state === "drafted" ? btn("I've reviewed it", () => setState(a, "reviewed")) : null,
-      btn("I did this", () => setState(a, "done", "Mark as done? Only once you've actually sent, applied, or updated it yourself.")),
-      btn("Drop it", () => setState(a, "dropped", "Drop this? You can bring it back from People & roles.")));
+      btn("I did this", () => setState(a, "done", "Mark as done? Only once you've actually done it yourself.")),
+      btn("Drop it", () => setState(a, "dropped", "Drop this? It stays in your records and won't be suggested again.")));
     const meta = [option.item ? clean(option.item.title) + (option.item.org ? " at " + option.item.org : "") : null,
       a.deadline ? dueText(a.deadline, today) : null, "About " + a.effort_min + " minutes"].filter(Boolean).join(". ") + ".";
     return h("section", { class: "hero", "aria-labelledby": "hero-title" },
@@ -583,55 +610,53 @@
         timePicker(running), h("p", {class: "focus-caption", text: "A little time for what’s next."})),
       h("div", { class: "hero-body" },
         h("div", { class: "row" }, h("span", { class: "eyebrow accent", text: a.state === "suggested" ? "Start here" : "Pick up where you left off" }),
-          a.is_sample ? chip("Sample data", "warn") : null, a.commitment ? chip("You committed to this") : null),
+          a.is_sample ? chip(S.demo ? "Fictional" : "Sample data", "warn") : null, a.commitment ? chip("You committed to this") : null),
         h("h1", { id: "hero-title", text: clean(a.title) }),
-        h("p", { class: "hero-task", text: "One concrete step toward your next chapter." }),
+        h("p", { class: "hero-task", text: option.reasons[0] || "It's the next thing you set for yourself." }),
         h("p", { class: "hero-meta", text: meta }),
         h("div", { class: "well" }, icon("bookmark", 18), h("div", { class: "grow" }, h("div", { class: "muted small", text: "You left it at" }), note)),
         h("div", { class: "row" },
-          running ? [h("button", { type: "button", class: "btn primary big", onclick: () => openFor(a) }, playIcon(), "Continue"), btn("End session", endSession, "big")]
-            : [h("button", { type: "button", class: "btn primary big", onclick: () => startSession(a) }, playIcon(), "Start " + S.minutes + "-minute session"),
+          running ? [h("button", { type: "button", class: "btn primary big", onclick: () => openFor(a, option.item) }, playIcon(), "Continue"), btn("End session", endSession, "big")]
+            : [h("button", { type: "button", class: "btn primary big", onclick: () => startSession(a, option.item) }, playIcon(), "Start " + S.minutes + "-minute session"),
                btn("Not today", () => { S.skipped.add(a.id); render(); }, "big")]),
         h("div", { class: "row" }, toggle("Why this one?", reasons), toggle("Already dealt with it?", dealt)),
         reasons, dealt));
   }
-  function firstSteps() {
+  function firstSteps(view) {
     const step = (primary, ic, title, sub, onclick) => h("button", { type: "button", class: "first-step" + (primary ? " primary" : ""), onclick }, icon(ic, 22), h("span", {}, h("b", { text: title }), h("span", { text: sub })));
+    const fresh = !view.people && !view.unassigned_logs;
     return h("section", { class: "state" },
-      h("h1", { text: "Nothing's waiting on you." }),
-      h("p", { class: "hero-meta", text: S.setup.complete ? "Add a to-do below when something real comes up." : "Give me one real thing to work with and I'll take it from there." }),
-      S.setup.complete ? null : setupPanel(),
-      step(false, "evidence", "Import a starter file", "One step. Loads projects, goals and to-dos prepared for you.", () => { S.open.add("starter"); go("settings"); }),
-      S.hasSample ? null : h("div", {}, btn("Or look around with labelled sample data", async () => { await act(() => api("POST", "/api/sample/load")); await refreshStatus(); await render(); await greet(); }, "quiet")));
+      h("h1", { text: fresh ? "Start with one person." : "Nothing's waiting on you." }),
+      h("p", { class: "hero-meta", text: fresh ? "Link only knows what you tell it. It can't see your contacts, your inbox or any social network, and it never sends anything."
+        : "No need to invent work. Capture something when it happens, or set a next action for someone when you mean to do it." }),
+      step(true, "log", "Log someone you met", "Write what you remember. Rough is fine.", () => openQuickLog(null)),
+      step(false, "plus", "Add someone you'd like to meet", "A name is enough for now.", () => { S.addPerson = { category: "want_to_meet" }; go("people"); }));
   }
   async function renderToday(root) {
-    const [view, ideas, items, evidence, drafts] = await Promise.all([loadToday(), api("GET", "/api/ideas"), api("GET", "/api/items"), api("GET", "/api/evidence"), api("GET", "/api/drafts")]);
+    const [view, ideas, items] = await Promise.all([loadToday(), api("GET", "/api/ideas"), api("GET", "/api/items")]);
     const all = [view.recommended].concat(view.alternatives).filter(Boolean);
     const options = all.filter((o) => !S.skipped.has(o.action.id));
     const date = new Date(view.today + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-    const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", {class: "workspace-label", text: "YOUR SPACE TO MOVE FORWARD"}), h("span", {text: date})), sampleNotice());
+    const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", { class: "workspace-label", text: "TODAY" }), h("span", { text: date })), sampleNotice());
     root.append(page);
     if (options.length) page.append(hero(options[0], view.today));
     else if (all.length) page.append(h("section", { class: "state" }, h("h1", { text: "That's everything set aside for today." }),
       h("p", { class: "hero-meta", text: "Nothing was changed. Your to-dos are still there." }), h("div", {}, btn("Show them again", () => { S.skipped.clear(); render(); }))));
-    else page.append(firstSteps());
+    else page.append(firstSteps(view));
 
-    const summaries = [
-      ["people", "Connections & roles", items.length, "people"],
-      ["evidence", "Evidence collected", evidence.length, "evidence"],
-      ["drafts", "Drafts in your voice", drafts.length, "drafts"]
-    ];
-    page.append(h("section", {class: "workspace-overview", "aria-label": "Your workspace at a glance"},
-      summaries.map(([tab, label, count, ic]) => h("a", {class: "overview-item", href: "#" + tab},
-        h("span", {class: "overview-icon " + tab}, icon(ic, 20)),
-        h("span", {class: "grow"}, h("span", {class: "overview-count", text: String(count)}), h("span", {class: "overview-label", text: label})), icon("down", 16)))));
+    const summaries = [["people", view.people === 1 ? "person" : "people", view.people, "person", "Open People"],
+      ["log", view.unassigned_logs === 1 ? "log waiting for a person" : "logs waiting for a person", view.unassigned_logs, "log", "Open Quick log"],
+      ["career", "Career tools", "", "career", "Roles, evidence and drafts"]];
+    page.append(h("section", { class: "workspace-overview", "aria-label": "Your workspace at a glance" },
+      summaries.map(([tab, label, count, ic, title]) => h("a", { class: "overview-item", href: "#" + tab, title },
+        h("span", { class: "overview-icon " + tab }, icon(ic, 20)),
+        h("span", { class: "grow" }, count === "" ? null : h("span", { class: "overview-count", text: String(count) }), h("span", { class: "overview-label", text: label })), icon("down", 16)))));
     const rest = options.slice(1);
     const tucked = h("section", { class: "section", "aria-label": "Everything else" }, h("div", { class: "eyebrow", text: "Next, at your pace" }));
     const list = h("div", {});
-    if (all.length && !S.setup.complete) list.append(disc("setup", "Finish setup", setupLabel() + " · " + S.setup.percent + "%", setupChecklist()));
     if (rest.length) list.append(disc("others", plural(rest.length, "other thing", "other things") + " you could do", rest.map((o) => o.action.title.replace("[SAMPLE] ", "")).join("; "),
       h("ul", { class: "rows" }, rest.map((o) => h("li", {}, h("div", { class: "grow" }, h("div", { text: o.action.title }), h("div", { class: "muted small", text: o.reasons.slice(0, 2).join(" ") })),
-        btn("Do this instead", () => startSession(o.action)))))));
+        btn("Do this instead", () => startSession(o.action, o.item)))))));
     if (view.reminders.length) list.append(disc("reminders", plural(view.reminders.length, "reminder", "reminders") + " due", view.reminders[0].text,
       h("ul", { class: "rows" }, view.reminders.map((r) => h("li", {}, h("span", { class: "grow" }, r.text, " ", h("span", { class: "muted small", text: r.due_on })),
         h("span", { class: "row" }, btn("Done", async () => { await act(() => api("POST", "/api/reminders/" + r.id + "/done")); render(); }),
@@ -658,7 +683,7 @@
       field("What needs doing", h("input", { required: true, maxlength: 200, oninput: (e) => { f.title = e.target.value; } })),
       h("div", { class: "grid2" },
         field("Type", select(S.enums.action_kinds.map((k) => [k, k.replace("_", " ")]), f.kind, (v) => { f.kind = v; })),
-        field("About", select([["", "Nothing specific"]].concat(items.map((i) => [i.id, i.title])), "", (v) => { f.item_id = v; })),
+        field("About", select([["", "No one in particular"]].concat(items.map((i) => [i.id, i.title])), "", (v) => { f.item_id = v; })),
         field("Importance", select([[3, "High"], [2, "Medium"], [1, "Low"]], 2, (v) => { f.importance = v; })),
         field("Minutes needed", h("input", { type: "number", min: 5, max: 240, value: 15, oninput: (e) => { f.effort_min = e.target.value; } })),
         field("Deadline (optional)", h("input", { type: "date", oninput: (e) => { f.deadline = e.target.value; } }))),
@@ -674,7 +699,7 @@
       h("div", { class: "row" }, h("button", { type: "submit", class: "btn" }, "Set reminder"), h("span", { class: "muted small", text: "Shows up when you open the app. No notifications." })));
   }
 
-  // ---- People & roles -------------------------------------------------------------------
+  // ---- Roles: posting comparison and to-do rows ----------------------------------------
   function compareTable(result) {
     return h("div", { class: "stack" }, h("p", { text: result.summary }),
       h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ["They ask for", "Your evidence", "Gap"].map((t) => h("th", { scope: "col", text: t })))),
@@ -704,56 +729,59 @@
       shown ? compareTable(shown) : null,
       help("Replace the posting", saveBox));
   }
-  function todoRow(a, deletable) {
+  function todoRow(a, deletable, item) {
     const closed = a.state === "done" || a.state === "dropped";
     return h("li", {}, h("span", { class: "grow" }, a.title, " ", chip(STATE[a.state], a.state === "done" ? "ok" : "")),
       h("span", { class: "row" },
-        closed ? btn(a.state === "done" ? "Undo done" : "Bring back", () => setState(a, a.state === "done" ? "reviewed" : "suggested")) : btn("Work on it", () => startSession(a)),
+        closed ? btn(a.state === "done" ? "Undo done" : "Bring back", () => setState(a, a.state === "done" ? "reviewed" : "suggested")) : btn("Work on it", () => startSession(a, item)),
         deletable ? btn("Delete", async () => { if (window.confirm("Delete this to-do?")) { await act(() => api("DELETE", "/api/actions/" + a.id)); render(); } }, "quiet") : null));
   }
-  async function renderPeople(root) {
-    const [items, actions] = await Promise.all([api("GET", "/api/items"), api("GET", "/api/actions")]);
-    const page = h("div", { class: "page" }, pageHead("People & roles", "Who you're talking to, what you're going for, and what happened.",
-      help("What do outcomes mean?", "One click records what you observed: a reply, an interview, silence.", "It's a record, not proof that any particular wording caused it.")), sampleNotice());
+  // ---- Roles (career tools): outcomes such as interviews and offers live here ------------
+  async function renderRoles(root) {
+    const [all, actions] = await Promise.all([api("GET", "/api/items"), api("GET", "/api/actions")]);
+    const items = all.filter((it) => it.kind === "opportunity");
+    const page = h("div", { class: "page" }, pageHead("Roles", "What you're going for, and what happened.",
+      help("What do outcomes mean?", "One click records what you observed: a reply, an interview, silence.", "It's a record, not proof that any particular wording caused it. Each one can be undone.")), sampleNotice());
     root.append(page);
     const f = { kind: "opportunity", title: "", org: "", posting: "" };
-    const postingField = field("Job posting (optional): paste the whole thing, requirements included",
-      h("textarea", { rows: 4, maxlength: 60000, oninput: (e) => { f.posting = e.target.value; } }));
     const addForm = h("form", { class: "panel", onsubmit: async (e) => {
       e.preventDefault();
-      const body = { ...f, posting: f.kind === "opportunity" ? f.posting : "" };
-      if (await act(() => api("POST", "/api/items", body), body.posting.trim() ? "Added, with its posting." : "Added.")) render();
+      if (await act(() => api("POST", "/api/items", f), f.posting.trim() ? "Added, with its posting." : "Added.")) render();
     } },
       h("div", { class: "grid2" },
-        field("Type", select([["opportunity", "Role or programme"], ["relationship", "Person"]], f.kind, (v) => { f.kind = v; postingField.classList.toggle("hidden", v !== "opportunity"); })),
-        field("Name or title", h("input", { required: true, maxlength: 200, oninput: (e) => { f.title = e.target.value; } })),
+        field("Role or programme", h("input", { required: true, maxlength: 200, oninput: (e) => { f.title = e.target.value; } })),
         field("Organisation", h("input", { maxlength: 200, oninput: (e) => { f.org = e.target.value; } }))),
-      postingField,
-      h("div", {}, h("button", { type: "submit", class: "btn primary" }, "Add")));
-    if (!items.length) page.append(h("section", { class: "section" }, h("h3", { text: "No one here yet" }), h("p", { class: "muted", text: "Add the first person or role you're actually pursuing." }), addForm));
+      field("Job posting (optional): paste the whole thing, requirements included", h("textarea", { rows: 4, maxlength: 60000, oninput: (e) => { f.posting = e.target.value; } })),
+      h("div", {}, h("button", { type: "submit", class: "btn primary" }, "Add role")));
+    if (!items.length) page.append(h("section", { class: "section" }, h("h3", { text: "No roles yet" }), h("p", { class: "muted", text: "Add a role you're actually pursuing. People live under People." }), addForm));
     const listing = h("div", {});
     for (const it of items) {
       const edit = { ...it };
+      const record = async (t) => {
+        const made = await act(() => api("POST", "/api/outcomes", { item_id: it.id, type: t }));
+        if (!made) return;
+        toast("Recorded: " + OUTCOME[t] + ".", { label: "Undo", run: async () => { await act(() => api("DELETE", "/api/outcomes/" + made.id)); render(); } });
+        render();
+      };
+      const remove = async (o) => {
+        if (!(await act(() => api("DELETE", "/api/outcomes/" + o.id)))) return;
+        toast("Removed: " + (OUTCOME[o.type] || o.type) + ".", { label: "Put it back", run: async () => { await act(() => api("POST", "/api/outcomes", { item_id: it.id, type: o.type, note: o.note, occurred_on: o.occurred_on })); render(); } });
+        render();
+      };
       listing.append(h("section", { class: "entry" },
         h("div", { class: "row spread" }, h("h3", { text: it.title + (it.org ? " · " + it.org : "") }),
-          h("span", { class: "row" }, chip(it.kind === "relationship" ? "Person" : "Role"), chip(it.status, it.status === "active" ? "ok" : ""), it.is_sample ? chip("Sample data", "warn") : null)),
-        h("div", {class: "relationship-summary"},
-          h("div", {}, h("span", {class: "eyebrow", text: "Last recorded interaction"}),
-            h("p", {text: it.outcomes.length ? OUTCOME[it.outcomes[0].type] + " · " + it.outcomes[0].occurred_on : "No interaction recorded"})),
-          h("div", {}, h("span", {class: "eyebrow", text: "Next action"}),
-            h("p", {text: (it.actions.find(a => !["done","dropped"].includes(a.state)) || {}).title || "No next action set"}))),
-        btn("Discuss " + it.title.replace("[SAMPLE] ", ""), () => {
-          S.contextItem = {id: it.id, title: it.title};
-          updateContextNote(); setDock(true);
-          $("chat-input").placeholder = "Ask about " + it.title;
-        }, "quiet"),
+          h("span", { class: "row" }, chip(it.status, it.status === "active" ? "ok" : ""), it.is_sample ? chip("Sample data", "warn") : null)),
+        h("div", { class: "relationship-summary" },
+          h("div", {}, h("span", { class: "eyebrow", text: "Last recorded outcome" }),
+            h("p", { text: it.outcomes.length ? (OUTCOME[it.outcomes[0].type] || it.outcomes[0].type) + " · " + it.outcomes[0].occurred_on : "Nothing recorded" })),
+          h("div", {}, h("span", { class: "eyebrow", text: "Next to-do" }),
+            h("p", { text: (it.actions.find((a) => !["done", "dropped"].includes(a.state)) || {}).title || "Nothing set" }))),
+        btn("Discuss " + it.title.replace("[SAMPLE] ", "") + " with Tempo", () => { syncScope({ id: it.id, title: it.title }, "roles"); setDock(true); }, "quiet"),
         h("div", { class: "row" }, h("span", { class: "muted small", text: "What happened?" }),
-          S.enums.outcome_types.filter((t) => t !== "other").map((t) => btn(OUTCOME[t], async () => {
-            if (await act(() => api("POST", "/api/outcomes", { item_id: it.id, type: t }), "Recorded: " + OUTCOME[t] + ".")) render();
-          }))),
+          S.enums.outcome_types.filter((t) => t !== "other").map((t) => btn(OUTCOME[t], () => record(t)))),
         it.outcomes.length ? h("div", { class: "row small" }, it.outcomes.map((o) => h("span", { class: "row" },
-          chip(OUTCOME[o.type] + " · " + o.occurred_on, ["interview", "offer", "reply"].includes(o.type) ? "ok" : ""),
-          btn("Undo", async () => { await act(() => api("DELETE", "/api/outcomes/" + o.id)); render(); }, "quiet")))) : null,
+          chip((OUTCOME[o.type] || o.type) + " · " + o.occurred_on, ["interview", "offer", "reply"].includes(o.type) ? "ok" : ""),
+          btn("Undo", () => remove(o), "quiet")))) : null,
         it.actions.length ? h("ul", { class: "rows" }, it.actions.map((a) => todoRow(a, false))) : null,
         postingBlock(it),
         help("Notes and details", h("div", { class: "stack" },
@@ -763,12 +791,392 @@
           h("div", { class: "row" },
             btn("Save", async () => { const body = { kind: edit.kind, title: edit.title, org: edit.org, private_notes: edit.private_notes, shareable_context: edit.shareable_context, status: edit.status };
               if (await act(() => api("PUT", "/api/items/" + it.id, body), "Saved.")) render(); }, "primary"),
-            btn("Delete", async () => { if (window.confirm("Delete this and its outcome history?")) { await act(() => api("DELETE", "/api/items/" + it.id)); render(); } }, "danger"))))));
+            btn("Delete", async () => { if (window.confirm("Delete this role and its outcome history?")) { await act(() => api("DELETE", "/api/items/" + it.id)); render(); } }, "danger"))))));
     }
     page.append(listing);
     const loose = actions.filter((a) => !a.item_id);
     if (loose.length) page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Other to-dos" }), h("ul", { class: "rows" }, loose.map((a) => todoRow(a, true)))));
-    if (items.length) page.append(h("div", {}, disc("additem", "Add a person or role", "", addForm)));
+    if (items.length) page.append(h("div", {}, disc("additem", "Add a role", "", addForm)));
+  }
+  async function renderCareer(root) {
+    const [items, evidence, drafts, imports] = await Promise.all([api("GET", "/api/items"), api("GET", "/api/evidence"), api("GET", "/api/drafts"), api("GET", "/api/imports")]);
+    const counts = { roles: items.filter((i) => i.kind === "opportunity").length, evidence: evidence.length, drafts: drafts.length, pasted: imports.length };
+    const about = { roles: "What you're going for, postings and outcomes", evidence: "What you can truthfully say about your work", drafts: "Profile text, applications and messages", pasted: "Job descriptions and other reference text" };
+    const page = h("div", { class: "page" }, pageHead("Career tools", "For job searching: roles, evidence of your work, drafts and pasted material. Everything you saved here is unchanged."), sampleNotice());
+    root.append(page);
+    page.append(h("section", { class: "workspace-overview career-grid", "aria-label": "Career tools" },
+      CAREER.map(([tab, label, ic]) => h("a", { class: "overview-item", href: "#" + tab },
+        h("span", { class: "overview-icon " + tab }, icon(ic, 20)),
+        h("span", { class: "grow" }, h("span", { class: "overview-count", text: String(counts[tab]) }), h("span", { class: "overview-label", text: label }), h("span", { class: "overview-about", text: about[tab] })), icon("down", 16)))));
+    if (S.setup) page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Career setup (optional)" }),
+      h("p", { class: "muted small", text: "Only needed if you want help with profile text, applications or comparing postings." }), setupPanel()));
+  }
+
+  // ---- People, the person view and quick logs -------------------------------------------
+  const fmtDate = (iso) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  // An approximate date is shown in the user's own words. No date is ever made up for it.
+  function whenLabel(e) {
+    if (e.when_kind === "exact" && e.occurred_on) return fmtDate(e.occurred_on);
+    if (e.when_kind === "approx") return "Roughly: " + e.when_text;
+    return "Date not recorded";
+  }
+  function lastLabel(last) {
+    if (!last) return "Nothing recorded yet";
+    return whenLabel(last) + " · " + (last.type === "outcome" ? "recorded as “" + last.original_label + "”" : (SOURCE[last.source] || "").toLowerCase());
+  }
+  const whenBody = (w) => ({ kind: w.kind, date: w.kind === "date" ? (w.date || null) : null, text: w.kind === "approx" ? w.text : "" });
+  function whenPicker(when, onchange) {
+    const changed = () => { if (onchange) onchange(); };
+    const text = h("input", { maxlength: 80, value: when.text || "", placeholder: "last week, early October, sometime in spring…", "aria-label": "Roughly when, in your own words", oninput: (e) => { when.text = e.target.value; changed(); } });
+    const date = h("input", { type: "date", value: when.date || "", "aria-label": "The date it happened", oninput: (e) => { when.date = e.target.value; changed(); } });
+    const sync = () => { text.classList.toggle("hidden", when.kind !== "approx"); date.classList.toggle("hidden", when.kind !== "date"); };
+    sync();
+    return h("div", { class: "stack when-picker" },
+      field("When was it? (optional)", select([["unknown", "Not sure"], ["today", "Today"], ["yesterday", "Yesterday"], ["approx", "Roughly… (your words)"], ["date", "On a specific date"]], when.kind, (v) => { when.kind = v; sync(); changed(); })),
+      text, date);
+  }
+
+  // The one capture form, used on the Quick log page and in the dialog opened from any screen.
+  function quickLogForm(people, opts) {
+    const blank = () => ({ note: "", item_id: opts.personId ? String(opts.personId) : "", when: { kind: "unknown", date: "", text: "" }, exchange: "", keep: false });
+    const f = opts.remember ? (S.logDraft = S.logDraft || blank()) : blank();
+    const state = { dirty: !!(f.note.trim() || f.exchange.trim()) };
+    const box = h("div", { class: "stack quicklog" });
+    const retained = h("p", { class: "small", role: "status" });
+    const describe = () => {
+      state.dirty = !!(f.note.trim() || f.exchange.trim());
+      retained.textContent = !f.exchange.trim() ? ""
+        : !f.note.trim() ? "What will be kept: the pasted text itself, because you haven't written a note."
+        : f.keep ? "What will be kept: your note and the full pasted text."
+        : "What will be kept: your note" + (S.ai.available ? ", plus a summary if you approve one" : "") + ". The pasted text is discarded once you're done here.";
+    };
+    const note = h("textarea", { id: opts.id, rows: 4, maxlength: 6000, value: f.note,
+      placeholder: "Rough is fine. Met Maya at a campus event last week. Analytics, possibly healthcare. Think I offered to send my dashboard…",
+      oninput: (e) => { f.note = e.target.value; describe(); } });
+    const exchange = h("textarea", { rows: 4, maxlength: 30000, "aria-label": "Pasted exchange", value: f.exchange, placeholder: "Paste the messages here…", oninput: (e) => { f.exchange = e.target.value; describe(); } });
+    const radio = (value, label) => h("label", { class: "check" }, h("input", { type: "radio", name: opts.id + "-keep", checked: f.keep === value, onchange: () => { f.keep = value; describe(); } }), label);
+
+    const proposal = (entry, s) => {
+      const p = { summary: s.context, uncertain: s.uncertain.join("\n"), commitments: s.possible_commitments.join("\n"), next_steps: s.next_steps.join("\n"), answer: "" };
+      const area = (label, key, rows) => field(label, h("textarea", { rows, maxlength: 3000, value: p[key], oninput: (e) => { p[key] = e.target.value; } }));
+      state.dirty = true;
+      const heading = h("h3", { tabindex: "-1", text: S.ai.mode === "mock" ? "A rough sort (mock AI)" : "How Tempo would sort it" });
+      fill(box,
+        h("div", { class: "notice ok" }, icon("check", 18), "Your note is saved as you wrote it" + (entry.item_id ? "." : ", with no person chosen yet.")),
+        heading,
+        h("p", { class: "muted small", text: "Nothing below is kept until you choose Save this summary. Fix anything that's wrong first." }),
+        area("What happened", "summary", 3),
+        area("Not sure about (one per line)", "uncertain", 2),
+        area("Possible commitments (one per line)", "commitments", 2),
+        h("p", { class: "muted small", text: "Possible commitments stay as notes. Nothing becomes a task or reminder unless you set it as a next action yourself." }),
+        area("Ideas for a next step (optional)", "next_steps", 2),
+        s.clarification ? h("div", { class: "panel" }, h("p", {}, h("strong", { text: "Tempo asks: " }), s.clarification),
+          field("Your answer (optional: you can save without it)", h("input", { maxlength: 300, oninput: (e) => { p.answer = e.target.value; } }))) : null,
+        h("div", { class: "row" },
+          btn("Save this summary", async () => {
+            const body = { summary: p.summary, uncertain: p.uncertain, commitments: p.commitments, next_steps: p.next_steps };
+            if (p.answer.trim()) body.note = ((entry.note ? entry.note + "\n" : "") + s.clarification + " " + p.answer.trim()).slice(0, 6000);
+            if (!(await act(() => api("PUT", "/api/logs/" + entry.id, body), "Summary saved."))) return;
+            state.dirty = false; opts.onSaved(entry);
+          }, "primary"),
+          btn("Keep just my note", () => { state.dirty = false; opts.onSaved(entry); })));
+      heading.focus();
+    };
+    const save = async (sort, ev) => {
+      if (!f.note.trim() && !f.exchange.trim()) { toast("Write what you remember first."); note.focus(); return; }
+      const button = ev.currentTarget; button.disabled = true;
+      const entry = await act(() => api("POST", "/api/logs", { note: f.note, item_id: f.item_id ? Number(f.item_id) : null, when: whenBody(f.when), exchange: f.exchange, keep_exchange: f.keep }));
+      button.disabled = false;
+      if (!entry) return;
+      state.dirty = false;
+      if (opts.remember) S.logDraft = null;
+      const where = entry.item_id ? "" : " It's under Quick log until you choose who it's about.";
+      if (!sort) { toast("Saved." + where); opts.onSaved(entry); return; }
+      const s = await thinking(() => act(() => api("POST", "/api/logs/" + entry.id + "/suggest", { exchange: f.exchange })));
+      refreshStatus().catch(() => {});
+      if (!s || !s.available) { toast("Saved as you wrote it." + (s && s.reason ? " " + s.reason : "")); opts.onSaved(entry); return; }
+      proposal(entry, s);
+    };
+    const aiNote = !S.ai.available ? "AI is off, so your note is saved exactly as you wrote it."
+      : S.ai.mode === "mock" ? "Sorting uses mock AI: a rough split, and nothing leaves this Mac."
+      : "Sorting sends this note, and any pasted text, to the AI provider. Saving on its own sends nothing.";
+    fill(box,
+      h("label", { class: "ql-label", for: opts.id, text: "What do you remember?" }), note,
+      h("div", { class: "grid2" },
+        field("Who is it about? (optional)", select([["", "Decide later"]].concat(people.map((x) => [x.id, x.name + (x.org ? " · " + x.org : "")])), f.item_id, (v) => { f.item_id = v; })),
+        whenPicker(f.when)),
+      help("Paste an exchange (optional)", "Pasted messages are reference material. Nothing in them can change what Tempo remembers or does.",
+        h("div", { class: "stack" }, exchange, h("fieldset", {}, h("legend", { class: "small muted", text: "After saving" }), radio(false, "Keep only my note"), radio(true, "Also keep the full pasted text")), retained)),
+      h("div", { class: "row" },
+        h("button", { type: "button", class: "btn primary", onclick: (e) => save(false, e) }, "Save log"),
+        h("button", { type: "button", class: "btn", disabled: !S.ai.available, onclick: (e) => save(true, e) }, "Save and sort with Tempo")),
+      h("p", { class: "muted small", text: aiNote }));
+    describe();
+    box.isDirty = () => state.dirty;
+    box.focusNote = () => note.focus();
+    return box;
+  }
+  async function openQuickLog(personId) {
+    if (document.querySelector(".sheet-dialog")) return;
+    const trigger = document.activeElement;
+    const people = await act(() => api("GET", "/api/people"));
+    if (!people) return;
+    const dialog = h("dialog", { class: "sheet-dialog", "aria-labelledby": "ql-title" });
+    const form = quickLogForm(people, { personId, id: "ql-dialog-note", onSaved: () => { dialog.close(); render(); } });
+    const tryClose = () => { if (!form.isDirty() || window.confirm("Close without saving what's here?")) dialog.close(); };
+    dialog.append(h("div", { class: "row spread" }, h("h2", { id: "ql-title", text: "Quick log" }), btn("Close", tryClose, "quiet")), form);
+    dialog.addEventListener("cancel", (e) => { e.preventDefault(); tryClose(); });
+    dialog.addEventListener("close", () => { dialog.remove(); if (trigger && trigger.isConnected) trigger.focus(); });
+    document.body.append(dialog);
+    dialog.showModal();
+    form.focusNote();
+  }
+  function logEditor(e, done) {
+    const f = { note: e.note, summary: e.summary, uncertain: e.uncertain, commitments: e.commitments, next_steps: e.next_steps };
+    const when = e.when_kind === "exact" ? { kind: "date", date: e.occurred_on, text: "" } : e.when_kind === "approx" ? { kind: "approx", date: "", text: e.when_text } : { kind: "unknown", date: "", text: "" };
+    let whenChanged = false;
+    const area = (label, key, rows) => field(label, h("textarea", { rows, maxlength: key === "note" ? 6000 : 3000, value: f[key], oninput: (ev) => { f[key] = ev.target.value; } }));
+    return h("form", { class: "panel", onsubmit: async (ev) => {
+      ev.preventDefault();
+      const body = { ...f };
+      if (whenChanged) body.when = whenBody(when);
+      if (await act(() => api("PUT", "/api/logs/" + e.id, body), "Saved.")) done();
+    } },
+      h("h3", { text: "Edit entry" }),
+      area("Your note", "note", 3), area("Summary (optional)", "summary", 2), area("Not sure about", "uncertain", 2),
+      area("Possible commitments (notes, not tasks)", "commitments", 2), area("Ideas for a next step", "next_steps", 2),
+      whenPicker(when, () => { whenChanged = true; }),
+      h("div", { class: "row" }, h("button", { type: "submit", class: "btn primary" }, "Save changes"), btn("Cancel", done)));
+  }
+  function unassignedRow(l, people) {
+    if (S.editLog === l.id) return h("li", {}, h("div", { class: "grow" }, logEditor(l, () => { S.editLog = null; render(); })));
+    let pick = "";
+    const who = select([["", "Who is this about?"]].concat(people.map((x) => [x.id, x.name])), "", (v) => { pick = v; });
+    who.setAttribute("aria-label", "Who this log is about");
+    return h("li", { class: "log-row" },
+      h("div", { class: "grow" }, h("div", { class: "muted small", text: whenLabel(l) + " · logged " + fmtDate(l.logged_on) }), h("div", { class: "tl-text", text: l.summary || l.note || "Pasted exchange, kept as pasted" })),
+      h("div", { class: "row" },
+        people.length ? h("div", { class: "assign" }, who) : null,
+        people.length ? btn("Assign", async () => {
+          if (!pick) { toast("Choose a person first."); who.focus(); return; }
+          if (await act(() => api("POST", "/api/logs/" + l.id + "/assign", { item_id: Number(pick) }), "Moved to their timeline.")) render();
+        }) : btn("Add a person first", () => { S.addPerson = {}; go("people"); }),
+        btn("Edit", () => { S.editLog = l.id; render(); }, "quiet"),
+        btn("Delete", async () => { if (window.confirm("Delete this log?")) { if (await act(() => api("DELETE", "/api/logs/" + l.id), "Deleted.")) render(); } }, "quiet")));
+  }
+  async function renderLog(root) {
+    const [people, logs] = await Promise.all([api("GET", "/api/people"), api("GET", "/api/logs")]);
+    const page = h("div", { class: "page" }, pageHead("Quick log", "Write down what you remember. Rough is fine, and you can sort it out later."));
+    root.append(page);
+    page.append(h("section", { class: "section" }, quickLogForm(people, { id: "ql-page-note", remember: true, onSaved: () => render() })));
+    const waiting = logs.filter((l) => !l.item_id);
+    if (waiting.length) page.append(h("section", { class: "section" },
+      h("div", {}, h("h3", { class: "eyebrow", text: "Waiting for a person (" + waiting.length + ")" }),
+        h("p", { class: "muted small", text: "Saved as written. Choose who each one is about when you know. No one is ever added for you." })),
+      h("ul", { class: "rows" }, waiting.map((l) => unassignedRow(l, people)))));
+    const recent = logs.filter((l) => l.item_id).slice(0, 12);
+    if (recent.length) page.append(h("section", { class: "section" }, h("h3", { class: "eyebrow", text: "Recently logged" }),
+      h("ul", { class: "rows" }, recent.map((l) => h("li", {}, h("div", { class: "grow" },
+        h("div", {}, h("a", { href: "#person/" + l.item_id, text: l.person || "Someone" }), h("span", { class: "muted small", text: " · " + whenLabel(l) })),
+        h("div", { class: "clamp", text: l.summary || l.note || "Pasted exchange" })))))));
+  }
+
+  function personForm(p, onDone) {
+    const f = p ? { name: p.name, org: p.org, profile_link: p.profile_link, context: p.context, notes: p.notes, category: p.category }
+      : { name: "", org: "", profile_link: "", context: "", notes: "", category: (S.addPerson && S.addPerson.category) || "" };
+    const name = h("input", { required: true, maxlength: 200, value: f.name, oninput: (e) => { f.name = e.target.value; } });
+    const more = [
+      field("Organisation", h("input", { maxlength: 200, value: f.org, oninput: (e) => { f.org = e.target.value; } })),
+      field("Category", select([["", "No category"]].concat(Object.entries(CATEGORY)), f.category, (v) => { f.category = v; })),
+      field("Profile link (saved as text: Link never opens or reads it)", h("input", { maxlength: 500, value: f.profile_link, inputmode: "url", spellcheck: "false", oninput: (e) => { f.profile_link = e.target.value; } })),
+      field("How you know them, or why you'd like to", h("textarea", { rows: 2, maxlength: 2000, value: f.context, oninput: (e) => { f.context = e.target.value; } }))];
+    const form = h("form", { class: "panel", onsubmit: async (e) => {
+      e.preventDefault();
+      if (!f.name.trim()) { toast("Add a name first."); name.focus(); return; }
+      const saved = await act(() => (p ? api("PUT", "/api/people/" + p.id, f) : api("POST", "/api/people", f)), p ? "Saved." : "Added.");
+      if (saved) onDone(saved);
+    } },
+      h("h3", { text: p ? "Edit details" : "Add a person" }),
+      field(p ? "Name" : "Name (the only thing needed)", name),
+      p ? h("div", { class: "grid2" }, more) : help("Add more now (optional)", h("div", { class: "grid2" }, more)),
+      h("div", { class: "row" }, h("button", { type: "submit", class: "btn primary" }, p ? "Save details" : "Add person"), btn("Cancel", () => onDone(null))));
+    form.focusName = () => name.focus();
+    return form;
+  }
+  function personRow(p) {
+    const next = p.next_action;
+    return h("li", {}, h("a", { class: "person-row", href: "#person/" + p.id },
+      h("span", { class: "pr-who" }, h("span", {}, h("strong", { text: p.name }), p.org ? h("span", { class: "muted", text: " · " + p.org }) : null),
+        h("span", { class: "pr-context", text: p.context || "No context yet" })),
+      h("span", { class: "pr-cell" }, h("span", { class: "eyebrow", text: "Last recorded" }), h("span", { text: lastLabel(p.last_interaction) })),
+      h("span", { class: "pr-cell" }, h("span", { class: "eyebrow", text: "Next" }), h("span", { text: next ? next.title + (next.remind_on ? " · reminder " + fmtDate(next.remind_on) : "") : "Nothing set" })),
+      h("span", { class: "pr-tags" }, p.category ? chip(CATEGORY[p.category]) : null, p.is_sample ? chip("Fictional", "warn") : null, icon("chev", 16))));
+  }
+  async function renderPeople(root) {
+    const people = await api("GET", "/api/people");
+    const page = h("div", { class: "page" }, pageHead("People", "Who you've met and who you'd like to meet, with the last thing you recorded.",
+      help("What are the categories for?", "They're labels for organising this list. You choose them, and can change or clear them at any time.", "They aren't scores, and Link never assigns one for you.")));
+    root.append(page);
+    if (S.addPerson) {
+      const form = personForm(null, (saved) => { S.addPerson = null; if (saved) go("person/" + saved.id); else render(); });
+      page.append(form);
+      setTimeout(form.focusName, 0);
+    }
+    if (!people.length) {
+      if (!S.addPerson) page.append(h("section", { class: "section" }, h("h3", { text: "No one here yet" }),
+        h("p", { class: "muted", text: "Link only knows the people you tell it about. It can't see your contacts, your inbox or any social network." }),
+        h("div", { class: "row" }, btn("Add person", () => { S.addPerson = {}; render(); }, "primary"), btn("Log someone you met", () => openQuickLog(null)))));
+      return;
+    }
+    const search = h("input", { type: "search", class: "library-search", "aria-label": "Search people", placeholder: "Find a person or organisation…", value: S.peopleQuery });
+    const empty = h("p", { class: "muted hidden", role: "status", text: "No one matches. Try another search or filter." });
+    const rows = people.map((p) => ({ p, el: personRow(p), text: [p.name, p.org, p.context, p.next_action ? p.next_action.title : ""].join(" ").toLowerCase() }));
+    const count = (id) => (id === "all" ? people.length : people.filter((p) => p.category === id).length);
+    const seg = h("div", { class: "seg wrap", role: "group", "aria-label": "Filter by category" }, [["all", "All"]].concat(Object.entries(CATEGORY)).map(([id, label]) =>
+      h("button", { type: "button", "aria-pressed": "false", "data-id": id, onclick: () => { S.peopleFilter = id; apply(); } }, label, h("span", { class: "n", text: String(count(id)) }))));
+    function apply() {
+      S.peopleQuery = search.value;
+      const q = search.value.trim().toLowerCase();
+      let shown = 0;
+      for (const r of rows) { const ok = (S.peopleFilter === "all" || r.p.category === S.peopleFilter) && r.text.includes(q); r.el.hidden = !ok; shown += Number(ok); }
+      for (const b of seg.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.id === S.peopleFilter));
+      empty.classList.toggle("hidden", shown > 0);
+      // Keep the address in step with the filter, so a reload or a bookmark returns to the same view.
+      if (window.location.hash.startsWith("#people")) window.history.replaceState(null, "", "#people" + (S.peopleFilter === "all" ? "" : "/" + S.peopleFilter));
+    }
+    search.addEventListener("input", apply);
+    page.append(h("div", { class: "library-toolbar" }, h("div", { class: "search-capsule" }, h("span", { class: "search-glyph", "aria-hidden": "true", text: "⌕" }), search),
+        S.addPerson ? null : h("button", { type: "button", class: "btn primary", onclick: () => { S.addPerson = {}; render(); } }, icon("plus", 16), "Add person")),
+      seg, h("ul", { class: "people-list", "aria-label": "People" }, rows.map((r) => r.el)), empty);
+    apply();
+  }
+
+  function lineList(text, action) {
+    return h("ul", { class: "tl-lines" }, text.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => h("li", {}, h("span", { class: "grow", text: l }),
+      action ? btn("Make this my next action", () => action(l), "quiet") : null)));
+  }
+  function timelineEntry(e, p, useAsNext) {
+    if (e.type === "outcome") {
+      // Recorded before the redesign. Shown under the label it was saved with; its meaning is not guessed.
+      return h("li", { class: "tl-entry" },
+        h("div", { class: "row" }, h("strong", { text: whenLabel(e) }), chip("Recorded earlier as “" + e.original_label + "”")),
+        e.note ? h("p", { class: "tl-text", text: e.note }) : null,
+        h("p", { class: "muted small", text: "Kept exactly as you recorded it. Job outcomes now live under Career tools, in Roles." }),
+        h("div", { class: "row" }, btn("Delete", async () => {
+          if (!(await act(() => api("DELETE", "/api/outcomes/" + e.id)))) return;
+          toast("Deleted.", { label: "Undo", run: async () => { await act(() => api("POST", "/api/outcomes", { item_id: p.id, type: e.original_label, note: e.note, occurred_on: e.occurred_on })); render(); } });
+          render();
+        }, "quiet")));
+    }
+    if (S.editLog === e.id) return h("li", { class: "tl-entry" }, logEditor(e, () => { S.editLog = null; render(); }));
+    const main = e.summary || e.note;
+    return h("li", { class: "tl-entry" },
+      h("div", { class: "row" }, h("strong", { text: whenLabel(e) }), h("span", { class: "muted small", text: "Logged " + fmtDate(e.logged_on) }), chip(SOURCE[e.source] || e.source), e.is_sample ? chip("Fictional", "warn") : null),
+      main ? h("p", { class: "tl-text", text: main }) : h("p", { class: "muted", text: "No note was written. The pasted text below is the record." }),
+      e.summary && e.note ? help("Your original note", h("p", { class: "tl-text", text: e.note })) : null,
+      e.uncertain ? h("div", {}, h("div", { class: "eyebrow", text: "Not sure about" }), lineList(e.uncertain)) : null,
+      e.commitments ? h("div", {}, h("div", { class: "eyebrow", text: "Possible commitments · notes, not tasks" }), lineList(e.commitments, useAsNext)) : null,
+      e.next_steps ? h("div", {}, h("div", { class: "eyebrow", text: "Ideas for a next step" }), lineList(e.next_steps, useAsNext)) : null,
+      e.exchange ? help("The full pasted text is kept (" + e.exchange.length.toLocaleString() + " characters)", h("pre", { class: "exchange", text: e.exchange }),
+        h("div", {}, btn("Remove the pasted text", async () => {
+          if (!window.confirm(main ? "Remove the pasted text from this entry? Your note stays." : "This pasted text is the only record in this entry. Remove it anyway?")) return;
+          if (await act(() => api("PUT", "/api/logs/" + e.id, { drop_exchange: true }), "Pasted text removed.")) render();
+        }))) : null,
+      h("div", { class: "row" }, btn("Edit", () => { S.editLog = e.id; render(); }, "quiet"),
+        btn("Delete", async () => { if (window.confirm("Delete this entry?")) { if (await act(() => api("DELETE", "/api/logs/" + e.id), "Deleted.")) render(); } }, "quiet")));
+  }
+  // Start a message for one person. Anything chosen for a different person is cleared first.
+  function prepareMessage(p, draft) {
+    const D = S.draft;
+    if (D.item_id !== p.id) {
+      Object.assign(D, { instruction: "", shareable_note: "", include_item_context: false, audience: "" });
+      D.interaction_ids.clear(); D.evidence_ids.clear();
+    }
+    Object.assign(D, { item_id: p.id, action_id: null, current: draft || null, fresh: false, purpose: draft ? draft.purpose : (p.entries ? "follow_up" : "outreach") });
+    if (draft) D.audience = draft.audience;
+    go("drafts");
+  }
+  async function renderPerson(root) {
+    let p;
+    try { p = await api("GET", "/api/people/" + S.arg); }
+    catch (err) {
+      if (err.status !== 422) throw err;
+      syncScope(null);
+      root.append(h("div", { class: "page" }, h("section", { class: "state" }, h("h1", { text: "That person isn't here." }), h("div", {}, h("a", { class: "btn", href: "#people" }, "Back to People")))));
+      return;
+    }
+    const others = (await api("GET", "/api/actions")).filter((a) => a.item_id === p.id && !["done", "dropped"].includes(a.state) && (!p.next_action || a.id !== p.next_action.id));
+    syncScope({ id: p.id, title: p.name }, "person");
+    const page = h("div", { class: "page" });
+    root.append(page);
+    const notes = h("textarea", { rows: 3, maxlength: 8000, value: p.notes, "aria-label": "Private notes about " + p.name });
+    const fields = (extra) => ({ name: p.name, org: p.org, profile_link: p.profile_link, context: p.context, category: p.category, notes: notes.value, ...extra });
+    const cat = select([["", "No category"]].concat(Object.entries(CATEGORY)), p.category, async (v) => {
+      if (await act(() => api("PUT", "/api/people/" + p.id, fields({ category: v })), v ? "Moved to " + CATEGORY[v] + "." : "Category cleared.")) render();
+    });
+    cat.setAttribute("aria-label", "Category");
+    page.append(h("header", { class: "page-head" },
+      h("a", { class: "back", href: "#people" }, "← People"),
+      h("div", { class: "row spread" }, h("div", {}, h("h2", { text: p.name }), p.org ? h("p", { class: "lead", text: p.org }) : null), h("div", { class: "person-cat" }, cat)),
+      h("div", { class: "row" },
+        h("button", { type: "button", class: "btn primary", onclick: () => openQuickLog(p.id) }, icon("log", 16), "Quick log"),
+        btn("Prepare a message", () => prepareMessage(p)),
+        btn(S.editPerson ? "Close details" : "Edit details", () => { S.editPerson = !S.editPerson; render(); }),
+        p.is_sample ? chip("Fictional demo person", "warn") : null)));
+    if (S.editPerson) page.append(personForm(p, () => { S.editPerson = false; render(); }),
+      h("div", {}, btn("Delete this person", async () => {
+        if (!window.confirm("Delete " + p.name + ", their timeline and next action? Messages you drafted for them are kept. This can't be undone.")) return;
+        if (await act(() => api("DELETE", "/api/people/" + p.id), "Deleted.")) { S.editPerson = false; go("people"); }
+      }, "danger")));
+
+    const link = /^https?:\/\//i.test(p.profile_link) ? h("a", { href: p.profile_link, target: "_blank", rel: "noopener noreferrer", text: p.profile_link }) : p.profile_link ? h("span", { text: p.profile_link }) : null;
+    page.append(h("section", { class: "section" }, h("h3", { class: "eyebrow", text: "How you know them" }),
+      h("p", { class: p.context ? "tl-text" : "muted", text: p.context || "Nothing yet. Add a line under Edit details, or just log what you remember." }),
+      link ? h("p", { class: "small" }, h("span", { class: "muted", text: "Saved link (opens in your browser; Link itself never reads it): " }), link) : null));
+
+    const na = p.next_action;
+    const title = h("input", { maxlength: 200, value: na ? na.title : "", placeholder: "One thing you intend to do, in your words…" });
+    const remind = h("input", { type: "date", value: na && na.remind_on ? na.remind_on : "" });
+    page.append(h("section", { class: "section" }, h("h3", { class: "eyebrow", text: "Next action" }),
+      h("form", { class: "panel", onsubmit: async (e) => {
+        e.preventDefault();
+        if (!title.value.trim()) { toast("Write the next action first."); title.focus(); return; }
+        if (await act(() => api("PUT", "/api/people/" + p.id + "/next-action", { title: title.value.trim(), remind_on: remind.value || null }), "Next action saved.")) render();
+      } },
+        h("div", { class: "grid2" }, field("What you intend to do", title), field("Remind me on (optional)", remind)),
+        h("div", { class: "row" }, h("button", { type: "submit", class: "btn primary" }, na ? "Save changes" : "Set next action"),
+          na ? btn("I did this", async () => { if (await act(() => api("POST", "/api/people/" + p.id + "/next-action/done"), "Done. Added to the timeline.")) render(); }) : null,
+          na ? btn("Clear", async () => {
+            if (!(await act(() => api("DELETE", "/api/people/" + p.id + "/next-action")))) return;
+            toast("Next action cleared.", { label: "Undo", run: async () => { await act(() => api("PUT", "/api/people/" + p.id + "/next-action", { title: na.title, remind_on: na.remind_on })); render(); } });
+            render();
+          }, "quiet") : null)),
+      h("p", { class: "muted small", text: "Only what you set here appears on Today. Time passing never creates a task. Reminders show when you open Link: there are no notifications." }),
+      others.length ? h("div", {}, h("p", { class: "small muted", text: "Other open to-dos for " + p.name + ":" }), h("ul", { class: "rows" }, others.map((a) => todoRow(a, true, { id: p.id, kind: "relationship", title: p.name })))) : null));
+
+    const useAsNext = (text) => {
+      title.value = text.replace(/^may have:?\s*/i, "").replace(/^./, (c) => c.toUpperCase()).slice(0, 200);
+      title.scrollIntoView({ block: "center" }); title.focus();
+      toast("Edit it if you like, then save. Nothing is set until you do.");
+    };
+    page.append(h("section", { class: "section" }, h("h3", { class: "eyebrow", text: "Timeline" + (p.timeline.length ? " (" + p.timeline.length + ")" : "") }),
+      p.timeline.length ? h("ol", { class: "timeline" }, p.timeline.map((e) => timelineEntry(e, p, useAsNext)))
+        : h("p", { class: "muted", text: "Nothing recorded yet. Use Quick log whenever you remember something." })));
+
+    const noteStamp = h("span", { class: "muted small", role: "status" });
+    const saveNotes = async () => { if (notes.value === p.notes) return; if (await act(() => api("PUT", "/api/people/" + p.id, fields()))) { p.notes = notes.value; noteStamp.textContent = "Notes saved."; } };
+    notes.addEventListener("change", saveNotes);
+    notes.addEventListener("input", () => { noteStamp.textContent = ""; });
+    page.append(h("section", { class: "section" }, h("h3", { class: "eyebrow", text: "Notes" }), notes,
+      h("div", { class: "row" }, btn("Save notes", saveNotes), noteStamp),
+      h("p", { class: "muted small", text: "Private. Tempo can read these only while you're talking about " + p.name + ". They are never sent to drafting." })));
+
+    if (p.drafts.length) page.append(h("section", { class: "section" }, h("h3", { class: "eyebrow", text: "Messages you've prepared" }),
+      h("ul", { class: "rows" }, p.drafts.map((d) => h("li", {}, h("span", { class: "grow clamp", text: d.body || "Empty draft" }),
+        btn("Open", async () => {
+          const full = (await act(() => api("GET", "/api/drafts?item_id=" + p.id)) || []).find((x) => x.id === d.id);
+          if (full) prepareMessage(p, full);
+        }))))));
   }
 
   // ---- Evidence -------------------------------------------------------------------------
@@ -923,13 +1331,31 @@
   }
   async function renderDrafts(root) {
     const D = S.draft;
-    const draftMetadata = {action_id: D.action_id, purpose: D.purpose, audience: D.audience};
-    const [evidence, actions, drafts] = await Promise.all([api("GET", "/api/evidence"), api("GET", "/api/actions"), api("GET", "/api/drafts")]);
+    const draftMetadata = {action_id: D.action_id, item_id: D.item_id, purpose: D.purpose, audience: D.audience};
+    const [evidence, actions, drafts, people] = await Promise.all([api("GET", "/api/evidence"), api("GET", "/api/actions"), api("GET", "/api/drafts"), api("GET", "/api/people")]);
+    let person = null;
+    if (D.item_id) {
+      try { person = await api("GET", "/api/people/" + D.item_id); }
+      catch (err) { D.item_id = null; draftMetadata.item_id = null; D.interaction_ids.clear(); }
+    }
+    syncScope(person ? { id: person.id, title: person.name } : null, "drafts");
+    // Only this person's own notes can be ticked, and a draft written for someone else is never shown here.
+    const shareable = person ? person.timeline.filter((e) => e.type === "log" && e.source !== "confirmed_action" && (e.summary || e.note)) : [];
+    for (const id of [...D.interaction_ids]) if (!shareable.some((e) => e.id === id)) D.interaction_ids.delete(id);
     if (D.current) D.current = drafts.find(d => d.id === D.current.id) || D.current;
+    if (D.current && (D.current.item_id || null) !== (D.item_id || null)) D.current = null;
+    const listed = person ? drafts.filter((d) => d.item_id === person.id) : drafts;
+    // Coming back to someone reopens the message you were writing for them, unless you asked for a new one.
+    if (!D.current && person && !D.fresh && listed.length) {
+      D.current = listed[0];
+      Object.assign(D, { purpose: D.current.purpose, audience: D.current.audience });
+      Object.assign(draftMetadata, { purpose: D.purpose, audience: D.audience });
+    }
     const action = actions.find((a) => a.id === D.action_id) || null;
     if (!D.current && action) D.current = drafts.find((d) => d.action_id === action.id) || null;
-    const page = h("div", { class: "page" }, pageHead("Drafts", "Write it yourself or with Tempo. Either way, every save is checked against your evidence.",
-      help("What can drafting see?", "Only this page: the evidence you tick, your voice notes for the audience, and what you type here.",
+    const page = h("div", { class: "page" }, pageHead(person ? "Message for " + person.name : "Drafts", person ? "Write it yourself or with Tempo. Tempo is only given the notes you tick below." : "Write it yourself or with Tempo. Either way, every save is checked against your evidence.",
+      person ? h("a", { class: "back", href: "#person/" + person.id }, "← Back to " + person.name) : null,
+      help("What can drafting see?", "Only this page: the notes and evidence you tick, your voice notes for the audience, and what you type here.",
         "It never sees your private planning notes, your goals, or the chat.",
         S.ai.available && S.ai.mode === "live" ? "In live mode, those three things are sent to the AI provider." : "In mock mode nothing leaves this Mac.")));
     root.append(page);
@@ -937,7 +1363,7 @@
 
     const reportBox = h("div", {});
     const stamp = h("span", { class: "muted small", role: "status" });
-    const key = D.current ? String(D.current.id) : "new:" + (D.action_id || "unlinked");
+    const key = D.current ? String(D.current.id) : "new:" + (D.item_id ? "person-" + D.item_id : D.action_id || "unlinked");
     let work = draftWorkspaces.get(key);
     if (!work) {
       work = {body: D.current ? D.current.body : "", draft: D.current, claims: D.current ? D.current.claims : [], dirty: false, saving: false, queue: Promise.resolve()};
@@ -983,7 +1409,7 @@
       if (start === end) { toast("Select a passage in your draft first."); editor.focus(); return; }
       if (end - start > 6000) { toast("Choose a passage under 6,000 characters."); return; }
       const out = await thinking(() => act(() => api("POST", "/api/drafts/suggest", {
-        purpose: D.purpose, audience: D.audience, action_id: D.action_id, evidence_ids: [...D.evidence_ids],
+        purpose: D.purpose, audience: D.audience, action_id: D.action_id, item_id: D.item_id, interaction_ids: [...D.interaction_ids], evidence_ids: [...D.evidence_ids],
         instruction: D.instruction, shareable_note: D.shareable_note, include_item_context: D.include_item_context,
         selection: original.slice(start, end), operation
       })));
@@ -1008,21 +1434,33 @@
         h("button", {type: "button", class: "btn", disabled: !S.ai.available, onclick: () => selectionAction(op)}, label)));
     page.append(h("section", { class: "section draft-setup" }, h("div", { class: "eyebrow", text: "Shape your draft" }), h("div", { class: "panel" },
       h("div", { class: "grid2" },
-        field("For which to-do", select([["", "Not linked"]].concat(actions.filter((a) => a.state !== "dropped").map((a) => [a.id, a.title])), D.action_id || "", (v) => { D.action_id = v ? Number(v) : null; D.current = null; render(); })),
+        field("Who it's for", select([["", "No one in particular"]].concat(people.map((x) => [x.id, x.name])), D.item_id || "", (v) => {
+          Object.assign(D, { item_id: v ? Number(v) : null, action_id: null, current: null, fresh: false, instruction: "", shareable_note: "", include_item_context: false });
+          D.interaction_ids.clear(); render();
+        })),
+        person ? null : field("Linked to-do (optional)", select([["", "Not linked"]].concat(actions.filter((a) => a.state !== "dropped").map((a) => [a.id, a.title])), D.action_id || "", (v) => { D.action_id = v ? Number(v) : null; D.current = null; render(); })),
         field("Kind of text", select(PURPOSES, D.purpose, (v) => { D.purpose = v; draftMetadata.purpose = v; })),
-        field("Audience", h("input", { maxlength: 60, value: D.audience, placeholder: "recruiter, peer, alum…", oninput: (e) => { D.audience = e.target.value; draftMetadata.audience = e.target.value; } }))),
-      h("fieldset", { class: "stack" }, h("legend", { class: "small muted", text: "Evidence to use" }),
+        field("Audience", h("input", { maxlength: 60, value: D.audience, placeholder: "a peer, a mentor, a recruiter…", oninput: (e) => { D.audience = e.target.value; draftMetadata.audience = e.target.value; } }))),
+      person ? h("fieldset", { class: "stack" }, h("legend", { class: "small muted", text: "Notes about " + person.name + " to share with this draft" }),
+        shareable.length ? shareable.map((e) => h("label", { class: "check" },
+          h("input", { type: "checkbox", checked: D.interaction_ids.has(e.id), onchange: (ev) => { ev.target.checked ? D.interaction_ids.add(e.id) : D.interaction_ids.delete(e.id); } }),
+          h("span", {}, h("span", { class: "muted small", text: whenLabel(e) + ": " }), (e.summary || e.note).slice(0, 140))))
+          : h("p", { class: "muted small", text: "Nothing logged yet. You can still write the message yourself." }),
+        h("p", { class: "muted small", text: "Only ticked notes are sent. Private notes, uncertain details and pasted exchanges never are." })) : null,
+      h("fieldset", { class: "stack" }, h("legend", { class: "small muted", text: person ? "Your own work to mention (optional)" : "Evidence to use" }),
         evidence.length ? evidence.map((e) => h("label", { class: "check" },
           h("input", { type: "checkbox", checked: D.evidence_ids.has(e.id), onchange: (ev) => { ev.target.checked ? D.evidence_ids.add(e.id) : D.evidence_ids.delete(e.id); } }),
           h("span", {}, e.title, " ", e.confidential ? chip("Confidential: held back", "bad") : null, e.status === "do_not_claim" ? chip("Do not claim: held back", "bad") : null)))
+          : person ? h("p", { class: "muted small", text: "None saved. That's fine for a personal message." })
           : h("p", { class: "muted small" }, "No evidence yet, so a draft can't make factual claims. ", h("a", { href: "#evidence", text: "Add some" }), ".")),
       field("What you want it to say or do", h("textarea", { rows: 2, maxlength: 1500, value: D.instruction, oninput: (e) => { D.instruction = e.target.value; } })),
       field("Extra context you approve for this draft", h("textarea", { rows: 2, maxlength: 1500, value: D.shareable_note, oninput: (e) => { D.shareable_note = e.target.value; } })),
-      action && action.item_id ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: D.include_item_context, onchange: (e) => { D.include_item_context = e.target.checked; } }), "Also use the shareable context saved for this person or role") : null,
+      (person && person.context) || (!person && action && action.item_id) ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: D.include_item_context, onchange: (e) => { D.include_item_context = e.target.checked; } }),
+        person ? "Also use what you wrote under “How you know them”" : "Also use the shareable context saved for this role") : null,
       h("div", {}, h("button", { type: "button", class: "btn primary", disabled: !S.ai.available, onclick: async (ev) => {
         if (work.dirty && !await save()) return;
         ev.currentTarget.disabled = true;
-        const body = { action_id: D.action_id, purpose: D.purpose, audience: D.audience, evidence_ids: [...D.evidence_ids], instruction: D.instruction, shareable_note: D.shareable_note, include_item_context: D.include_item_context };
+        const body = { action_id: D.action_id, item_id: D.item_id, interaction_ids: [...D.interaction_ids], purpose: D.purpose, audience: D.audience, evidence_ids: [...D.evidence_ids], instruction: D.instruction, shareable_note: D.shareable_note, include_item_context: D.include_item_context };
         const out = await thinking(() => act(() => api("POST", "/api/drafts/generate", body)));
         if (out) {
           D.current = out.draft;
@@ -1032,7 +1470,8 @@
         await refreshStatus(); render();
       } }, S.ai.mode === "mock" ? "Draft with Tempo (mock)" : "Draft with Tempo")))));
 
-    page.append(h("section", { class: "section draft-document" }, h("div", { class: "row spread" }, h("div", { class: "eyebrow", text: "Your working draft" }), h("span", {class: "row"}, stamp, retry)), selectionTools, editor, suggestion,
+    page.append(h("section", { class: "section draft-document" }, h("div", { class: "row spread" }, h("div", { class: "eyebrow", text: "Your working draft" }), h("span", {class: "row"}, stamp, retry,
+      person && D.current ? btn("Start a new message", async () => { if (work.dirty && !await save()) return; D.fresh = true; D.current = null; render(); }, "quiet") : null)), selectionTools, editor, suggestion,
       h("div", { class: "row" },
         btn("Copy text", async () => {
           try { await navigator.clipboard.writeText(editor.value); } catch (e) { editor.select(); document.execCommand("copy"); }
@@ -1040,7 +1479,7 @@
           toast("Copied. Nothing was marked as sent: do that yourself once it really is.");
         }),
         action && action.state === "drafted" ? btn("I've reviewed it", () => setState(action, "reviewed")) : null,
-        action && action.state !== "done" ? btn("I sent or applied it myself", () => setState(action, "done", "Mark as done? Only once you've actually sent, applied, or updated it yourself.")) : null,
+        action && action.state !== "done" ? btn("I sent or applied it myself", () => setState(action, "done", "Mark as done? Only once you've actually done it yourself.")) : null,
         action ? chip(STATE[action.state], action.state === "done" ? "ok" : "") : null)));
     const historyPanel = h("section", {class: "history-panel hidden", "aria-label": "Draft version history"});
     page.querySelector(".draft-document").append(btn("Version history", async () => {
@@ -1065,9 +1504,9 @@
     page.append(h("section", { class: "section draft-review" }, h("div", { class: "eyebrow", text: "Evidence review" }),
       reportBox));
 
-    if (drafts.length) page.append(h("div", {}, disc("saved", plural(drafts.length, "saved draft", "saved drafts"), "",
-      h("ul", { class: "rows" }, drafts.slice(0, 20).map((d) => h("li", {}, h("span", { class: "grow" }, chip(d.purpose.replace("_", " ")), " ", d.body.slice(0, 80) + (d.body.length > 80 ? "…" : "")),
-        h("span", { class: "row" }, btn("Open", () => { D.current = d; D.action_id = d.action_id; D.purpose = d.purpose; D.audience = d.audience; render(); }),
+    if (listed.length) page.append(h("div", {}, disc("saved", plural(listed.length, "saved draft", "saved drafts") + (person ? " for " + person.name : ""), "",
+      h("ul", { class: "rows" }, listed.slice(0, 20).map((d) => h("li", {}, h("span", { class: "grow" }, chip(d.purpose.replace("_", " ")), " ", d.body.slice(0, 80) + (d.body.length > 80 ? "…" : "")),
+        h("span", { class: "row" }, btn("Open", () => openDraft(d)),
           btn("Delete", async () => { if (window.confirm("Delete this draft?")) { await act(() => api("DELETE", "/api/drafts/" + d.id)); if (D.current && D.current.id === d.id) D.current = null; render(); } }, "quiet"))))))));
   }
 
@@ -1112,13 +1551,11 @@
     page.append(listing);
   }
 
-  // ---- About me -------------------------------------------------------------------------
-  async function renderMe(root) {
+  // ---- Settings: you and your preferences, AI and spending, privacy and data -------------
+  const SETTINGS_TABS = [["you", "You & preferences"], ["ai", "AI & spending"], ["data", "Privacy & data"]];
+  async function settingsYou(page) {
     const list = await api("GET", "/api/memory");
-    const page = h("div", { class: "page" }, pageHead("About me", "Everything Tempo remembers about you. Change or delete any of it.",
-      help("How does Tempo learn things?", "From what you type here, your onboarding answers, and suggestions it makes in chat.", "A suggestion is never saved until you click Save it.")));
-    root.append(page);
-    const groups = [["Private planning context", "Used to plan with you. Never sent to drafting.", S.enums.memory_private],
+    const groups = [["About you and how Tempo should work with you", "Your goals, preferences and boundaries. Used to plan with you. Never sent to drafting.", S.enums.memory_private],
                     ["Your voice for outward writing", "Sent to drafting, matched by audience.", S.enums.memory_public]];
     for (const [title, sub, kinds] of groups) {
       const mine = list.filter((m) => kinds.includes(m.kind));
@@ -1129,40 +1566,38 @@
         sec.append(h("div", { class: "stack" },
           h("div", { class: "row" }, chip(MEMORY[m.kind], "accent"), m.audience ? chip("for " + m.audience) : null,
             chip(m.provenance === "user_confirmed" ? "Suggested by Tempo, confirmed by you" : m.provenance === "sample" ? "Sample data" : m.provenance === "imported_file" ? "Imported from your file" : "Typed by you", m.provenance === "sample" ? "warn" : "")),
-          h("p", {class: "memory-text", text: m.text}), h("details", {class: "memory-edit"}, h("summary", {text: "Edit entry"}), ta, h("div", { class: "row" }, btn("Save", async () => { if (await act(() => api("PUT", "/api/memory/" + m.id, { kind: m.kind, text: ta.value, audience: m.audience }), "Saved.")) render(); }),
-            btn("Delete", async () => { if (window.confirm("Delete this entry from About me?")) { await act(() => api("DELETE", "/api/memory/" + m.id), "Deleted."); render(); } }, "quiet")))));
+          h("p", { class: "memory-text", text: m.text }), h("details", { class: "memory-edit" }, h("summary", { text: "Edit entry" }), ta, h("div", { class: "row" }, btn("Save", async () => { if (await act(() => api("PUT", "/api/memory/" + m.id, { kind: m.kind, text: ta.value, audience: m.audience }), "Saved.")) render(); }),
+            btn("Delete", async () => { if (window.confirm("Delete this entry?")) { await act(() => api("DELETE", "/api/memory/" + m.id), "Deleted."); render(); } }, "quiet")))));
       }
       page.append(sec);
     }
-    const f = { kind: S.addKind || "voice_sample", text: "", audience: "" };
+    const f = { kind: S.addKind || "preference", text: "", audience: "" };
     S.addKind = null;
-    page.append(h("div", {}, disc("addme", "Add something", "a writing sample, a preference, a boundary",
+    const text = h("textarea", { required: true, rows: 3, maxlength: 4000, placeholder: "Keep suggestions short, and ask before assuming…", oninput: (e) => { f.text = e.target.value; } });
+    const styles = S.styles || [];
+    page.append(h("div", {}, disc("addme", "Add something", "a preference, a goal, a boundary, a writing sample",
       h("form", { class: "panel", onsubmit: async (e) => { e.preventDefault(); if (await act(() => api("POST", "/api/memory", f), "Added.")) render(); } },
         h("div", { class: "grid2" },
-          field("Type", select(S.enums.memory_public.concat(S.enums.memory_private).map((k) => [k, MEMORY[k]]), f.kind, (v) => { f.kind = v; })),
-          field("Audience (voice items only)", h("input", { maxlength: 60, placeholder: "recruiter, peer, alum…", oninput: (e) => { f.audience = e.target.value; } }))),
-        field("Text", h("textarea", { required: true, rows: 3, maxlength: 4000, placeholder: "For a writing sample, paste something you wrote.", oninput: (e) => { f.text = e.target.value; } })),
+          field("Type", select(S.enums.memory_private.concat(S.enums.memory_public).map((k) => [k, MEMORY[k]]), f.kind, (v) => { f.kind = v; })),
+          field("Audience (voice items only)", h("input", { maxlength: 60, placeholder: "a peer, a mentor, a recruiter…", oninput: (e) => { f.audience = e.target.value; } }))),
+        field("Text", text),
+        styles.length ? h("div", { class: "stack" }, h("span", { class: "small muted", text: "Or start from a companion style and edit it:" }),
+          h("div", { class: "row" }, styles.map((s) => btn(s.split(":")[0], () => { f.kind = "preference"; f.text = "How I'd like my companion to work with me: " + s; text.value = f.text; text.focus(); })))) : null,
         h("div", {}, h("button", { type: "submit", class: "btn primary" }, "Add"))))));
+    page.append(h("section", { class: "section" }, h("h3", { text: "Appearance" }),
+      field("Color theme", select([["system", "Follow system"], ["light", "Light"], ["dark", "Dark"]], store.get("theme", "system"), (value) => { store.set("theme", value); applyTheme(); })),
+      h("p", { class: "muted small", text: "Your theme is remembered on this browser. Motion follows your device's reduced-motion setting." })));
   }
-
-  // ---- Settings & data ------------------------------------------------------------------
-  async function renderSettings(root) {
-    const [b, activity] = await Promise.all([api("GET", "/api/budget"), api("GET", "/api/activity")]);
+  async function settingsAi(page) {
+    const [b, readiness] = await Promise.all([api("GET", "/api/budget"), api("GET", "/api/ai/readiness")]);
     const s = b.status, level = s.level === "hard_stop" ? "bad" : s.level === "warn" ? "warn" : "";
-    const page = h("div", { class: "page" }, pageHead("Settings & data", "Setup, AI mode, spending, and everything stored on this Mac."));
-    root.append(page);
-    page.append(h("section", {class: "section"}, h("h3", {text: "Appearance"}),
-      field("Color theme", select([["system","Follow system"],["light","Light"],["dark","Dark"]], store.get("theme", "system"), value => { store.set("theme", value); applyTheme(); })),
-      h("p", {class: "muted small", text: "Your theme is remembered on this browser. Motion follows your device's reduced-motion setting."})));
-    page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Setup" }), setupPanel(),
-      S.setup.complete ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: store.get("setupPinned", false),
-        onchange: (e) => { store.set("setupPinned", e.target.checked); renderSide(); } }), "Keep the setup card in the sidebar") : null));
     const meter = h("div", { class: "meter " + level }, h("span", {}));
     meter.firstChild.style.width = Math.min(100, 100 * s.committed_usd / s.hard_stop_usd) + "%";
     page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "AI" }),
       h("div", { class: "row" }, h("h3", { text: !b.ai.available ? "AI is off" : b.ai.mode === "mock" ? "Mock AI" : "Live AI" }), chip(b.ai.mode === "mock" ? "Canned replies" : b.ai.available ? "Real replies" : "Unavailable", b.ai.available ? (b.ai.mode === "mock" ? "warn" : "ok") : "bad")),
       h("p", { text: b.ai.reason }),
-      help("What leaves this Mac?", "In mock mode, nothing.", "In live mode, chat sends your planning context and recent conversation to the AI provider. Drafting and comparison send only the evidence you tick, your voice notes, and what you type in the form.",
+      h("p", { class: "muted small", text: "AI runs only when you ask: sending a message to Tempo, sorting a log, drafting or comparing. Nothing runs in the background." }),
+      help("What leaves this Mac?", "In mock mode, nothing.", "In live mode, a chat message sends your planning context, recent conversation and, when you're talking about one person, what you recorded about that person. Sorting a log sends that note. Drafting sends only the notes and evidence you tick, your voice notes, and what you type in the form.",
         "To switch modes, set COMPANION_AI_MODE when starting the app. The README has the steps for a first live call.")));
     const amount = h("input", { type: "number", step: "0.01", min: 0, placeholder: "e.g. 3.42", "aria-label": "Month-to-date total from the provider Console" });
     page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Spending this month" }),
@@ -1180,16 +1615,36 @@
         h("thead", {}, h("tr", {}, ["When", "Type", "Model", "Status", "Cost"].map((t) => h("th", { scope: "col", text: t })))),
         h("tbody", {}, b.recent.map((r) => h("tr", {}, [r.ts.replace("T", " ").slice(0, 16), r.call_type, r.model, r.status, "$" + Number(r.status === "settled" || r.status === "adjustment" ? r.cost_usd : r.reserved_usd).toFixed(4)].map((t) => h("td", { text: String(t) })))))))))
         : null));
-
+    const testStatus = h("p", { class: "muted small", role: "status", text: readiness.note });
+    page.append(h("section", { class: "section" }, h("h3", { text: "Live AI readiness" }),
+      h("p", { text: "Configured mode: " + readiness.configured_mode + ". Prices: " + (readiness.prices_current ? "current" : "need verification") + "." }),
+      h("p", { class: "small", text: readiness.ai.reason }),
+      h("p", { class: "small", text: readiness.last_test ? "Last successful connection test: " + new Date(readiness.last_test.ts).toLocaleString() : "No successful live connection test recorded." }),
+      h("button", { type: "button", class: "btn", disabled: readiness.ai.mode !== "live" || !readiness.ai.available, onclick: async (e) => {
+        const button = e.currentTarget;
+        button.disabled = true; testStatus.textContent = "Testing the provider connection…";
+        const result = await act(() => api("POST", "/api/ai/smoke", {}));
+        testStatus.textContent = result ? result.note : "Test failed. Saved work is still available. Check configuration and the budget ledger before retrying.";
+        button.disabled = false;
+      } }, "Run live connection test (uses API budget)"), testStatus));
+  }
+  async function settingsData(page) {
+    const activity = await api("GET", "/api/activity");
+    page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Privacy" }),
+      h("ul", { class: "reasons" },
+        h("li", { text: "Everything is stored in one file on this Mac. Chat transcripts are removed after 30 days." }),
+        h("li", { text: "Link never opens web pages, never reads LinkedIn or your inbox, and never sends a message for you. A saved profile link is just text." }),
+        h("li", { text: "Notes about one person are only used when you're working on that person. Private notes and uncertain details are never sent to drafting." }),
+        h("li", { text: "Pasted text is reference material. It can't change what Tempo remembers or does." }))));
     const preview = h("div", { class: "stack" });
     const picker = h("input", { type: "file", accept: ".json,application/json", "aria-label": "Starter file", onchange: async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       let data;
       try { data = JSON.parse(await file.text()); } catch (err) { fill(preview, h("div", { class: "notice bad" }, icon("warn", 18), "That file isn't readable. It should be a .json starter file.")); return; }
-      if (!data || data.career_companion_starter !== 1) { fill(preview, h("div", { class: "notice bad" }, icon("warn", 18), "That isn't a Career Companion starter file.")); return; }
-      const groups = [["Evidence", (data.evidence || []).map((x) => x.title)], ["About me", (data.memory || []).map((x) => (MEMORY[x.kind] || x.kind) + ": " + x.text)],
-        ["People & roles", (data.items || []).map((x) => x.title + (x.org ? " · " + x.org : ""))], ["To-dos", (data.actions || []).map((x) => x.title)]].filter((g) => g[1].length);
+      if (!data || data.career_companion_starter !== 1) { fill(preview, h("div", { class: "notice bad" }, icon("warn", 18), "That isn't a starter file for this app.")); return; }
+      const groups = [["Evidence", (data.evidence || []).map((x) => x.title)], ["About you", (data.memory || []).map((x) => (MEMORY[x.kind] || x.kind) + ": " + x.text)],
+        ["People and roles", (data.items || []).map((x) => x.title + (x.org ? " · " + x.org : ""))], ["To-dos", (data.actions || []).map((x) => x.title)]].filter((g) => g[1].length);
       const total = groups.reduce((n, g) => n + g[1].length, 0);
       fill(preview, h("p", { class: "small", text: "Check this is yours before adding it. Evidence arrives marked as not yet verified, and everything can be edited or deleted afterwards." }),
         groups.map(([name, lines]) => h("div", {}, h("div", { class: "eyebrow", text: name + " (" + lines.length + ")" }), h("ul", { class: "reasons" }, lines.map((l) => h("li", { text: l.length > 140 ? l.slice(0, 140) + "…" : l }))))),
@@ -1198,45 +1653,40 @@
           if (!out) return;
           const n = Object.values(out.added).reduce((a, b) => a + b, 0);
           toast("Added " + n + (out.skipped ? ". Skipped " + out.skipped + " already there." : "."));
-          say("companion", "I've got " + plural(out.added.evidence, "project", "projects") + " and " + plural(out.added.actions, "to-do", "to-dos") + " from your file. Evidence is marked unverified until you confirm it.");
           await refreshStatus(); go("today");
         }, "primary"), btn("Cancel", () => { picker.value = ""; fill(preview); })));
     } });
     const phrase = h("input", { placeholder: "DELETE EVERYTHING", "aria-label": "Type DELETE EVERYTHING to confirm" });
     page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Your data" }),
-      h("p", { text: "Everything is in one file on this Mac. Chat transcripts are removed after 30 days." }),
-      h("div", { class: "row" }, h("a", { class: "btn", href: "/api/export", download: "career-companion-export.json" }, "Export everything"),
-        S.hasSample ? btn("Remove sample data", async () => { await act(() => api("POST", "/api/sample/remove"), "Removed."); await refreshStatus(); render(); })
-          : btn("Load labelled sample data", async () => { await act(() => api("POST", "/api/sample/load"), "Loaded."); await refreshStatus(); render(); })),
-      disc("starter", "Import a starter file", "add your projects, goals and to-dos in one step",
+      h("div", { class: "row" }, h("a", { class: "btn", href: "/api/export", download: "link-export.json" }, "Export everything"),
+        S.demo ? null : S.hasSample ? btn("Remove sample data", async () => { await act(() => api("POST", "/api/sample/remove"), "Removed."); await refreshStatus(); render(); })
+          : btn("Load labelled career sample data", async () => { await act(() => api("POST", "/api/sample/load"), "Loaded."); await refreshStatus(); render(); })),
+      S.demo ? h("p", { class: "small", text: "This is the demo. It uses its own file of fictional people, and it cannot open or import your records. Start the app without --demo to use your own." })
+        : h("p", { class: "small muted", text: "To look around with fictional people instead of your own, start the app with “companion run --demo”. The demo keeps a separate file and never shows your records." }),
+      S.demo ? null : disc("starter", "Import a starter file", "add records prepared for you in one step",
         h("p", { class: "small muted", text: "A starter file is a .json file prepared for you. Choose it, check the preview, then add it. The file is read on this Mac only." }), picker, preview),
       help("Delete everything", "This removes the database files. It can't reach Time Machine or other backups, exports you saved, or copies the AI provider keeps for up to 30 days. It isn't forensic erasure.",
         h("form", { class: "row", onsubmit: async (e) => {
           e.preventDefault();
           if (!(await act(() => api("POST", "/api/wipe", { confirm: phrase.value }), "Everything was deleted."))) return;
           $("chat-log").replaceChildren();
-          Object.assign(S.draft, { current: null, action_id: null }); S.draft.evidence_ids.clear(); S.session = null; S.skipped.clear();
+          Object.assign(S.draft, { current: null, action_id: null, item_id: null }); S.draft.evidence_ids.clear(); S.draft.interaction_ids.clear(); S.session = null; S.skipped.clear(); S.contextItem = null; S.logDraft = null;
           await refreshStatus(); go("today");
         } }, h("div", { class: "grow" }, phrase), h("button", { type: "submit", class: "btn danger" }, "Delete everything")))));
     page.append(h("div", {}, disc("activity", "Activity log", "events and costs only, never your text",
       h("div", { class: "table-wrap" }, h("table", {}, h("tbody", {}, activity.slice(0, 40).map((a) => h("tr", {}, h("td", { text: a.ts.replace("T", " ").slice(0, 16) }), h("td", { text: a.event }), h("td", { text: a.detail })))))))));
-    const readiness = await api("GET", "/api/ai/readiness");
-    const testStatus = h("p", {class: "muted small", role: "status", text: readiness.note});
-    page.append(h("section", {class: "section"}, h("h3", {text: "Live AI readiness"}),
-      h("p", {text: "Configured mode: " + readiness.configured_mode + ". Prices: " + (readiness.prices_current ? "current" : "need verification") + "."}),
-      h("p", {class: "small", text: readiness.ai.reason}),
-      h("p", {class: "small", text: readiness.last_test ? "Last successful connection test: " + new Date(readiness.last_test.ts).toLocaleString() : "No successful live connection test recorded."}),
-      h("button", {type: "button", class: "btn", disabled: readiness.ai.mode !== "live" || !readiness.ai.available, onclick: async e => {
-        e.currentTarget.disabled = true; testStatus.textContent = "Testing the provider connection…";
-        const result = await act(() => api("POST", "/api/ai/smoke", {}));
-        testStatus.textContent = result ? result.note : "Test failed. Saved work is still available. Check configuration and the budget ledger before retrying.";
-        e.currentTarget.disabled = false;
-      }}, "Run live connection test (uses API budget)"), testStatus));
-
+  }
+  async function renderSettings(root) {
+    const page = h("div", { class: "page" }, pageHead("Settings", "What Tempo knows about you, how AI is used, and everything stored on this Mac."));
+    root.append(page);
+    page.append(h("div", { class: "seg wrap", role: "group", "aria-label": "Settings sections" }, SETTINGS_TABS.map(([id, label]) =>
+      h("button", { type: "button", "aria-pressed": String(S.settingsTab === id), onclick: () => go("settings/" + id) }, label))));
+    await ({ you: settingsYou, ai: settingsAi, data: settingsData }[S.settingsTab] || settingsYou)(page);
   }
 
   // ---- shell: routing, loading and error states -----------------------------------------
-  const RENDERERS = { today: renderToday, people: renderPeople, evidence: renderEvidence, drafts: renderDrafts, me: renderMe, pasted: renderPasted, settings: renderSettings };
+  const RENDERERS = { today: renderToday, people: renderPeople, person: renderPerson, log: renderLog, career: renderCareer, roles: renderRoles,
+    evidence: renderEvidence, drafts: renderDrafts, pasted: renderPasted, settings: renderSettings };
   function skeleton() {
     const bar = (w, ht) => { const s = h("span", {}); s.style.width = w; s.style.height = ht + "px"; return s; };
     return h("div", { class: "skeleton", "aria-busy": "true" }, h("span", { class: "sr", text: "Loading" }), bar("30%", 12), bar("85%", 40), bar("60%", 40), bar("70%", 16), bar("100%", 56), bar("45%", 56));
@@ -1248,29 +1698,60 @@
       help("What to check", "Is the terminal window that started the app still open and running?", "If you restarted the app, use the new link it printed. The old page can't reconnect.", "Details: " + err.message));
   }
   const STUDIO_CONTEXT = {
-    today: ["A little progress, every day.", "Choose one action worth your attention. Tempo can help you work through it."],
-    people: ["Keep the conversation moving.", "Open a person's notes for context, or record an outcome when something changes."],
+    today: ["One thing at a time.", "Only what you've committed to or asked to be reminded of shows up here. Time passing is never a task."],
+    people: ["Your people, in one place.", "Open someone to see what you recorded and what you meant to do next."],
+    person: ["Working on one person.", "Ask me what to say next, or what you might have forgotten. I only use what you recorded about them."],
+    log: ["Capture now, sort later.", "Rough notes are fine. I can sort one when you ask, and nothing is kept until you approve it."],
+    career: ["For the job search.", "Roles, evidence and drafts are here when you need them."],
+    roles: ["What you're going for.", "Record an outcome when something changes. Each one can be undone."],
     evidence: ["Good stories start with proof.", "Record your claims and sources here. Verification stays in your hands."],
-    drafts: ["Sound like yourself.", "Choose the evidence and context you approve before asking Tempo to draft. Private planning notes stay out."],
-    me: ["A working portrait of you.", "Your goals guide planning. Your voice notes guide writing. You control both."],
+    drafts: ["Sound like yourself.", "Choose what you approve before asking me to draft. Private notes stay out."],
     pasted: ["Bring your own context.", "Reference material stays separate from instructions and approved evidence."],
-    settings: ["Your workspace, your rules.", "Manage AI mode, spending and your local data here."]
+    settings: ["Your workspace, your rules.", "Change what I know about you, how AI is used, and what's stored."]
   };
+  // Who the conversation is about. Changing it is announced in the log, and the server keeps each
+  // person's conversation history apart, so one person's context never follows you to another.
+  function syncScope(item, tab) {
+    const prev = S.contextItem;
+    if ((prev ? prev.id : null) === (item ? item.id : null)) { if (item) S.contextItem.tab = tab; return; }
+    S.contextItem = item ? { id: item.id, title: item.title, tab } : null;
+    const name = (x) => x.title.replace("[SAMPLE] ", "");
+    say("system", item ? "Now talking about " + name(item) + ". I'm only using what you recorded about them." : "No longer talking about " + name(prev) + ".");
+    $("chat-input").placeholder = item ? "Ask about " + name(item) + "…" : "Talk it through…";
+    updateContextNote();
+  }
   function updateContextNote() {
     const context = STUDIO_CONTEXT[S.tab] || STUDIO_CONTEXT.today;
-    fill($("studio-context"), h("div", {class: "eyebrow", text: "AT YOUR SIDE"}), h("h3", {text: context[0]}), h("p", {text: context[1]}),
-      S.contextItem ? h("div", {class: "stack"}, h("p", {text: "Discussing: " + S.contextItem.title + ". Its private notes are available to this planning conversation."}),
-        btn("Clear record context", () => { S.contextItem = null; updateContextNote(); $("chat-input").placeholder = "Talk it through…"; }, "quiet")) : null,
-      S.tab === "drafts" ? h("p", {text: "Use the passage actions in the editor for drafting. This chat is separate from your outward writing."}) : null);
+    const scope = S.contextItem;
+    fill($("studio-context"),
+      scope ? h("div", { class: "scope" }, h("div", { class: "eyebrow accent", text: "TALKING ABOUT" }), h("strong", { text: scope.title.replace("[SAMPLE] ", "") }),
+        h("p", { text: "I can read what you recorded about them, including private notes. Nothing about anyone else is included, and this conversation is kept apart from the others." }))
+        : h("div", { class: "eyebrow", text: "AT YOUR SIDE" }),
+      h("h3", { text: context[0] }), h("p", { text: context[1] }),
+      S.tab === "drafts" ? h("p", { text: "Use the passage actions in the editor for drafting. This chat is separate from your outward writing." }) : null);
+  }
+  function demoNotice() {
+    return S.demo ? h("div", { class: "notice warn demo-notice" }, icon("info", 18), h("span", { class: "grow" }, h("strong", { text: "Demo. " }),
+      "Everyone here is fictional. Your own records are in a separate file and are never shown in the demo.")) : null;
+  }
+  function crumbs() {
+    const career = CAREER.find(([id]) => id === S.tab);
+    if (S.tab === "person") return [["People", "#people"], ["Person", null]];
+    if (S.tab === "drafts" && S.draft.item_id) return [["People", "#people"], ["Message", null]];
+    if (career) return [["Career tools", "#career"], [career[1], null]];
+    return [[(NAV.concat(NAV_MINOR).find(([id]) => id === S.tab) || [0, "Today"])[1], null]];
   }
   function composeStudio(root) {
     const page = root.querySelector(".page");
     if (!page) return;
     page.classList.add("studio-" + S.tab);
-    const sectionName = NAV.concat(NAV_MINOR).find(([id]) => id === S.tab)[1];
-    page.prepend(h("div", {class: "workspace-toolbar"},
-      h("span", {class: "toolbar-breadcrumb"}, "Link", h("span", {"aria-hidden": "true", text: "/"}), h("strong", {text: sectionName})),
-      h("span", {class: "row"}, h("button", {class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)", text: "Search ⌘K"}), h("span", {class: "local-indicator"}, h("span", {class: "dot"}), "Local workspace"))));
+    page.prepend(h("div", { class: "workspace-toolbar" },
+      h("span", { class: "toolbar-breadcrumb" }, "Link", crumbs().map(([label, href]) => [h("span", { "aria-hidden": "true", text: "/" }), href ? h("a", { href, text: label }) : h("strong", { text: label })])),
+      h("span", { class: "row" },
+        S.tab === "log" ? null : h("button", { class: "btn primary compact", type: "button", onclick: () => openQuickLog(S.tab === "person" ? S.arg : null) }, icon("log", 16), "Quick log"),
+        h("button", { class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)", text: "Search ⌘K" }), h("span", { class: "local-indicator" }, h("span", { class: "dot" }), "Local workspace"))));
+    const demo = demoNotice();
+    if (demo) page.querySelector(".workspace-toolbar").after(demo);
 
     updateContextNote();
     if (S.tab === "drafts") {
@@ -1301,11 +1782,11 @@
       });
       page.querySelector(".page-head").after(spread);
     }
-    if (S.tab === "evidence" || S.tab === "people") {
+    if (S.tab === "evidence" || S.tab === "roles") {
       const entries = [...page.querySelectorAll(".entry")];
       if (entries.length) {
         entries[0].parentElement.classList.add(S.tab === "evidence" ? "evidence-library" : "relationship-list");
-        const search = h("input", {type: "search", class: "library-search", "aria-label": "Search " + S.tab, placeholder: S.tab === "evidence" ? "Find a project, claim or metric…" : "Find a person, company or role…"});
+        const search = h("input", {type: "search", class: "library-search", "aria-label": "Search " + S.tab, placeholder: S.tab === "evidence" ? "Find a project, claim or metric…" : "Find a role or organisation…"});
         const empty = h("p", {class: "muted hidden", role: "status", text: "No matches. Try another search."});
         const clear = h("button", {class: "search-clear hidden", type: "button", "aria-label": "Clear search", onclick: () => {
           search.value = ""; search.dispatchEvent(new Event("input")); search.focus();
@@ -1319,7 +1800,7 @@
           empty.classList.toggle("hidden", matches > 0);
         });
         if (S.recordQuery) { search.value = S.recordQuery; S.recordQuery = null; search.dispatchEvent(new Event("input")); }
-        entries[0].parentElement.before(h("div", {class: "library-toolbar"}, h("span", {class: "eyebrow", text: entries.length + (S.tab === "evidence" ? " EVIDENCE ENTRIES" : " PEOPLE & ROLES")}), searchField), empty);
+        entries[0].parentElement.before(h("div", {class: "library-toolbar"}, h("span", {class: "eyebrow", text: entries.length + (S.tab === "evidence" ? " EVIDENCE ENTRIES" : " ROLES")}), searchField), empty);
       }
     }
   }
@@ -1333,19 +1814,22 @@
       main.replaceChildren(...fresh.childNodes);
       return;
     }
+    // Leaving the page a conversation was scoped to ends that scope.
+    const c = S.contextItem;
+    if (c && c.tab !== S.tab && !((S.tab === "person" && S.arg === c.id) || (S.tab === "drafts" && S.draft.item_id === c.id))) syncScope(null);
     renderSide();
     const wait = setTimeout(() => { if (seq === renderSeq) main.replaceChildren(skeleton()); }, 220);
     const fresh = h("div", {});
     try { await refreshStatus(); await RENDERERS[S.tab](fresh); composeStudio(fresh); }
     catch (err) { fresh.replaceChildren(errorView(err)); }
     clearTimeout(wait);
-    if (seq === renderSeq) main.replaceChildren(...fresh.childNodes);
+    if (seq === renderSeq) { main.replaceChildren(...fresh.childNodes); renderSide(); }
   }
   function route() {
-    const tab = window.location.hash.replace("#", "");
-    S.tab = RENDERERS[tab] ? tab : "today";
+    applyRoute();
+    S.editLog = null; S.editPerson = false;
     closeMore();
-    document.title = "Link — Your career, connected";
+    document.title = "Link — Your people, connected";
     // Moving focus to the new page lets keyboard and screen-reader users land in it directly.
     render().then(() => {
       if (!S.onboarding.done) return;
@@ -1365,8 +1849,7 @@
     try {
       await refreshStatus();
       window.addEventListener("hashchange", route);
-      const tab = window.location.hash.replace("#", "");
-      S.tab = RENDERERS[tab] ? tab : "today";
+      applyRoute();
       await render();
       if (S.onboarding.done) {
         await greet();

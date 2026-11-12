@@ -362,3 +362,21 @@ def test_demo_data_is_fictional_labelled_and_lives_in_its_own_database(tmp_path,
     # And the user's own database has none of the demo people.
     assert [p["name"] for p in real.get("/api/people").json()] == ["Real Synthetic Contact"]
     assert real.get("/api/bootstrap").json()["demo"] is False
+
+
+def test_marking_a_persons_todo_done_from_today_adds_it_to_their_timeline(client):
+    p = person(client)
+    client.put(f"/api/people/{p['id']}/next-action", json={"title": "Send the dashboard"})
+    action = client.get("/api/actions").json()[0]
+    assert client.post(f"/api/actions/{action['id']}/state", json={"state": "done"}).status_code == 200
+    timeline = client.get(f"/api/people/{p['id']}").json()["timeline"]
+    assert [e["source"] for e in timeline] == ["confirmed_action"] and "Send the dashboard" in timeline[0]["note"]
+    # A to-do that isn't about a person adds nothing.
+    loose = client.post("/api/actions", json={"title": "Synthetic chore", "kind": "other"}).json()
+    client.post(f"/api/actions/{loose['id']}/state", json={"state": "done"})
+    assert len(client.get("/api/logs").json()) == 0
+
+
+def test_companion_styles_are_offered_and_keep_the_proactive_colleague(client):
+    styles = client.get("/api/bootstrap").json()["companion_styles"]
+    assert any("clear recommendations" in s and "no guilt after gaps" in s for s in styles)

@@ -327,6 +327,7 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
         return {"csrf": security.csrf_for(request.cookies.get(COOKIE_NAME)), "ai": gateway.availability(),
                 "budget": budget.status(), "onboarding": services.onboarding_state(db),
                 "setup": services.setup_progress(db), "demo": settings.demo, "categories": people.CATEGORIES,
+                "companion_styles": services.ONBOARDING[1]["options"],
                 "has_sample": bool(db.one("SELECT 1 FROM evidence WHERE is_sample=1 UNION SELECT 1 FROM actions WHERE is_sample=1")),
                 "enums": {"memory_private": store.PRIVATE_MEMORY_KINDS, "memory_public": store.PUBLIC_VOICE_KINDS,
                           "uses": store.USES, "evidence_statuses": store.EVIDENCE_STATUSES,
@@ -539,7 +540,11 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
 
     @app.post("/api/actions/{aid}/state")
     def action_state(aid: int, body: StateIn) -> dict:
-        return store.set_action_state(db, aid, body.state)
+        before = store.get(db, "actions", aid)
+        action = store.set_action_state(db, aid, body.state)
+        if body.state == "done" and before and before["state"] != "done":
+            people.record_done(db, action, today_date())  # the user confirmed it, so it joins that person's timeline
+        return action
 
     @app.post("/api/actions/{aid}/note")
     def action_note(aid: int, body: NoteIn) -> dict:

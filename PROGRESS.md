@@ -142,6 +142,48 @@ person's timeline under their original label. Roles, evidence, drafts, pasted ma
 ### Increments
 
 - [x] 1. Schema, people, logs, next action, scoped chat and drafting, onboarding, demo mode (backend + tests)
-- [ ] 2. Navigation, People, person view, Quick log, Today, Settings, onboarding (interface)
-- [ ] 3. Browser verification of the nine scenarios, guideline review, docs
+- [x] 2. Navigation, People, person view, Quick log, Today, Settings, onboarding (interface)
+- [x] 3. Browser verification of the nine scenarios, guideline review, docs
+
+### Checks (2026-11-12)
+
+`164 passed` (`.venv/bin/python -m pytest -q`). 21 of them are new, in `tests/test_people.py`.
+
+Headless Chromium at 1470 x 860, four runs, 74 checks, all passing:
+
+| Scenario asked for | Where it is checked |
+|---|---|
+| Adding someone with only a name | Run A by keyboard; `test_adding_someone_needs_only_a_name` |
+| Saving a rough log without AI | Run A (AI off, no person chosen); `test_a_rough_log_saves_without_ai_and_without_a_person` |
+| An approximate date without invented precision | Runs A and B ("Roughly: last week", no date stored); two tests |
+| An uncertain commitment stays out of confirmed tasks | Run B (no action, no reminder, Today unchanged); `test_an_uncertain_promise_never_becomes_a_task_or_reminder` |
+| Associating an unassigned log with an existing person | Run A; `test_an_unassigned_log_can_be_given_to_an_existing_person` |
+| Switching people without drafting-context leakage | Run B (request bodies, cleared form, scope banner); three canary tests |
+| Finding a person and resuming after a gap | Run B (Command K, history and next action shown); `test_a_person_can_be_found_and_resumed_after_a_gap` |
+| Existing people, roles, notes and outcomes preserved | Run B on a schema-3 database; `test_existing_people_roles_notes_and_outcomes_survive_the_upgrade` |
+| Keyboard at a MacBook-sized viewport | Runs A and D: skip link first, sidebar, Add person, Quick log dialog, a person row opened with Enter, undo |
+
+Also checked: the demo (banner, four fictional people, no starter import), a bookmarked category filter,
+undo after clearing a next action, an unfinished log surviving navigation, dark theme, and 390 x 844 with no
+sideways scrolling.
+
+Design review: the Web Interface Guidelines (fetched 2026-11-12) were applied to the new screens. Fixed as a
+result: confirmation or undo on every destructive action, deep links for the people filter and settings
+sections, section headings, placeholders, scroll containment in the dialog, long-list rendering, and keeping
+an unfinished log when moving around. Deliberately not followed: Title Case for buttons (the app uses
+sentence case throughout) and "avoid first person" (Tempo speaks as a colleague by design). The Figma tools
+were not available in this session (not signed in), so no Figma file was produced or consulted.
+
+One bug found on the way and fixed: the first Tab press on a fresh page went to the Tempo button instead of
+the skip link, because the closed panel scrolled its chat log.
+
+### Limitations and what is left
+
+- The quick-log sorting prompt has not run against the live model. Try it on two or three real notes and
+  check that hedged details land under "Not sure about" before relying on it.
+- Category names are fixed; only the assignment is editable.
+- Unassigned logs are matched to people by hand.
+- Draft, role and evidence screens under Career tools keep their earlier wording and layout.
+- This branch is stacked on `claude/less-friction` (pull request #3), so it includes that change.
+- Verification scripts are not in the repository; they were run from a scratch folder.
 

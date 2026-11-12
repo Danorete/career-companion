@@ -24,7 +24,7 @@ def _run(args: argparse.Namespace) -> int:
     app = create_app(settings)
     url = f"http://{settings.host}:{settings.port}/#t={app.state.security.launch_token}"
     ai = app.state.gateway.availability()
-    print("Link — Your career, connected")
+    print("Link — Your people, connected")
     if settings.demo:
         print("  DEMO        : fictional data in its own database. Your own records are not loaded.")
     print(f"  Data folder : {settings.data_dir}")
@@ -72,7 +72,7 @@ def _status(_: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="companion", description="Link (local career companion, single user)")
+    parser = argparse.ArgumentParser(prog="companion", description="Link (local companion for making and keeping connections, single user)")
     sub = parser.add_subparsers(dest="command")
     run = sub.add_parser("run", help="start the app and open the browser")
     run.add_argument("--no-browser", action="store_true")

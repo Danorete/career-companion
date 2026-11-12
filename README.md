@@ -1,12 +1,13 @@
 # Link
 
-Your career, connected. A local career companion with a native-inspired interface.
+Your people, connected. A local workspace for making and keeping connections, with a companion beside it.
 
 The Python package, `companion` command, and existing data folder retain their names so upgrades keep your information in place.
 
-A personal, local career tool: a workspace with a companion docked beside it. It tells you the one thing to do
-next, keeps your place, checks draft claims against your own evidence, and never touches LinkedIn. You send,
-post, apply, and edit your profile yourself.
+You jot down what you remember about someone you met, find it under that person later, and prepare a
+thoughtful next step. Nothing needs to be exact: a rough note, an approximate date and an unsure promise are
+all kept as what they are. Link never touches LinkedIn, your inbox or your contacts. You send every message
+yourself. The earlier job-search tools (roles, evidence, drafts) are still there under **Career tools**.
 
 Version one, single user. Decisions are in `DECISIONS.md`; build status is in `PROGRESS.md`.
 
@@ -26,8 +27,9 @@ python3.12 -m venv .venv
 
 `companion run` prints a link and opens it in your browser. The link works once; restart the app for a new
 one. The app starts in **mock AI** mode: replies are canned, labelled as mock, and nothing leaves your Mac.
-Use "Load labelled sample data" on the Today page to look around; every sample item is marked `[SAMPLE]`
-and one click removes them all.
+To look around with fictional people instead of your own, run `.venv/bin/companion run --demo`. The demo
+keeps its own database file (the data folder name ends in `-demo`), shows a banner on every page, and can
+neither open nor import your records.
 
 Your data lives in `~/Library/Application Support/CareerCompanion/`, outside this repository.
 
@@ -43,7 +45,7 @@ Your data lives in `~/Library/Application Support/CareerCompanion/`, outside thi
 You don't have to type everything in. A starter file is a `.json` file holding evidence, About me entries,
 people and roles, and to-dos.
 
-1. On an empty Today page choose "Import a starter file" (or open Settings & data, then "Import a starter file").
+1. Open Settings, then "Privacy & data", then "Import a starter file".
 2. Choose the file. The app shows everything it contains.
 3. Click "Add these N things".
 
@@ -71,31 +73,45 @@ job comparison send only the evidence you tick, your voice notes, and what you t
 
 ## What it does
 
-First run is a short conversation with the companion (working name: Tempo): four questions, one at a time,
-each skippable. The workspace appears afterwards.
+First run is two questions from the companion (working name: Tempo): whether you want help meeting people,
+keeping in touch, or both, and how you'd like it to work with you. Each has suggested answers, can be
+skipped, and can be changed later in Settings.
 
-- **Today**: one recommended action beside a session ring. Pick 15, 20 or 30 minutes and start; the ring
-  counts down. Other options, reminders, and the idea parking lot are tucked into rows below. An empty
-  account offers two first steps: add a project, or paste your profile text.
-- **People & roles**: status, last recorded interaction, next action, and one-click outcomes with undo. Explicitly select a record to discuss its private planning context with Tempo.
-- **Evidence**: claims with a status, numbers, approved uses, banned phrases, and a confidential flag.
-- **Drafts**: write beside an adjustable evidence inspector, inspect linked claims, preview passage suggestions, compare prior versions and restore them. Every save is checked against current evidence.
-- **About me**: everything the companion remembers, editable and deletable.
-- **Pasted material** and **Settings & data** sit lower in the sidebar: reference text, AI mode, spending,
-  export, delete, activity log. AI mode and budget are always visible at the bottom of the sidebar.
-- **Setup progress**: a card in the sidebar shows how far setup has got (for example "60%, 3 of 5 steps").
-  Each step says what it unlocks and links to where you do it. Sample data doesn't count, and live AI is
-  optional. The card disappears at 100%.
-- **The companion panel**: shows whether it is ready, thinking, waiting for your OK, or off. Drag its edge
-  (or focus the edge and use the arrow keys) to resize; collapse it to a corner pill.
+- **Today**: one recommended action with its reason and a time estimate; anything else is collapsed. Only
+  things you committed to, deadlines, importance and reminders you set are ranked. Time since you last spoke
+  to someone never creates a task. A new account offers "Log someone you met" and "Add someone you'd like
+  to meet".
+- **People**: a compact, searchable list. Each row shows the name and organisation, how you know them, the
+  last thing you recorded (approximate dates stay approximate) and the next action if there is one. Filters:
+  All, Want to meet, Getting acquainted, Stay in touch, Paused. These are labels you choose, not scores, and
+  nobody is categorised for you. Adding someone needs only a name. A saved profile link is text: the app
+  never opens it.
+- **A person**: how you know them, one editable next action with an optional reminder, a timeline, private
+  notes, and three actions: Quick log, Prepare a message, Edit details. Each timeline entry says where it
+  came from (your recap, a pasted exchange, an action you confirmed), when it happened and when you logged
+  it. Every entry can be edited and deleted.
+- **Quick log**: one box, "What do you remember?", reachable from the top of every page. Person and date are
+  optional; a log with no person waits under Quick log until you assign it, and no person is ever created for
+  you. With AI on, "Save and sort with Tempo" proposes an editable summary split into what happened, what
+  you're unsure about, possible commitments and ideas for a next step. Nothing from it is kept until you
+  approve it, and a possible commitment stays a note until you set it as the next action yourself. A pasted
+  exchange is optional, and the form says what will be kept before you save.
+- **Tempo, scoped**: while you're on a person, the panel says who the conversation is about. It can read
+  what you recorded about that person and nothing about anyone else, and each person's conversation is kept
+  apart from the others.
+- **Career tools** (lower in the sidebar): Roles with one-click outcomes and undo, Evidence, Drafts, Pasted
+  material, and the optional career setup checklist. Records made before this redesign are unchanged; an
+  outcome once recorded on a person appears in their timeline under its original label.
+- **Settings**: You & preferences (everything Tempo remembers about you, editable and deletable), AI &
+  spending, Privacy & data (export, import, delete, activity log).
 
-Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Enter sends a chat message
-(Shift+Enter for a new line), Escape closes the companion on a narrow window. Motion is removed when macOS
-"Reduce motion" is on.
+Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Enter opens a person from the
+list, Command or Control K searches people and records, Enter sends a chat message (Shift+Enter for a new
+line), Escape closes a dialog. Motion is removed when macOS "Reduce motion" is on.
 
 ## Test results
 
-`143 passed` on Linux, Python 3.12, 2026-11-12. Not yet run on macOS. Coverage by acceptance criterion:
+`164 passed` on Linux, Python 3.12, 2026-11-12. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -111,9 +127,24 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 | Local endpoints protected | `test_security.py` (22 tests) |
 | Session timer starts only on a chosen action, and ends | `test_session_timer_info_and_end` |
 | Setup progress: starts at 0, ignores samples, each step independent, drops on delete | `test_setup_*` and `test_each_setup_step_flips_on_its_own` (5 tests) |
+| A person needs only a name; categories are the user's choice | `test_adding_someone_needs_only_a_name`, `test_a_saved_profile_link_is_text_and_category_is_the_users_choice` |
+| A rough log saves without AI and without a person | `test_a_rough_log_saves_without_ai_and_without_a_person` |
+| An approximate date is never given a date | `test_an_approximate_date_is_kept_as_words_with_no_invented_date`, `test_resolve_when_never_gives_an_approximate_entry_a_date` |
+| An uncertain promise is never a task or reminder | `test_an_uncertain_promise_never_becomes_a_task_or_reminder` |
+| An unassigned log joins an existing person, no duplicates | `test_an_unassigned_log_can_be_given_to_an_existing_person` |
+| One person's context never reaches another's draft or chat | `test_a_draft_for_one_person_never_contains_another_persons_context`, `test_switching_people_in_chat_does_not_carry_the_previous_persons_context`, `test_drafting_gets_the_users_recap_and_never_private_notes_or_a_pasted_exchange` |
+| A pasted exchange is kept only on request and cannot act | `test_a_pasted_exchange_is_kept_only_when_the_user_says_so` |
+| Time since last contact creates no obligation | `test_time_since_last_contact_alone_creates_no_obligation` |
+| Existing people, roles, notes and outcomes survive the upgrade | `test_existing_people_roles_notes_and_outcomes_survive_the_upgrade` |
+| Demo data is fictional and separate | `test_demo_data_is_fictional_labelled_and_lives_in_its_own_database` |
 | Starter file: one-step import, never pre-verified, safe to repeat, validated | `test_starter_file_*` (4 tests), `test_imported_private_memory_still_stays_out_of_drafting` |
 
-The interface was also driven in headless Chromium at 1470 x 860 (13-inch MacBook Air), 1710 x 1010 and
+The connections redesign was driven in headless Chromium at 1470 x 860 in four runs (74 checks, all passing):
+a new user with AI off using the keyboard; a database created before the redesign, with mock AI; the demo;
+and deep links, undo and a 390 x 844 phone width. No script errors, no control under 44 px, no request left
+the machine.
+
+Before the redesign the interface was also driven at 1470 x 860 (13-inch MacBook Air), 1710 x 1010 and
 390 x 844: onboarding, the empty account, sample data, a confirmed suggestion, a full session, a draft and
 an edit, outcome recording, every section, a slowed-down load, a forced error and recovery, panel resize by
 keyboard, collapse and reopen. No script errors; no control under 44 px; text contrast 5.4:1 or better on the
@@ -122,10 +153,12 @@ pairs measured; no sideways scrolling at any size.
 ## Known limitations
 
 **Not verified**
-- No real API call has been made. How `messages.parse` behaves live with `thinking` and `effort` together,
-  and real token counts and costs, are unconfirmed.
-- Nothing has been run on macOS: Keychain prompts (they may repeat if the Python binary changes), Safari
-  (clipboard, cookies on `127.0.0.1`), and whether port 8765 is free are untested.
+- One live call has succeeded: the connection test, on the owner's Mac on 2026-11-11. The quick-log sorting
+  prompt and the résumé extraction prompt have only run against the mock and a stand-in provider, so how well
+  the live model separates certain from uncertain details is unconfirmed. Real costs have not been reconciled
+  with the provider Console.
+- The automated tests and browser runs are on Linux. On macOS only startup, Keychain and the connection test
+  have been exercised by hand; Safari (clipboard, cookies on `127.0.0.1`) is untested.
 - Whether failed API requests are billed. The app assumes they might be and counts them at maximum.
 - Console usage-page lag, and prepaid-credit behaviour.
 
@@ -143,8 +176,17 @@ pairs measured; no sideways scrolling at any size.
 - The database is not encrypted by the app. It relies on FileVault and file permissions. Malware running as
   your macOS user could read it.
 - Reminders appear only when the app is open. There are no notifications and no background work.
+- People: the four category names are fixed; which category someone is in is yours to set, change or clear.
+  There is one next action per person; older open to-dos for them are listed underneath it.
+- Quick log: a log with no person is matched by hand; the app does not guess who it is about. In mock mode
+  the "sort" is a rough sentence split, labelled as mock. If you answer Tempo's one clarifying question, the
+  answer is added to your note. A summary you approve is treated as your own words afterwards, including one
+  that drew on a pasted exchange, so read it before ticking it for a draft.
+- Approximate dates are ordered in the timeline by a rough guess that is never shown; the order can be off.
+- Deleting a person deletes their timeline and next action. Messages drafted for them are kept, unlinked.
+- A draft can take at most 10 ticked notes.
+- The demo is seeded once into its own database. Changes you make there stay there.
 - Replies are not streamed, so a live reply appears all at once after a pause.
-- Pasting a résumé does not create evidence entries by itself. A starter file does that in bulk; someone still has to write the file.
 - Appearance supports light, dark, and system mode. Preferences are stored in this browser.
 - The session ring is a timer, not an alarm: nothing sounds, and it only updates while the app is open.
 - Panel width and collapsed state are stored in the browser (layout only, no personal data).
@@ -158,7 +200,7 @@ people discovery, accounts, billing, hosting, desktop packaging.
 
 ## Interface reference
 
-Link's web controls adapt the [iOS 27 Builder community kit](https://www.figma.com/design/AukfOZC1FQTHjg1plgzdEz/?node-id=6171-452): capsule search fields, prominent capsule buttons, and a floating mobile tab bar. The implementation uses the existing HTML/CSS/JavaScript stack; it does not embed Figma renders or require SwiftUI. Glass surfaces have opaque fallbacks, and motion follows the system reduced-motion preference. On mobile, Today, People, Evidence and Drafts are direct tabs; About me, Pasted material and Settings remain available under More.
+Link's web controls adapt the [iOS 27 Builder community kit](https://www.figma.com/design/AukfOZC1FQTHjg1plgzdEz/?node-id=6171-452): capsule search fields, prominent capsule buttons, and a floating mobile tab bar. The implementation uses the existing HTML/CSS/JavaScript stack; it does not embed Figma renders or require SwiftUI. Glass surfaces have opaque fallbacks, and motion follows the system reduced-motion preference. On mobile, Today, People and Quick log are direct tabs; Career tools and Settings are under More.
 
 ## Workflow improvements
 
