@@ -15,11 +15,16 @@ from .validate import quantities, validate_draft
 MAX_PROPOSALS_PER_TURN = 3
 
 ONBOARDING = [
-    ("goal", "What are you working toward in the next few months?", "A sentence or two is plenty."),
-    ("constraint", "What gets in the way of your time and energy?",
-     "Skip anything sensitive. I only need enough to plan around it."),
-    ("preference", "How do you like to be worked with?", "Blunt or gentle, short or detailed, anything that annoys you."),
-    ("boundary", "Is there anything I should never suggest or put in writing?", "For example a topic, an employer, or a tone."),
+    {"kind": "goal", "question": "Would you like help meeting people, keeping in touch, or both?",
+     "hint": "Pick one, or skip.", "options": ["Meeting people", "Keeping in touch", "Both"],
+     "prefix": "I'd like help with: "},
+    {"kind": "preference", "question": "How would you like your companion to work with you?",
+     "hint": "Pick a starting point or write your own. You can change it any time in Settings.",
+     "options": ["Proactive colleague: clear recommendations, thoughtful questions, honest about uncertainty, "
+                 "and no guilt after gaps",
+                 "Quiet helper: brief, and only speaks up when I ask",
+                 "Gentle coach: encouraging, with small steps"],
+     "prefix": "How I'd like my companion to work with me: "},
 ]
 
 
@@ -52,7 +57,7 @@ def ensure_session(db: Database) -> dict:
 def _option(o: Option, db: Database) -> dict:
     item = store.get(db, "items", o.action["item_id"]) if o.action["item_id"] else None
     return {"action": o.action, "reasons": o.reasons,
-            "item": {"id": item["id"], "title": item["title"], "org": item["org"]} if item else None}
+            "item": {"id": item["id"], "title": item["title"], "org": item["org"], "kind": item["kind"]} if item else None}
 
 
 def today_view(db: Database, settings: Settings, minutes: int) -> dict:
@@ -67,8 +72,8 @@ def today_view(db: Database, settings: Settings, minutes: int) -> dict:
         days_away = (datetime.now(timezone.utc) - datetime.fromisoformat(last["started_at"])).days
 
     if not options:
-        greeting = ("Nothing is waiting on you. Add an opportunity or a follow-up when one comes up, "
-                    "or park an idea. No need to invent work.")
+        greeting = ("Nothing is waiting on you. Log someone you met, or add someone you'd like to meet, "
+                    "whenever that happens. No need to invent work.")
     else:
         top = options[0]
         opener = "" if not days_away else (
@@ -87,6 +92,8 @@ def today_view(db: Database, settings: Settings, minutes: int) -> dict:
         "alternatives": [_option(o, db) for o in options[1:]],
         "reminders": reminders,
         "parked_ideas": db.one("SELECT COUNT(*) AS n FROM ideas WHERE state='parked'")["n"],
+        "people": db.one("SELECT COUNT(*) AS n FROM items WHERE kind='relationship'")["n"],
+        "unassigned_logs": db.one("SELECT COUNT(*) AS n FROM interactions WHERE item_id IS NULL")["n"],
     }
 
 
@@ -102,18 +109,18 @@ def onboarding_state(db: Database) -> dict:
     row = db.one("SELECT value FROM kv WHERE key='onboarding_step'")
     step = int(row["value"]) if row else 0
     done = step >= len(ONBOARDING)
-    return {"done": done, "step": step, "total": len(ONBOARDING),
-            "question": None if done else ONBOARDING[step][1],
-            "hint": None if done else ONBOARDING[step][2]}
+    q = None if done else ONBOARDING[step]
+    return {"done": done, "step": min(step, len(ONBOARDING)), "total": len(ONBOARDING),
+            "question": q and q["question"], "hint": q and q["hint"], "options": q["options"] if q else []}
 
 
 def onboarding_answer(db: Database, text: str) -> dict:
     state = onboarding_state(db)
     if state["done"]:
         return state
-    kind = ONBOARDING[state["step"]][0]
+    q = ONBOARDING[state["step"]]
     if text.strip():
-        store.insert(db, "memory", kind=kind, text=text.strip(), provenance="user_typed")
+        store.insert(db, "memory", kind=q["kind"], text=q["prefix"] + text.strip(), provenance="user_typed")
     db.run("INSERT INTO kv(key,value) VALUES('onboarding_step',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
            (str(state["step"] + 1),))
     return onboarding_state(db)
@@ -146,13 +153,15 @@ def chat_turn(db: Database, gateway: Gateway, settings: Settings, message: str, 
     tainted = int(bool(import_row))
     system, user, meta = context.planning_context(
         db, session, message, import_row, options_text(db, settings, session["minutes"]), context_item_id)
-    store.insert(db, "messages", session_id=session["id"], role="user", content=message, has_import=tainted)
+    store.insert(db, "messages", session_id=session["id"], role="user", content=message, has_import=tainted,
+                 context_item_id=context_item_id)
     try:
         turn = gateway.call("companion_turn", system, user, CompanionTurn, session_id=session["id"], meta=meta)
     except AIUnavailable as e:
         return {"reply": None, "unavailable": e.reason, "proposals": [], "dropped_proposals": 0}
     assert isinstance(turn, CompanionTurn)
-    store.insert(db, "messages", session_id=session["id"], role="assistant", content=turn.reply, has_import=tainted)
+    store.insert(db, "messages", session_id=session["id"], role="assistant", content=turn.reply, has_import=tainted,
+                 context_item_id=context_item_id)
 
     created, dropped = [], 0
     if tainted:
@@ -208,12 +217,28 @@ def _note_draft_saved(db: Database, action_id: int | None) -> None:
         store.set_action_state(db, action_id, "drafted")
 
 
+def _draft_scope(db: Database, action: dict | None, item_id: int | None, interaction_ids: list[int]) -> dict:
+    """Work out who a draft is for. A person chosen explicitly wins; their ticked notes must be their own."""
+    from . import people
+
+    if item_id is not None:
+        people.get_person(db, item_id)
+        return {"item_id": item_id, "name_recipient": True,
+                "recipient_notes": people.notes_for_draft(db, item_id, interaction_ids)}
+    if interaction_ids:
+        raise store.RuleError("Choose the person these notes belong to first.")
+    return {"item_id": action["item_id"] if action else None, "name_recipient": False, "recipient_notes": []}
+
+
 def generate_draft(db: Database, gateway: Gateway, *, action_id: int | None, purpose: str, audience: str,
                    evidence_ids: list[int], instruction: str, shareable_note: str,
-                   include_item_context: bool) -> dict:
+                   include_item_context: bool, item_id: int | None = None,
+                   interaction_ids: list[int] | None = None) -> dict:
     action = store.get(db, "actions", action_id) if action_id else None
+    scope = _draft_scope(db, action, item_id, interaction_ids or [])
     ctx = context.draft_context(db, purpose, audience, evidence_ids, instruction, shareable_note,
-                                action["item_id"] if action else None, include_item_context)
+                                scope["item_id"], include_item_context,
+                                recipient_notes=scope["recipient_notes"], name_recipient=scope["name_recipient"])
     session = active_session(db)
     out = gateway.call("draft", ctx.system, ctx.user, DraftOut, session_id=session["id"] if session else None,
                        meta=ctx.meta)
@@ -222,7 +247,8 @@ def generate_draft(db: Database, gateway: Gateway, *, action_id: int | None, pur
     # Validate against the whole library, so a reference to an entry that was held back is caught as such.
     report = validate_draft(out.body, claims, _evidence_map(db), purpose)
     draft = store.insert(db, "drafts", action_id=action_id, purpose=purpose, audience=audience, body=out.body,
-                         claims=claims, gaps=[g[:300] for g in out.gaps[:10]], report=report, source="ai")
+                         claims=claims, gaps=[g[:300] for g in out.gaps[:10]], report=report, source="ai",
+                         item_id=item_id)
     snapshot_draft(db, draft)
     _note_draft_saved(db, action_id)
     return {"draft": draft, "excluded_evidence": ctx.excluded}
@@ -230,9 +256,11 @@ def generate_draft(db: Database, gateway: Gateway, *, action_id: int | None, pur
 
 def suggest_passage(db: Database, gateway: Gateway, *, selection: str, operation: str, **fields) -> dict:
     action = store.get(db, "actions", fields.get("action_id")) if fields.get("action_id") else None
+    scope = _draft_scope(db, action, fields.get("item_id"), fields.get("interaction_ids") or [])
     ctx = context.draft_context(db, fields["purpose"], fields["audience"], fields["evidence_ids"],
                                 fields["instruction"], fields["shareable_note"],
-                                action["item_id"] if action else None, fields["include_item_context"])
+                                scope["item_id"], fields["include_item_context"],
+                                recipient_notes=scope["recipient_notes"], name_recipient=scope["name_recipient"])
     instruction = {"shorten": "Shorten the passage without changing its meaning.",
                    "clarify": "Clarify the passage while preserving the user's voice and factual meaning.",
                    "check": "Keep the passage unchanged and tag its claims for evidence checking."}[operation]
@@ -254,7 +282,7 @@ def snapshot_draft(db: Database, draft: dict) -> None:
 
 
 def save_draft(db: Database, draft_id: int | None, *, action_id: int | None, purpose: str, audience: str,
-               body: str, claims: list[dict] | None = None) -> dict:
+               body: str, claims: list[dict] | None = None, item_id: int | None = None) -> dict:
     """Atomically retain the old and new text; unchanged autosaves do not create versions."""
     with db.tx():
         existing = store.get(db, "drafts", draft_id) if draft_id else None
@@ -266,7 +294,7 @@ def save_draft(db: Database, draft_id: int | None, *, action_id: int | None, pur
             draft = store.update(db, "drafts", existing["id"], body=body, report=report, audience=audience, purpose=purpose, claims=claims)
         else:
             draft = store.insert(db, "drafts", action_id=action_id, purpose=purpose, audience=audience, body=body,
-                                 claims=claims, gaps=[], report=report, source="user")
+                                 claims=claims, gaps=[], report=report, source="user", item_id=item_id)
         snapshot_draft(db, draft)
         _note_draft_saved(db, (existing or {}).get("action_id") or action_id)
     return draft

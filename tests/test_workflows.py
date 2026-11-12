@@ -34,12 +34,14 @@ def test_short_onboarding_stores_answers_without_ai(settings):
     settings.ai_mode = "off"
     client = signed_in(create_app(settings))
     state = client.get("/api/bootstrap").json()["onboarding"]
-    assert state["step"] == 0 and state["total"] == 4 and not state["done"]
-    for answer in ("Synthetic goal", "", "Be blunt", "Never mention X"):  # one question skipped
-        state = client.post("/api/onboarding/answer", json={"text": answer}).json()
+    assert state["step"] == 0 and state["total"] == 2 and not state["done"]
+    assert state["options"] == ["Meeting people", "Keeping in touch", "Both"]
+    state = client.post("/api/onboarding/answer", json={"text": "Both"}).json()
+    assert any(o.startswith("Proactive colleague") for o in state["options"])
+    state = client.post("/api/onboarding/answer", json={"text": ""}).json()  # the second question skipped
     assert state["done"]
-    kinds = [m["kind"] for m in client.get("/api/memory").json()]
-    assert sorted(kinds) == ["boundary", "goal", "preference"]
+    memory = client.get("/api/memory").json()
+    assert [m["kind"] for m in memory] == ["goal"] and memory[0]["text"].endswith("Both")
 
 
 def test_preferences_can_be_corrected_in_conversation_and_edited_directly(client):

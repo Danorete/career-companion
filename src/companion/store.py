@@ -47,7 +47,7 @@ JSON_COLS = {
     "draft_versions": ("claims", "gaps"),
     "proposals": ("payload",),
 }
-STAMPED = {"memory", "evidence", "items", "actions", "drafts"}  # tables with updated_at
+STAMPED = {"memory", "evidence", "items", "actions", "drafts", "interactions"}  # tables with updated_at
 
 
 class RuleError(ValueError):
@@ -167,6 +167,6 @@ def load_sample(db: Database, today: date) -> None:
 
 def remove_sample(db: Database) -> None:
     db.run("DELETE FROM reminders WHERE action_id IN (SELECT id FROM actions WHERE is_sample=1)")
-    for table in ("actions", "items", "evidence", "memory"):
+    for table in ("interactions", "actions", "items", "evidence", "memory"):
         db.run(f"DELETE FROM {table} WHERE is_sample=1")
     db.log("sample_removed")

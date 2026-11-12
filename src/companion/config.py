@@ -31,6 +31,7 @@ class Settings:
     day_cap_usd: float = 2.0
     timezone: str = "America/New_York"
     transcript_days: int = 30
+    demo: bool = False  # fictional data in its own database; personal records are never in it
 
     def __post_init__(self) -> None:
         if self.host != LOOPBACK_HOST:
@@ -48,8 +49,12 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         kwargs: dict = {}
+        demo = os.environ.get("COMPANION_DEMO") == "1"
+        if demo:
+            kwargs["demo"] = True
+            kwargs["data_dir"] = Path(str(default_data_dir()) + "-demo")
         if os.environ.get("COMPANION_DATA_DIR"):
-            kwargs["data_dir"] = Path(os.environ["COMPANION_DATA_DIR"])
+            kwargs["data_dir"] = Path(os.environ["COMPANION_DATA_DIR"] + ("-demo" if demo else ""))
         if os.environ.get("COMPANION_PORT"):
             kwargs["port"] = int(os.environ["COMPANION_PORT"])
         if os.environ.get("COMPANION_AI_MODE"):

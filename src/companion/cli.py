@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import logging
+import os
 import sys
 import webbrowser
 
@@ -17,11 +18,15 @@ def _run(args: argparse.Namespace) -> int:
     from .app import create_app
 
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
+    if getattr(args, "demo", False):
+        os.environ["COMPANION_DEMO"] = "1"
     settings = Settings.from_env()
     app = create_app(settings)
     url = f"http://{settings.host}:{settings.port}/#t={app.state.security.launch_token}"
     ai = app.state.gateway.availability()
     print("Link — Your career, connected")
+    if settings.demo:
+        print("  DEMO        : fictional data in its own database. Your own records are not loaded.")
     print(f"  Data folder : {settings.data_dir}")
     print(f"  AI          : {ai['mode']} ({ai['reason']})")
     print(f"  Open        : {url}")
@@ -71,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command")
     run = sub.add_parser("run", help="start the app and open the browser")
     run.add_argument("--no-browser", action="store_true")
+    run.add_argument("--demo", action="store_true", help="open a separate database of fictional demo data")
     run.set_defaults(func=_run)
     sub.add_parser("set-key", help="store the API key in the system keychain").set_defaults(func=_set_key)
     sub.add_parser("delete-key", help="remove the API key").set_defaults(func=_delete_key)

@@ -62,6 +62,14 @@ class CompareOut(BaseModel):
     requirements: list[Requirement]
 
 
+class QuickLogOut(BaseModel):
+    context: str
+    uncertain: list[str]
+    possible_commitments: list[str]
+    next_steps: list[str]
+    clarification: str
+
+
 class MetricOut(BaseModel):
     value: str
     unit: str
@@ -92,6 +100,7 @@ PROFILES: dict[str, Profile] = {
     "draft": Profile("claude-sonnet-5-5", 1800, "medium"),
     "compare": Profile("claude-sonnet-5-5", 1800, "medium"),
     "extract": Profile("claude-sonnet-5-5", 4000, "medium"),
+    "quicklog": Profile("claude-sonnet-5-5", 900, "medium"),
 }
 # Cheapest thinking setting each model accepts (verified 2026-11-10).
 THINKING: dict[str, dict[str, str]] = {
@@ -206,6 +215,22 @@ class MockAI:
             claims.append(Claim(text=e["claim"], evidence_id=e["id"]))
         gaps = [] if ev else ["No eligible evidence was selected, so this draft makes no factual claims."]
         return DraftOut(body="\n\n".join(lines), claims=claims, gaps=gaps)
+
+    def _quicklog(self, req: AIRequest) -> QuickLogOut:
+        text = str(req.meta.get("note", "")) or str(req.meta.get("exchange", ""))
+        hedge = re.compile(r"\b(possibly|maybe|i think|think i|not sure|probably|might|perhaps)\b", re.I)
+        promise = re.compile(r"\b(offered|promised|said i would|said i'd|will send|i'll send|agreed to)\b", re.I)
+        context, uncertain, commitments = [], [], []
+        for sentence in [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]:
+            if promise.search(sentence):
+                commitments.append("May have: " + sentence.rstrip("."))
+            elif hedge.search(sentence):
+                uncertain.append(sentence.rstrip("."))
+            else:
+                context.append(sentence)
+        steps = ["Check whether you did offer this, then decide if you want to follow up."] if commitments else []
+        return QuickLogOut(context="[mock AI] " + " ".join(context), uncertain=uncertain,
+                           possible_commitments=commitments, next_steps=steps, clarification="")
 
     def _extract(self, req: AIRequest) -> ExtractOut:
         entries = []

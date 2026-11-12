@@ -141,7 +141,7 @@ person's timeline under their original label. Roles, evidence, drafts, pasted ma
 
 ### Increments
 
-- [ ] 1. Schema, people, logs, next action, scoped chat and drafting, onboarding, demo mode (backend + tests)
+- [x] 1. Schema, people, logs, next action, scoped chat and drafting, onboarding, demo mode (backend + tests)
 - [ ] 2. Navigation, People, person view, Quick log, Today, Settings, onboarding (interface)
 - [ ] 3. Browser verification of the nine scenarios, guideline review, docs
 

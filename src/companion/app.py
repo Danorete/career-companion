@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import services, store
+from . import people, services, store
 from .ai import AIClient, AIUnavailable, CompanionTurn, Gateway, build_client
 from .budget import Budget
 from .config import Settings
@@ -128,8 +128,59 @@ class SessionIn(In):
 Purpose = Literal["profile", "application", "outreach", "follow_up", "post", "interview_prep"]
 
 
+DATE = r"^\d{4}-\d{2}-\d{2}$"
+
+
+class WhenIn(In):
+    kind: Literal["today", "yesterday", "date", "approx", "unknown"] = "unknown"
+    date: str | None = Field(default=None, pattern=DATE)
+    text: str = Field(default="", max_length=80)
+
+
+class PersonIn(In):
+    name: str = Field(min_length=1, max_length=200)
+    org: str = Field(default="", max_length=200)
+    profile_link: str = Field(default="", max_length=500)   # stored as text; the app never opens it
+    context: str = Field(default="", max_length=2000)
+    notes: str = Field(default="", max_length=8000)
+    category: Literal[("",) + people.CATEGORIES] = ""  # type: ignore[valid-type]
+
+
+class NextActionIn(In):
+    title: str = Field(min_length=1, max_length=200)
+    remind_on: str | None = Field(default=None, pattern=DATE)
+
+
+class LogIn(In):
+    note: str = Field(default="", max_length=6000)
+    item_id: int | None = None
+    when: WhenIn = Field(default_factory=WhenIn)
+    exchange: str = Field(default="", max_length=30_000)
+    keep_exchange: bool = False
+
+
+class LogEditIn(In):
+    note: str | None = Field(default=None, max_length=6000)
+    summary: str | None = Field(default=None, max_length=3000)
+    uncertain: str | None = Field(default=None, max_length=3000)
+    commitments: str | None = Field(default=None, max_length=3000)
+    next_steps: str | None = Field(default=None, max_length=3000)
+    when: WhenIn | None = None
+    drop_exchange: bool = False
+
+
+class LogAssignIn(In):
+    item_id: int | None = None
+
+
+class LogSuggestIn(In):
+    exchange: str = Field(default="", max_length=30_000)   # used for this request only unless already kept
+
+
 class DraftGenIn(In):
     action_id: int | None = None
+    item_id: int | None = None
+    interaction_ids: list[int] = Field(default_factory=list, max_length=10)
     purpose: Purpose
     audience: str = Field(default="", max_length=60)
     evidence_ids: list[int] = Field(default_factory=list, max_length=12)
@@ -181,6 +232,7 @@ class DraftSuggestIn(DraftGenIn):
 class DraftSaveIn(In):
     draft_id: int | None = None
     action_id: int | None = None
+    item_id: int | None = None
     purpose: Purpose
     audience: str = Field(default="", max_length=60)
     body: str = Field(max_length=20_000)
@@ -230,6 +282,9 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
     if client is not None and client.name == "mock":
         reason = "Mock AI: replies are canned and nothing leaves this Mac."
     gateway = Gateway(db, budget, client, reason)
+    if settings.demo:
+        # Fictional people in a separate database file. The user's own records are never opened here.
+        people.load_demo(db, services.local_today(settings))
 
     app = FastAPI(title="Career Companion", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.db, app.state.security, app.state.budget, app.state.gateway = db, security, budget, gateway
@@ -271,7 +326,7 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
     def bootstrap(request: Request) -> dict:
         return {"csrf": security.csrf_for(request.cookies.get(COOKIE_NAME)), "ai": gateway.availability(),
                 "budget": budget.status(), "onboarding": services.onboarding_state(db),
-                "setup": services.setup_progress(db),
+                "setup": services.setup_progress(db), "demo": settings.demo, "categories": people.CATEGORIES,
                 "has_sample": bool(db.one("SELECT 1 FROM evidence WHERE is_sample=1 UNION SELECT 1 FROM actions WHERE is_sample=1")),
                 "enums": {"memory_private": store.PRIVATE_MEMORY_KINDS, "memory_public": store.PUBLIC_VOICE_KINDS,
                           "uses": store.USES, "evidence_statuses": store.EVIDENCE_STATUSES,
@@ -367,6 +422,71 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
     @app.delete("/api/evidence/{eid}")
     def evidence_delete(eid: int) -> dict:
         return {"deleted": store.delete(db, "evidence", eid)}
+
+    # ---- people, their timelines, and quick logs --------------------------------------
+    def today_date():
+        return services.local_today(settings)
+
+    @app.get("/api/people")
+    def people_list() -> list[dict]:
+        return people.list_people(db)
+
+    @app.post("/api/people")
+    def person_add(body: PersonIn) -> dict:
+        return people.save_person(db, None, body.model_dump())
+
+    @app.get("/api/people/{pid}")
+    def person_get(pid: int) -> dict:
+        return people.person_detail(db, pid)
+
+    @app.put("/api/people/{pid}")
+    def person_edit(pid: int, body: PersonIn) -> dict:
+        return people.save_person(db, pid, body.model_dump())
+
+    @app.delete("/api/people/{pid}")
+    def person_delete(pid: int) -> dict:
+        return {"deleted": people.delete_person(db, pid)}
+
+    @app.put("/api/people/{pid}/next-action")
+    def person_next_action(pid: int, body: NextActionIn) -> dict:
+        return people.set_next_action(db, pid, body.title, body.remind_on)
+
+    @app.delete("/api/people/{pid}/next-action")
+    def person_next_action_clear(pid: int) -> dict:
+        people.get_person(db, pid)
+        return people.clear_next_action(db, pid)
+
+    @app.post("/api/people/{pid}/next-action/done")
+    def person_next_action_done(pid: int) -> dict:
+        people.get_person(db, pid)
+        return people.complete_next_action(db, pid, today_date())
+
+    @app.get("/api/logs")
+    def logs_list(unassigned: bool = False) -> list[dict]:
+        return people.list_logs(db, unassigned)
+
+    @app.post("/api/logs")
+    def log_add(body: LogIn) -> dict:
+        data = body.model_dump()
+        return people.create_log(db, note=data["note"], item_id=data["item_id"], when=data["when"],
+                                 exchange=data["exchange"], keep_exchange=data["keep_exchange"], today=today_date())
+
+    @app.put("/api/logs/{lid}")
+    def log_edit(lid: int, body: LogEditIn) -> dict:
+        return people.update_log(db, lid, body.model_dump(), today_date())
+
+    @app.post("/api/logs/{lid}/assign")
+    def log_assign(lid: int, body: LogAssignIn) -> dict:
+        return people.assign_log(db, lid, body.item_id)
+
+    @app.post("/api/logs/{lid}/suggest")
+    def log_suggest(lid: int, body: LogSuggestIn) -> dict:
+        return people.suggest_log(db, gateway, lid, body.exchange)
+
+    @app.delete("/api/logs/{lid}")
+    def log_delete(lid: int) -> dict:
+        people.get_log(db, lid)
+        return {"deleted": store.delete(db, "interactions", lid)}
 
     # ---- opportunities and relationships ----------------------------------------------
     @app.get("/api/items")
@@ -500,8 +620,11 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
         return {"deleted": store.delete(db, "imports", iid)}
 
     @app.get("/api/drafts")
-    def drafts_list(action_id: int | None = None) -> list[dict]:
-        drafts = store.rows(db, "drafts", order="updated_at DESC, id DESC") if action_id is None else store.rows(db, "drafts", "action_id=?", (action_id,), "updated_at DESC, id DESC")
+    def drafts_list(action_id: int | None = None, item_id: int | None = None) -> list[dict]:
+        if item_id is not None:
+            drafts = store.rows(db, "drafts", "item_id=?", (item_id,), "updated_at DESC, id DESC")
+        else:
+            drafts = store.rows(db, "drafts", order="updated_at DESC, id DESC") if action_id is None else store.rows(db, "drafts", "action_id=?", (action_id,), "updated_at DESC, id DESC")
         evidence = {e["id"]: e for e in store.rows(db, "evidence")}
         return [{**d, "report": validate_draft(d["body"], d["claims"], evidence, d["purpose"])} for d in drafts]
 
@@ -522,7 +645,8 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
         if body.draft_id:
             need("drafts", body.draft_id)
         return services.save_draft(db, body.draft_id, action_id=body.action_id, purpose=body.purpose,
-                                   audience=body.audience, body=body.body, claims=[c.model_dump() for c in body.claims] if body.claims is not None else None)
+                                   audience=body.audience, body=body.body, claims=[c.model_dump() for c in body.claims] if body.claims is not None else None,
+                                   item_id=body.item_id)
 
     @app.get("/api/drafts/{did}/versions")
     def draft_versions(did: int) -> list[dict]:
@@ -599,6 +723,8 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
 
     @app.post("/api/starter/import")
     def starter_import(body: StarterIn) -> dict:
+        if settings.demo:
+            raise store.RuleError("This is the demo, which only holds fictional data. Start the app normally to import your own.")
         data = body.model_dump()
         for e in data["evidence"]:
             store.check_evidence({**e, "status": "unverified_user_claim"})

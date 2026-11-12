@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -93,6 +93,16 @@ CREATE TABLE IF NOT EXISTS messages (
     role TEXT NOT NULL, content TEXT NOT NULL, has_import INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL);
 
+-- Timeline entries and quick logs. item_id is NULL while a log is unassigned.
+-- occurred_on is set only when the date is exact; an approximate date stays as the user's words.
+CREATE TABLE IF NOT EXISTS interactions (
+    id INTEGER PRIMARY KEY, item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
+    source TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '',
+    uncertain TEXT NOT NULL DEFAULT '', commitments TEXT NOT NULL DEFAULT '', next_steps TEXT NOT NULL DEFAULT '',
+    exchange TEXT NOT NULL DEFAULT '', when_kind TEXT NOT NULL DEFAULT 'unknown', occurred_on TEXT,
+    when_text TEXT NOT NULL DEFAULT '', sort_date TEXT NOT NULL, is_sample INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+
 -- Spend ledger. status: reserved, settled, unknown, released, adjustment.
 CREATE TABLE IF NOT EXISTS ledger (
     id INTEGER PRIMARY KEY, ts TEXT NOT NULL, month TEXT NOT NULL, day TEXT NOT NULL,
@@ -109,7 +119,7 @@ CREATE TABLE IF NOT EXISTS activity (
 
 USER_TABLES = (
     "kv", "memory", "evidence", "items", "actions", "drafts", "outcomes", "reminders",
-    "ideas", "imports", "proposals", "sessions", "messages", "ledger", "activity", "draft_versions",
+    "ideas", "imports", "proposals", "sessions", "messages", "ledger", "activity", "draft_versions", "interactions",
 )
 
 
@@ -135,8 +145,15 @@ class Database:
             self.conn.execute(f"PRAGMA {pragma}")
         self.conn.executescript(SCHEMA)
         # Additive migrations for databases created by earlier versions. Existing rows are untouched.
-        if "item_id" not in {r["name"] for r in self.conn.execute("PRAGMA table_info(imports)")}:
-            self.conn.execute("ALTER TABLE imports ADD COLUMN item_id INTEGER REFERENCES items(id) ON DELETE SET NULL")
+        for table, column, ddl in (
+            ("imports", "item_id", "INTEGER REFERENCES items(id) ON DELETE SET NULL"),
+            ("items", "category", "TEXT NOT NULL DEFAULT ''"),
+            ("items", "profile_link", "TEXT NOT NULL DEFAULT ''"),
+            ("messages", "context_item_id", "INTEGER"),
+            ("drafts", "item_id", "INTEGER REFERENCES items(id) ON DELETE SET NULL"),
+        ):
+            if column not in {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")}:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
         self.conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         try:
             os.chmod(self.path, 0o600)
