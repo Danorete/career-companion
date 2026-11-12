@@ -1,22 +1,22 @@
-# Graph Report - career-companion  (2026-11-11)
+# Graph Report - career-companion  (2026-11-12)
 
 ## Corpus Check
-- 33 files · ~31,675 words
+- 37 files · ~38,954 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 6 file(s) not represented in the graph (top: (none) 2, .woff2 2, .lock 1)
 
 ## Summary
-- 590 nodes · 1635 edges · 22 communities (14 shown, 8 thin omitted)
-- Extraction: 84% EXTRACTED · 16% INFERRED · 0% AMBIGUOUS · INFERRED: 257 edges (avg confidence: 0.89)
+- 663 nodes · 1856 edges · 32 communities (18 shown, 14 thin omitted)
+- Extraction: 82% EXTRACTED · 18% INFERRED · 0% AMBIGUOUS · INFERRED: 325 edges (avg confidence: 0.9)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c43b69db`
+- Built from commit: `f260cea9`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- ai.py
+- test_ai_gateway.py
 - Database
 - create_app
 - app.js
@@ -34,55 +34,60 @@
 - Web Interface Guidelines
 - chrome-devtools
 - Progress
+- ai.py
+- budget.py
+- Settings
+- AllowlistTransport
+- Link
 
 ## God Nodes (most connected - your core abstractions)
-1. `create_app()` - 79 edges
-2. `Database` - 54 edges
-3. `db()` - 51 edges
-4. `h()` - 33 edges
-5. `Budget` - 28 edges
-6. `render()` - 26 edges
-7. `In` - 24 edges
-8. `Settings` - 24 edges
-9. `api()` - 23 edges
-10. `insert()` - 23 edges
+1. `create_app()` - 92 edges
+2. `Database` - 65 edges
+3. `db()` - 58 edges
+4. `h()` - 40 edges
+5. `In` - 30 edges
+6. `render()` - 29 edges
+7. `Budget` - 27 edges
+8. `api()` - 26 edges
+9. `insert()` - 26 edges
+10. `need()` - 23 edges
 
 ## Surprising Connections (you probably didn't know these)
+- `Workflow improvements` --references--> `draft_versions()`  [INFERRED]
+  README.md → src/companion/app.py
+- `Done` --references--> `setup_progress()`  [INFERRED]
+  PROGRESS.md → src/companion/services.py
 - `Decisions` --references--> `fx()`  [INFERRED]
   DECISIONS.md → src/companion/static/app.js
 - `Test results` --references--> `test_preferences_can_be_corrected_in_conversation_and_edited_directly()`  [INFERRED]
   README.md → tests/test_workflows.py
 - `Test results` --references--> `test_imported_private_memory_still_stays_out_of_drafting()`  [INFERRED]
   README.md → tests/test_workflows.py
-- `Done` --references--> `setup()`  [INFERRED]
-  PROGRESS.md → tests/test_workflows.py
-- `Verified platform facts (official docs, checked 2026-11-10)` --references--> `Usage`  [INFERRED]
-  DECISIONS.md → src/companion/budget.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (22 total, 8 thin omitted)
+## Communities (32 total, 14 thin omitted)
 
-### Community 0 - "ai.py"
-Cohesion: 0.06
-Nodes (36): Career Companion: decision record, Decisions, Implementation plan, Verified platform facts (official docs, checked 2026-11-10), AIClient, AIRequest, AIResult, AIUnavailable (+28 more)
+### Community 0 - "test_ai_gateway.py"
+Cohesion: 0.26
+Nodes (16): AIUnavailable, DraftOut, fake_api(), handler(), gateway(), priced_mock(), test_activity_log_holds_metadata_only(), test_budget_block_never_reaches_the_client() (+8 more)
 
 ### Community 1 - "Database"
 Cohesion: 0.07
-Nodes (42): Gateway, action_state(), sample(), session_end(), wipe(), _clip(), compare_context(), draft_context() (+34 more)
+Nodes (43): Gateway, bootstrap(), evidence_confirm_all(), _clip(), compare_context(), draft_context(), _eligible(), _evidence_block() (+35 more)
 
 ### Community 2 - "create_app"
-Cohesion: 0.07
-Nodes (57): Done, create_app(), action_add(), action_delete(), action_edit(), action_note(), actions_list(), bootstrap() (+49 more)
+Cohesion: 0.06
+Nodes (72): Done, create_app(), action_add(), action_delete(), action_edit(), action_note(), action_state(), actions_list() (+64 more)
 
 ### Community 3 - "app.js"
-Cohesion: 0.14
-Nodes (63): act(), actionForm(), api(), disc(), dueText(), endSession(), errorView(), fill() (+55 more)
+Cohesion: 0.13
+Nodes (72): act(), actionForm(), api(), applyTheme(), closeMore(), compareTable(), composeStudio(), disc() (+64 more)
 
 ### Community 4 - "Budget"
-Cohesion: 0.10
-Nodes (20): Budget, BudgetBlocked, cost_usd(), estimate_tokens(), prices_are_fresh(), _rates(), worst_case_usd(), test_cost_matches_published_prices() (+12 more)
+Cohesion: 0.09
+Nodes (27): Career Companion: decision record, Decisions, Implementation plan, Verified platform facts (official docs, checked 2026-11-10), Budget, BudgetBlocked, cost_usd(), _rates() (+19 more)
 
 ### Community 5 - "test_security.py"
 Cohesion: 0.07
@@ -90,23 +95,23 @@ Nodes (7): anon(), app(), client(), mock_ai(), test_dns_rebinding_host_header_is
 
 ### Community 6 - "app.py"
 Cohesion: 0.06
-Nodes (27): ActionIn, ChatIn, CompareIn, DraftGenIn, DraftSaveIn, EvidenceIn, ImportIn, In (+19 more)
+Nodes (35): ActionIn, BulkEntry, ChatIn, CompareIn, ConfirmAllIn, DraftClaimIn, DraftGenIn, DraftSaveIn (+27 more)
 
 ### Community 7 - "test_workflows.py"
 Cohesion: 0.07
-Nodes (34): Career Companion, Known limitations, Loading your information in one step, Setup on macOS, Test results, Turning on live AI, What it does, done_ids() (+26 more)
+Nodes (33): Test results, MockAI, done_ids(), evidence(), make_action(), setup(), signed_in(), test_approved_entries_can_be_added_as_confirmed_in_bulk() (+25 more)
 
 ### Community 8 - "test_validate_and_ranking.py"
 Cohesion: 0.14
 Nodes (28): Option, rank(), _score(), action(), check(), codes(), ev(), ids() (+20 more)
 
 ### Community 9 - "Settings"
-Cohesion: 0.11
-Nodes (14): build_client(), _delete_key(), main(), _run(), _set_key(), _status(), default_data_dir(), Settings (+6 more)
+Cohesion: 0.17
+Nodes (10): ai_readiness(), prices_are_fresh(), _delete_key(), main(), _run(), _set_key(), _status(), delete_api_key() (+2 more)
 
 ### Community 10 - "test_privacy_and_injection.py"
-Cohesion: 0.18
-Nodes (18): _decode(), seed(), sent(), test_compare_drops_evidence_ids_the_model_invented(), test_compare_request_contains_no_private_canary(), test_draft_citing_withheld_evidence_is_blocked(), test_draft_request_contains_no_private_canary(), test_invalid_and_excess_proposals_are_dropped() (+10 more)
+Cohesion: 0.19
+Nodes (18): CompanionTurn, ProposalOut, seed(), sent(), test_compare_request_contains_no_private_canary(), test_draft_citing_withheld_evidence_is_blocked(), test_draft_request_contains_no_private_canary(), test_invalid_and_excess_proposals_are_dropped() (+10 more)
 
 ### Community 11 - "validate.py"
 Cohesion: 0.22
@@ -117,28 +122,44 @@ Cohesion: 0.40
 Nodes (4): Guidelines Source, How It Works, Usage, Web Interface Guidelines
 
 ### Community 19 - "Progress"
-Cohesion: 0.40
-Nodes (4): How to resume, Next, in order, Not started, deliberately, Progress
+Cohesion: 0.29
+Nodes (6): How to resume, Less typing — 2026-11-12 (decision D27), Link workflow upgrade — 2026-11-11, Next, in order, Not started, deliberately, Progress
+
+### Community 20 - "ai.py"
+Cohesion: 0.17
+Nodes (10): AIRequest, AIResult, Claim, CompareOut, EvidenceCandidate, ExtractOut, MetricOut, Requirement (+2 more)
+
+### Community 22 - "Settings"
+Cohesion: 0.15
+Nodes (9): AIClient, build_client(), LiveAI, Profile, default_data_dir(), Settings, test_default_mode_is_mock(), test_live_mode_with_stale_prices_stays_off() (+1 more)
+
+### Community 23 - "AllowlistTransport"
+Cohesion: 0.16
+Nodes (4): AllowlistTransport, NeverSent, test_egress_allows_the_provider_api(), test_egress_refuses_everything_but_the_provider_api()
+
+### Community 25 - "Link"
+Cohesion: 0.22
+Nodes (8): Interface reference, Known limitations, Link, Loading your information in one step, Setup on macOS, Turning on live AI, What it does, Workflow improvements
 
 ## Knowledge Gaps
 - **2 isolated node(s):** `career-companion`, `npx`
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 147 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **8 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 168 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **14 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Usage` connect `ai.py` to `Budget`?**
-  _High betweenness centrality (0.215) - this node is a cross-community bridge._
-- **Are the 2 inferred relationships involving `create_app()` (e.g. with `.db_path()` and `app()`) actually correct?**
-  _`create_app()` has 2 INFERRED edges - model-reasoned connections that need verification._
+- **Why does `Usage` connect `Budget` to `test_ai_gateway.py`, `ai.py`, `budget.py`, `test_workflows.py`?**
+  _High betweenness centrality (0.213) - this node is a cross-community bridge._
+- **Are the 4 inferred relationships involving `create_app()` (e.g. with `AIClient` and `CompanionTurn`) actually correct?**
+  _`create_app()` has 4 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `career-companion`, `npx` to the rest of the system?**
   _2 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `ai.py` be split into smaller, more focused modules?**
-  _Cohesion score 0.06453028972783142 - nodes in this community are weakly interconnected._
-- **Are the 16 inferred relationships involving `Database` (e.g. with `Gateway` and `Budget`) actually correct?**
-  _`Database` has 16 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Database` be split into smaller, more focused modules?**
-  _Cohesion score 0.07433489827856025 - nodes in this community are weakly interconnected._
-- **Are the 49 inferred relationships involving `db()` (e.g. with `action_add()` and `action_delete()`) actually correct?**
-  _`db()` has 49 INFERRED edges - model-reasoned connections that need verification._
+  _Cohesion score 0.06963470319634703 - nodes in this community are weakly interconnected._
+- **Are the 46 inferred relationships involving `Database` (e.g. with `Gateway` and `Budget`) actually correct?**
+  _`Database` has 46 INFERRED edges - model-reasoned connections that need verification._
+- **Should `create_app` be split into smaller, more focused modules?**
+  _Cohesion score 0.05515832482124617 - nodes in this community are weakly interconnected._
+- **Are the 56 inferred relationships involving `db()` (e.g. with `action_add()` and `action_delete()`) actually correct?**
+  _`db()` has 56 INFERRED edges - model-reasoned connections that need verification._

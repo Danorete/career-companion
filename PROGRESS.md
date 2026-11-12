@@ -99,3 +99,49 @@ Backend: `imports.item_id` (additive, migrated in place; schema version 3), `POS
 Not done: `graphify update .` (graphify is not installed in the cloud session, so `graphify-out/` is stale
 for these changes). The extraction prompt has not been run against the live model.
 
+## Connections redesign — started 2026-11-12 (decision D28)
+
+Goal: a new user can capture an imperfect recollection, find it under the right person later, and prepare a
+thoughtful next step, without keeping a CRM. Built on top of the "less typing" branch (pull request #3).
+
+### What exists today (inspected)
+
+- `items` holds people (`kind='relationship'`) and roles (`kind='opportunity'`) in one table, shown as one
+  mixed list of large cards. `outcomes` (reply, interview, rejection, offer...) attach to either.
+- `actions` and `reminders` drive Today's ranking. Ranking does not use time since last contact.
+- Chat can be scoped to one record (`context_item_id`), but conversation history is not scoped.
+- Drafting takes shareable context from the action's record only. It has no notion of a person's timeline.
+- Onboarding is four career questions. Sample data lives in the same tables as real data, flagged `is_sample`.
+
+### Migration (additive only; no row is rewritten or reinterpreted)
+
+| Change | Why |
+|---|---|
+| `items.category` (default empty), `items.profile_link` | People filters; a saved link is text and is never fetched |
+| New table `interactions` | Timeline entries and quick logs, with source, interaction date vs logged date, and date precision |
+| `messages.context_item_id` | Keeps one person's conversation out of another's |
+| `drafts.item_id` | A message prepared for a person stays attached to that person |
+
+Existing people stay uncategorized. Existing outcomes on people stay where they are and appear in the
+person's timeline under their original label. Roles, evidence, drafts, pasted material and memory are untouched.
+
+### Design
+
+- Primary navigation: Today, People, Quick log. Settings holds context, preferences, privacy, AI usage and
+  data. Roles, Evidence, Drafts and Pasted material move to a secondary "Career tools" group.
+- People: compact searchable list with category filters; a person needs only a name.
+- Person view: shared context, one next action with optional reminder, timeline, notes, and Tempo scoped to
+  that person.
+- Quick log: one text box, optional person, optional date (today, yesterday, approximate, unknown). Saves
+  without AI. With AI, a proposed summary separates recorded context, uncertain details, possible
+  commitments and suggested next steps; nothing is committed without a click, and a possible commitment is
+  text until the user makes it the next action.
+- Today: one recommended action; new users are offered "Log someone you met" or "Add someone you'd like to meet".
+- Onboarding: two general questions. Fictional demo data lives in a separate database (`companion run --demo`).
+
+### Increments
+
+- [ ] 1. Schema, people, logs, next action, scoped chat and drafting, onboarding, demo mode (backend + tests)
+- [ ] 2. Navigation, People, person view, Quick log, Today, Settings, onboarding (interface)
+- [ ] 3. Browser verification of the nine scenarios, guideline review, docs
+
