@@ -3,6 +3,7 @@
 Synthetic temporary data and mock AI only. Requires Playwright and Linux Chromium.
 """
 import argparse
+import os
 import sys
 import tempfile
 import threading
@@ -35,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
     errors=[]
     try:
         with sync_playwright() as p:
-            browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+            browser=p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),headless=True,args=['--no-sandbox'])
             page=browser.new_page(viewport={'width':1470,'height':956},reduced_motion='reduce')
             page.on('pageerror',lambda e:errors.append(str(e)))
             page.goto('http://127.0.0.1:8878/#t='+app.state.security.launch_token)
@@ -88,7 +89,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             page.locator('.person-row').filter(has_text='Maya Lindqvist').click()
             page.locator('.person-heading h2').filter(has_text='Maya Lindqvist').wait_for()
             assert page.locator('html').get_attribute('data-theme') == 'dark'
-            assert page.locator('#main').evaluate('(el)=>getComputedStyle(el).backgroundColor') == 'rgb(25, 38, 31)'
+            assert page.locator('#main').evaluate('(el)=>getComputedStyle(el).backgroundColor') == 'rgb(17, 26, 22)'
             page.screenshot(path=str(args.output/'people-dark.png'))
             page.set_viewport_size({'width':1280,'height':900})
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')

@@ -3,6 +3,7 @@
 Synthetic records, temporary database, mock AI. No real API calls.
 """
 import argparse
+import os
 import sys
 import tempfile
 import threading
@@ -31,7 +32,7 @@ with tempfile.TemporaryDirectory(prefix='link-guided-') as folder:
     errors=[]
     try:
         with sync_playwright() as p:
-            browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+            browser=p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),headless=True,args=['--no-sandbox'])
             page=browser.new_page(viewport={'width':1470,'height':956},reduced_motion='reduce')
             page.on('pageerror',lambda e:errors.append(str(e)))
             page.goto('http://127.0.0.1:8877/#t='+app.state.security.launch_token)

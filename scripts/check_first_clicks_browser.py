@@ -3,6 +3,7 @@
 Synthetic temporary data and mock AI only. Requires Playwright and Linux Chromium.
 """
 import argparse
+import os
 import sys
 import tempfile
 import threading
@@ -35,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
     errors=[]
     try:
         with sync_playwright() as p:
-            browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+            browser=p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),headless=True,args=['--no-sandbox'])
             page=browser.new_page(viewport={'width':1470,'height':956},reduced_motion='reduce')
             page.on('pageerror',lambda e:errors.append(str(e)))
             page.on('dialog',lambda dialog:(print('Browser dialog:',dialog.message),dialog.dismiss()))
@@ -43,7 +44,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             page.get_by_role('button',name='I’m stuck — help me choose',exact=True).wait_for()
             page.locator('#main').evaluate('(el)=>el.scrollTop=0')
             page.screenshot(path=str(args.output/'today.png'))
-            page.get_by_role('heading',name='Pick up where you left off.',exact=True).wait_for()
+            page.get_by_role('heading',name='One thing today.',exact=True).wait_for()
             assert page.locator('.source-tabs').count()==0
             assert page.locator('.home-path-art').count()==0
             for name in ('Log a conversation','Prepare for a conversation','Import connections','Work on this'):
@@ -59,9 +60,9 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             page.screenshot(path=str(args.output/'today-laptop.png'))
             page.set_viewport_size({'width':1470,'height':956})
             page.get_by_role('link',name='Import',exact=True).first.click()
-            page.get_by_role('heading',name='People. Moments. Possibilities.',exact=True).wait_for()
+            page.get_by_role('heading',name='You choose what stays.',exact=True).wait_for()
             assert page.locator('.source-tabs [role=tab]').count()==3
-            assert page.get_by_role('heading',name='Pick up where you left off.',exact=True).count()==0
+            assert page.get_by_role('heading',name='One thing today.',exact=True).count()==0
             page.locator('#main').evaluate('(el)=>el.scrollTop=0')
             page.screenshot(path=str(args.output/'import.png'))
             page.get_by_role('tab').filter(has_text='Your conversations').click()
@@ -88,7 +89,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             # A genuinely empty workspace offers one substantive start, not another import gallery.
             db.run('DELETE FROM actions');db.run('DELETE FROM items')
             page.get_by_role('link',name='Today',exact=True).first.click()
-            page.get_by_role('heading',name='Start with one connection.',exact=True).wait_for()
+            page.get_by_role('heading',name='Start with one person.',exact=True).wait_for()
             assert page.locator('.source-tabs').count()==0
             page.screenshot(path=str(args.output/'today-empty.png'))
             page.get_by_role('button',name='I don’t know anyone yet',exact=True).click()
