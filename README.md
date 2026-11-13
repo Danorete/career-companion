@@ -1,12 +1,14 @@
 # Link
 
-Your career, connected. A local career companion with a native-inspired interface.
+Link helps students and recent graduates find a starting point, prepare for professional
+conversations, and continue relationships thoughtfully. The app and companion are both **Link**.
 
-The Python package, `companion` command, and existing data folder retain their names so upgrades keep your information in place.
+The Python package, `companion` command, and existing data folder retain their names so upgrades
+keep your information in place. This is a local desktop-browser workflow. The **Connection Studio** desktop design is implemented; mobile capture is deferred.
 
-A personal, local career tool: a workspace with a companion docked beside it. It tells you the one thing to do
-next, keeps your place, checks draft claims against your own evidence, and never touches LinkedIn. You send,
-post, apply, and edit your profile yourself.
+Start with Link's guided onboarding even if you have no contacts or résumé. It proposes a plan;
+you review what becomes a person, log, task, or preference. Existing career tools are still available.
+Link never browses or operates LinkedIn and never sends messages for you.
 
 Version one, single user. Decisions are in `DECISIONS.md`; build status is in `PROGRESS.md`.
 
@@ -26,8 +28,7 @@ python3.12 -m venv .venv
 
 `companion run` prints a link and opens it in your browser. The link works once; restart the app for a new
 one. The app starts in **mock AI** mode: replies are canned, labelled as mock, and nothing leaves your Mac.
-Use "Load labelled sample data" on the Today page to look around; every sample item is marked `[SAMPLE]`
-and one click removes them all.
+Use `.venv/bin/companion run --demo` to explore guided onboarding and fictional people in an isolated temporary database. Demo always uses mock AI, even if live mode is configured.
 
 Your data lives in `~/Library/Application Support/CareerCompanion/`, outside this repository.
 
@@ -71,23 +72,35 @@ job comparison send only the evidence you tick, your voice notes, and what you t
 
 ## What it does
 
-First run is a short conversation with the companion (working name: Tempo): four questions, one at a time,
-each skippable. The workspace appears afterwards.
+First run is Link's guided onboarding: **Find a starting point**, **Approach someone**, or **Make sense
+of an encounter**. You can also skip straight to importing your connections. The workspace appears
+afterwards.
 
-- **Today**: one recommended action beside a session ring. Pick 15, 20 or 30 minutes and start; the ring
-  counts down. Other options, reminders, and the idea parking lot are tucked into rows below. An empty
-  account offers two first steps: add a project, or paste your profile text.
-- **People & roles**: status, last recorded interaction, next action, and one-click outcomes with undo. Explicitly select a record to discuss its private planning context with Tempo.
+Primary navigation is at the top: **Today**, **People**, **Quick log** and **Import**, with **Career
+tools**, **About me** and **Settings & data** beside them. Each area is described in more detail in the
+later sections of this file.
+
+- **Today**: your recommended next action and where you left off, with compact shortcuts to log a
+  conversation, prepare for one, or import connections. "Work on this" opens the task without starting a
+  timer; focus sessions are optional. With no contacts yet, Today offers a guided start instead.
+- **People**: a directory beside each person's Overview, Conversations and Next step. Explicitly select a
+  person to discuss their private planning context with Link. See "Connection-first workflow" below.
+- **Quick log**: capture a conversation with an approximate or unknown date, with or without a person.
+- **Import**: LinkedIn connections CSV, selected message excerpts and calendar files. See "Networking
+  sources and imagery" below.
+
+Career tools keep the earlier workflows:
+
+- **Roles**: status, last recorded interaction, next action, job postings, and one-click outcomes with undo.
 - **Evidence**: claims with a status, numbers, approved uses, banned phrases, and a confidential flag.
 - **Drafts**: write beside an adjustable evidence inspector, inspect linked claims, preview passage suggestions, compare prior versions and restore them. Every save is checked against current evidence.
 - **About me**: everything the companion remembers, editable and deletable.
-- **Pasted material** and **Settings & data** sit lower in the sidebar: reference text, AI mode, spending,
-  export, delete, activity log. AI mode and budget are always visible at the bottom of the sidebar.
-- **Setup progress**: a card in the sidebar shows how far setup has got (for example "60%, 3 of 5 steps").
-  Each step says what it unlocks and links to where you do it. Sample data doesn't count, and live AI is
-  optional. The card disappears at 100%.
-- **The companion panel**: shows whether it is ready, thinking, waiting for your OK, or off. Drag its edge
-  (or focus the edge and use the arrow keys) to resize; collapse it to a corner pill.
+- **Pasted material** and **Settings & data**: reference text, AI mode, spending, export, delete,
+  activity log. AI mode and budget are always visible in the top-right corner.
+- **Setup progress**: shows how far setup has got (for example "60%, 3 of 5 steps"). Each step says what
+  it unlocks and links to where you do it. Sample data doesn't count, and live AI is optional.
+- **The Link panel**: click the Link character to open it. It shows whether Link is ready, thinking,
+  waiting for your OK, or off. Drag its edge (or focus the edge and use the arrow keys) to resize.
 
 Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Enter sends a chat message
 (Shift+Enter for a new line), Escape closes the companion on a narrow window. Motion is removed when macOS
@@ -95,7 +108,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`135 passed` on Linux, Python 3.12, 2026-11-11. Not yet run on macOS. Coverage by acceptance criterion:
+`199 passed` on Linux, Python 3.12, 2026-11-13. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -112,6 +125,13 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 | Session timer starts only on a chosen action, and ends | `test_session_timer_info_and_end` |
 | Setup progress: starts at 0, ignores samples, each step independent, drops on delete | `test_setup_*` and `test_each_setup_step_flips_on_its_own` (5 tests) |
 | Starter file: one-step import, never pre-verified, safe to repeat, validated | `test_starter_file_*` (4 tests), `test_imported_private_memory_still_stays_out_of_drafting` |
+| People, Quick log, next steps, person-scoped drafting | `test_people.py` |
+| Guided onboarding, preparation, follow-ups and requests | `test_connection_coaching.py` |
+| LinkedIn CSV, message and calendar imports | `test_network_imports.py` |
+| Private advice is not an evidence audit | `test_conversation_scope.py`, `test_record_context.py` |
+| The companion identifies as Link | `test_identity.py` |
+
+Browser checks are in `scripts/check_*_browser.py`; see "Running the browser checks" at the end of this file.
 
 The interface was also driven in headless Chromium at 1470 x 860 (13-inch MacBook Air), 1710 x 1010 and
 390 x 844: onboarding, the empty account, sample data, a confirmed suggestion, a full session, a draft and
@@ -171,3 +191,137 @@ Link's web controls adapt the [iOS 27 Builder community kit](https://www.figma.c
 - Settings includes provider readiness and a user-triggered live connection test. The test sends a fixed diagnostic prompt without user records through the normal budget gate. It uses API budget. No real-provider call was made while developing this upgrade; compare the app ledger with the provider Console before relying on billing accuracy.
 
 The database adds a `draft_versions` table on startup without relocating existing records. The `companion` command and data directory stay the same.
+
+## Connection-first workflow (2026-11-12)
+
+The main workspace now focuses on **Today**, **People**, and **Quick log**. Career tools remain
+available in the sidebar; existing roles, evidence, drafts, and outcome labels are retained.
+
+Add a person with just a name. Open them for context, a timeline, and an optional next step.
+Quick log captures fragments with an approximate or unknown date and can stay unassigned until
+later. Save locally without AI. “Organize with Link” sends that selected log to your provider
+in live mode and returns an editable proposal; it does not commit facts or create tasks.
+Original exchanges are retained only when explicitly selected. Private planning notes and chat
+are excluded from message drafting. Review the exact approved context before generating a message.
+Copying does not mark it sent. Completing a research task does not count as contacting someone.
+
+To explore **fictional people in an isolated temporary database**, stop the regular app and run:
+
+```bash
+.venv/bin/companion run --demo
+```
+
+Demo mode always uses mock AI, even if your environment is configured for live mode. It never
+opens your regular database. Normal shutdown removes the temporary demo directory; a crash or
+forced kill may leave that directory in the system temporary folder. Personal data should not
+be entered into demo mode. To return to your records, stop the demo and run the normal command.
+
+Back up/export your data before upgrading. The schema upgrade is additive; it does not delete
+existing records. This remains a local single-user app, not a public hosted service.
+
+Optional browser smoke check (requires Playwright and Chromium installed separately):
+`python scripts/check_people_browser.py --output /tmp/link-browser-check`.
+It runs synthetic records in a temporary database with mock AI and writes screenshots only.
+The Python regression suite does not require Playwright. See "Running the browser checks" below.
+
+## Guided desktop connection building
+
+Start with **Find a starting point**, **Approach someone**, or **Make sense of an encounter**.
+Link helps clarify a purpose and proposes a plan before requesting structured records. Save the
+plan alone, or explicitly add a person, original recollection, chosen next action, or preference.
+A recollection's date remains unknown until you choose one in Quick log. Existing users can start
+from **I'm stuck — help me choose** on Today. Demo mode now includes onboarding.
+
+From a person, use **Help me prepare**, **Find a reason to follow up**, or **Ask for help or an
+opportunity**. Preparation is resumable. Optional practice is clearly fictional, not a simulation
+of that specific person's actual thoughts. Message drafting uses only the context you approve
+in its editor and public voice preferences; no private plan, relationship notes or chat is attached.
+Generated text and factual claims still require human review. Nothing is sent automatically.
+
+Planning may use your saved working preferences, but not private constraints or relationship notes.
+The selected workflow fields go to the AI provider in live mode. Pending plans also store your inputs
+locally; they can be deleted from the preparation history and are included in export/full deletion.
+Mock output demonstrates the workflow without interpreting your information. With AI off or budget
+reached, you receive an explicitly general manual guide and can still save your next step.
+
+Desktop browser smoke test: `python scripts/check_connection_browser.py --output /tmp/link-guided-check`
+(requires separately installed Playwright and Linux Chromium). Mobile capture is not implemented.
+
+## Connection Studio design
+
+The app now uses a desktop-first editorial workspace: warm reading surfaces, serif headings,
+locally bundled Inter, and light/dark appearance. Primary navigation is at the top. People keeps
+a compact directory beside a person's Overview, Conversations and Next step sections. Arrow keys
+navigate directory buttons and tabs; text fields retain normal editing behavior.
+
+Link remains available as a floating control and expands into a resizable companion panel. Guided
+onboarding and plan review use a two-part composition; Quick log remains a simple capture surface.
+Today’s **Work on this** opens the task without starting a timer. Optional focus sessions remain.
+
+Guidance icons by [Streamline](https://www.streamlinehq.com/icons/guidance) are bundled under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); attribution and modifications are recorded
+in `src/companion/static/GUIDANCE-LICENSE.md`. No fonts or icons load from a CDN.
+
+Desktop design smoke check: `python scripts/check_studio_browser.py --output /tmp/link-studio-check`
+(requires separately installed Playwright and Linux Chromium). Safari/macOS-specific behavior still
+requires local testing. Mobile capture and public hosting remain out of scope.
+
+### Meet Link
+Click the Link character to open the companion. **Meet Link** starts an optional interactive walkthrough: open the companion, find People, and try Quick log. The walkthrough makes no model calls and never adds history or tasks by itself. User-typed Quick log notes autosave as unfinished local drafts. Escape pauses it; **Settings & data → Take the guided walkthrough** replays it. Tour position is a browser preference and is paused on reload.
+
+
+### Everyday connection workflow
+Quick log automatically keeps one unfinished recap in the local database (never browser storage), including approximate timing and the selected person. It survives page changes and reloads; **Discard unfinished note** removes it. A pasted exchange is retained only when **Keep the original exchange on this Mac** is checked. Drafts are private workspace data, not AI memory or timeline entries; they are included in data export and removed by Delete everything.
+
+Use descriptive names when you don’t know someone’s name yet. Add person suggests existing matches before creating a separate record. Today offers three direct starting prompts. Next step includes **No reminder**, **Next week**, and **After an event** (you choose the date). Paused connections retain their history and are excluded from suggested follow-ups.
+
+An Undo bar reverses the latest supported change during the current session: saving a quick log (restores the draft), editing person details, changing a log’s person, reviewing a log, saving or clearing a next step, and pausing/resuming a connection. Task completion has its own Undo button, including reminder restoration. Explicit permanent deletion and removal of a retained exchange are not undoable; there is no automatic merging. Short transitions honor reduced-motion preferences.
+
+### Conversation context
+Link can advise on a relationship or the app using what you tell it and the selected person's saved context and reviewed summaries. Ordinary coaching does not require evidence verification or a resume. An imported resume helps with professional claims; it does not unlock general conversation. Local files and saved GitHub links are not automatically read. Public drafting still uses the separate evidence and privacy controls.
+
+## Networking sources and imagery
+Open **People → Import connections** or **Settings & data → Open Sources & imports**. Three original, bundled SVG illustrations introduce the local workflows; no remote image requests are made.
+
+- **Your people:** choose the English `Connections.csv` from LinkedIn’s official export. Preview is read-only. Select new people or explicitly choose a suggested match. Filling blanks preserves existing names, organizations, relationship notes, context and groups. Role at export and connection date are labeled snapshot metadata, not evidence of current employment, closeness or a conversation. Email addresses are discarded. Repeating the same import skips previously confirmed rows. An imported person with no relationship context gets one optional private question: “How do you know this person?”
+- **Your conversations:** choose LinkedIn `messages.csv`, a `.txt` excerpt, or paste one excerpt. Search participants/text, select individual messages, choose the person yourself, and write a recap. Original text is saved only when you opt in; otherwise only the recap is stored. Unselected messages and the original file are never stored. Message timestamps are source data; the log date remains unknown until edited. No commitments become tasks automatically. Repeating the same selected messages for the same person does not add a second log.
+- **Your next meeting:** choose an `.ics` calendar snapshot, review one event and click **Prepare for this conversation**. No event or attendance record is saved by preview. Canceled events remain labeled; recurring series are not expanded. Attendees, alarms, attachments and subscription links are not imported or followed. Afterward, Quick log lets you record what actually happened. Google/Outlook account sync and Gmail access remain deferred; there is no OAuth connection in this version.
+
+Files must be UTF-8 text under 290 KB in the UI. Server validation allows at most 1,000 CSV rows, 100 calendar events, and 12,000 characters in one selected conversation excerpt. Non-English CSV headers and ZIP archives are not supported. Split larger exports and keep the header. Imported previews remain only in browser memory and are cleared on reload or by **Clear imported previews**. Imported records and source metadata are included in export/wipe; deleting a person or log removes the associated import receipt. Bulk import has no batch Undo: review selections before confirming. Existing per-person edit/undo and permanent-delete controls remain available.
+
+All parsing is local and makes no model calls. Choosing AI preparation, chat or Organize with Link afterward uses the normal live-mode context and budget rules. Imported metadata is fenced as untrusted snapshot data in planning, and never grants the model write access. No LinkedIn browsing, scraping, graph search, messaging, live sync or automatic outreach is added.
+
+Official references checked November 13, 2026: [LinkedIn access](https://learn.microsoft.com/en-us/linkedin/shared/authentication/getting-access), [data export](https://www.linkedin.com/help/linkedin/answer/a1339364), [User Agreement](https://www.linkedin.com/legal/user-agreement), [Gmail scope restrictions](https://developers.google.com/workspace/gmail/api/auth/scopes).
+
+## Today and Import have different jobs
+**Today** is the daily workspace: one recommended next action, a resume point, quick logging/preparation, saved plans and your people. With no contacts, it offers a small guided start or a way to add someone you know. It does not repeat the illustrated import catalogue. The compact **Import connections** shortcut remains visible, and **Import** stays in primary navigation.
+
+**Import** owns the source overview: connection CSV, selected message excerpts and calendar files, followed by their explicit review controls. It remains one click away. The initial welcome screen still allows importing without completing coaching questions. Existing saved data, Keychain configuration and import safeguards are unchanged.
+
+## Running the browser checks
+
+Each script in `scripts/` starts the app on synthetic data in a temporary database with mock AI, drives
+it in headless Chromium, and writes screenshots to the `--output` folder:
+
+| Script | What it checks |
+|---|---|
+| `check_first_clicks_browser.py` | Today and Import are different pages; shortcuts, onboarding bypass, empty states |
+| `check_network_browser.py` | LinkedIn CSV preview and matching, selected conversations, calendar preparation |
+| `check_studio_browser.py` | People directory and tabs by keyboard, next-step undo, Link panel, both themes |
+| `check_people_browser.py` | People, Quick log, approximate dates, review, search, narrow layout |
+| `check_connection_browser.py` | Guided onboarding, preparation, rehearsal, drafting, resume after reload |
+| `check_qol_browser.py` | Quick log recovery, undo, duplicate-name suggestions, reminders, reduced motion |
+| `check_avatar_browser.py` | Link character and the Meet Link walkthrough |
+
+They need the Python `playwright` package (`.venv/bin/pip install playwright`), which is not part of
+`.[dev]`. Every script launches Chromium from `/usr/bin/chromium`, which suits the Linux machines they
+were written on. On a Mac, change `executable_path` in the script to your browser, for example
+`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`, or remove it and run
+`.venv/bin/playwright install chromium` once. Run a script from the repository root:
+
+```bash
+.venv/bin/python scripts/check_first_clicks_browser.py --output /tmp/link-check
+```
+
+The first four in the table were re-run on Linux on 2026-11-13 and passed with no JavaScript errors.
+The other three last passed in the sessions recorded in `VALIDATION.md`.

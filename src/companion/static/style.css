@@ -651,3 +651,36 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   .inspector-divider { display:none; }
 }
 @media(prefers-reduced-motion:reduce) { .dock, body.dock-closed .dock { transition:none !important; } }
+
+/* Connection workspace: compact overview, focused detail, gradual capture. */
+.people-controls { display:flex; align-items:end; gap:16px; margin:28px 0 16px; }
+.people-controls > input { flex:1; min-width:0; }
+.people-controls .field { margin:0; min-width:170px; }
+.people-rows { border-top:1px solid var(--line, #7e899433); }
+.person-row { display:flex; align-items:center; gap:16px; width:100%; padding:20px 4px; text-align:left; background:transparent; color:inherit; border:0; border-bottom:1px solid var(--line, #7e899433); cursor:pointer; border-radius:8px; }
+.person-row:hover { background: #7c9bc512; }
+.person-row:focus-visible { outline:2px solid #75a9ef; outline-offset:3px; }
+.person-row-main { display:flex; flex:1; min-width:0; flex-direction:column; gap:6px; }
+.person-row-main strong { font-size:17px; }
+.person-row-main .small { overflow-wrap:anywhere; }
+.person-row-meta { display:flex; flex-direction:column; gap:6px; width:32%; font-size:12px; }
+.person-avatar { display:grid; place-items:center; width:60px; height:60px; flex-shrink:0; border-radius:20px; background:#639aef24; color:#70a3ee; font-size:26px; font-weight:700; }
+.small-avatar { width:40px; height:40px; border-radius:14px; font-size:17px; }
+.person-heading { display:flex; align-items:center; flex-wrap:wrap; gap:18px; margin:24px 0; }
+.person-heading h2, .person-heading p { margin:0 0 4px; }
+.timeline-card { padding:20px 0 20px 20px; margin:0 0 12px 6px; border-left:2px solid #70a3ee55; overflow-wrap:anywhere; }
+.timeline-card p { white-space:pre-wrap; }
+.people-page .panel { margin-bottom:20px; }
+[hidden] { display:none !important; }
+@media (max-width:650px) { .people-controls { align-items:stretch; flex-direction:column; } .person-row { flex-wrap:wrap; gap:10px; } .person-row-meta { width:100%; padding-left:50px; } }
+@media (max-width:600px) {
+  .side .disc { display:none; }
+  .side::after { content:"CONNECTIONS, WITH CONTEXT"; }
+}
+
+/* Workflow additions only; visual redesign is deferred. */
+.connection-paths { display:flex; flex-direction:column; gap:12px; margin:24px 0; }
+.connection-onboarding { width:min(760px,100%); }
+.connection-page > .panel, .connection-page > .disc { margin:20px 0; }
+.connection-page .stack, .connection-onboarding .stack { gap:16px; }
+.connection-page textarea, .connection-onboarding textarea { width:100%; }

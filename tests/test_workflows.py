@@ -34,12 +34,12 @@ def test_short_onboarding_stores_answers_without_ai(settings):
     settings.ai_mode = "off"
     client = signed_in(create_app(settings))
     state = client.get("/api/bootstrap").json()["onboarding"]
-    assert state["step"] == 0 and state["total"] == 4 and not state["done"]
-    for answer in ("Synthetic goal", "", "Be blunt", "Never mention X"):  # one question skipped
+    assert state["step"] == 0 and state["total"] == 2 and not state["done"]
+    for answer in ("Meet peers", "Be direct and concise"):
         state = client.post("/api/onboarding/answer", json={"text": answer}).json()
     assert state["done"]
     kinds = [m["kind"] for m in client.get("/api/memory").json()]
-    assert sorted(kinds) == ["boundary", "goal", "preference"]
+    assert sorted(kinds) == ["goal", "preference"]
 
 
 def test_preferences_can_be_corrected_in_conversation_and_edited_directly(client):
@@ -129,7 +129,7 @@ def test_empty_today_does_not_invent_work(client):
 # ---- reminders, outcomes, ideas -------------------------------------------------------
 
 def test_reminder_surfaces_when_due_and_can_be_snoozed_or_done(client):
-    today = date.today().isoformat()
+    today = client.get("/api/today").json()["today"]   # the app's own date, in its configured time zone
     r = client.post("/api/reminders", json={"text": "Check in", "due_on": today}).json()
     later = client.post("/api/reminders", json={"text": "Later", "due_on": "2099-01-01"}).json()
     due = [x["id"] for x in client.get("/api/today").json()["reminders"]]
@@ -384,3 +384,107 @@ def test_setup_drops_when_something_is_deleted(client):
 def test_starter_file_counts_toward_setup_but_never_as_verified(client):
     client.post("/api/starter/import", json=STARTER)
     assert done_ids(client) == ["goal", "project", "person"]   # imported evidence is never pre-verified
+
+
+# ---- less typing: postings on roles, résumé to evidence, one-click confirmation ---------
+
+RESUME = """Synthetic Person
+
+Data Intern, Example Org
+- Built 3 dashboards used by 12 analysts.
+
+Capstone project
+- Cleaned 40,000 rows of survey data in Python.
+"""
+
+
+def test_role_and_posting_are_added_in_one_step(client):
+    item = client.post("/api/items", json={"kind": "opportunity", "title": "Analyst", "org": "Example Org",
+                                           "posting": "Requirements: SQL, Tableau, " + "x" * 5000}).json()
+    assert item["posting"]["length"] > 5000                      # nothing is cut off at 2,000 characters
+    listed = client.get("/api/items").json()[0]
+    assert listed["posting"]["id"] == item["posting"]["id"]
+    stored = client.get("/api/imports").json()[0]
+    assert stored["kind"] == "job_description" and stored["item_id"] == item["id"]
+    assert client.post("/api/compare", json={"import_id": item["posting"]["id"]}).status_code == 200
+
+
+def test_posting_can_be_added_or_replaced_on_an_existing_role(client):
+    item = client.post("/api/items", json={"kind": "opportunity", "title": "Analyst"}).json()
+    assert item["posting"] is None
+    first = client.post(f"/api/items/{item['id']}/posting", json={"content": "First version"}).json()
+    second = client.post(f"/api/items/{item['id']}/posting", json={"content": "Second version, longer"}).json()
+    stored = client.get("/api/imports").json()
+    assert len(stored) == 1 and stored[0]["content"] == "Second version, longer"   # replaced, not duplicated
+    assert first["length"] == len("First version") and second["length"] == len("Second version, longer")
+    client.delete(f"/api/items/{item['id']}")
+    assert client.get("/api/imports").json()[0]["item_id"] is None   # the text is kept, just unlinked
+
+
+def test_resume_extraction_saves_nothing_until_approved(client):
+    r = client.post("/api/evidence/extract", json={"text": RESUME})
+    assert r.status_code == 200 and len(r.json()["candidates"]) >= 2
+    assert client.get("/api/evidence").json() == []
+
+
+def test_extraction_flags_and_strips_numbers_the_resume_does_not_contain(client, mock_ai):
+    from companion.ai import EvidenceCandidate, ExtractOut, MetricOut
+    mock_ai.script.append(ExtractOut(entries=[
+        EvidenceCandidate(title="Data Intern", claim="Built 3 dashboards used by 500 analysts.",
+                          metrics=[MetricOut(value="3", unit="dashboards", label="built"),
+                                   MetricOut(value="500", unit="analysts", label="users")])]))
+    c = client.post("/api/evidence/extract", json={"text": RESUME}).json()["candidates"][0]
+    assert [m["value"] for m in c["metrics"]] == ["3"]             # the invented metric is dropped
+    assert c["number_warnings"] == ["500"]                         # and the claim is flagged
+
+
+def test_approved_entries_can_be_added_as_confirmed_in_bulk(client):
+    entries = [{"title": "Data Intern", "claim": "Built 3 dashboards.", "metrics": [{"value": "3", "unit": "dashboards"}]},
+               {"title": "Capstone", "claim": "Cleaned 40,000 rows."}]
+    body = {"entries": entries, "source_ref": "Master résumé, Nov 2026", "confirmed": True,
+            "permitted_uses": ["profile", "resume", "outreach"]}
+    assert client.post("/api/evidence/bulk", json=body).json() == {"added": 2, "skipped": 0}
+    ev = client.get("/api/evidence").json()
+    assert {e["status"] for e in ev} == {"user_verified_with_artifact"}
+    assert {e["source_ref"] for e in ev} == {"Master résumé, Nov 2026"} and ev[0]["provenance"] == "resume_import"
+    assert client.post("/api/evidence/bulk", json=body).json() == {"added": 0, "skipped": 2}
+    assert "verified" in done_ids(client)                          # the setup step is satisfied
+    assert client.post("/api/evidence/bulk", json={**body, "source_ref": ""}).status_code == 422
+
+
+def test_one_click_confirms_only_the_users_unverified_entries(client):
+    evidence(client)                                               # unverified, no source
+    evidence(client, title="Has a source", source_ref="repo link")
+    evidence(client, title="Never", status="do_not_claim")
+    client.post("/api/sample/load", json={})
+    assert client.post("/api/evidence/confirm-all", json={"source_ref": "Confirmed by me"}).json() == {"confirmed": 2}
+    by_title = {e["title"]: e for e in client.get("/api/evidence").json()}
+    assert by_title["Synthetic project"]["status"] == "user_verified_with_artifact"
+    assert by_title["Synthetic project"]["source_ref"] == "Confirmed by me"
+    assert by_title["Has a source"]["source_ref"] == "repo link"   # an existing source is kept
+    assert by_title["Never"]["status"] == "do_not_claim"
+    assert by_title["[SAMPLE] Example dashboard project"]["status"] == "unverified_user_claim"
+
+
+def test_extraction_request_carries_only_the_resume(client, mock_ai):
+    client.post("/api/memory", json={"kind": "goal", "text": "CANARY-GOAL-PRIVATE"})
+    client.post("/api/items", json={"kind": "relationship", "title": "P", "private_notes": "CANARY-NOTE-PRIVATE"})
+    client.post("/api/evidence/extract", json={"text": RESUME})
+    req = [r for r in mock_ai.requests if r.call_type == "extract"][-1]
+    assert "CANARY" not in req.system + req.user and "40,000 rows" in req.user
+    assert req.user.count("</untrusted_material>") == 1
+
+
+def test_older_database_gains_the_posting_link_without_losing_rows(tmp_path):
+    import sqlite3
+    from companion.db import Database
+    path = tmp_path / "old.sqlite3"
+    conn = sqlite3.connect(path)
+    conn.executescript("""CREATE TABLE imports (id INTEGER PRIMARY KEY, kind TEXT NOT NULL, label TEXT NOT NULL,
+        content TEXT NOT NULL, created_at TEXT NOT NULL);
+        INSERT INTO imports(kind,label,content,created_at) VALUES('other','kept','old text','2026-11-10');""")
+    conn.close()
+    db = Database(path)
+    row = db.one("SELECT * FROM imports")
+    assert row["label"] == "kept" and row["item_id"] is None
+    db.close()

@@ -56,5 +56,6 @@ def test_schema_one_draft_survives_upgrade_and_first_edit(tmp_path):
     save_draft(db, 42, action_id=None, purpose='outreach', audience='', body='Edited after upgrade')
     versions = store.rows(db, 'draft_versions', 'draft_id=?', (42,), 'id ASC')
     assert [v['body'] for v in versions] == ['Legacy writing to preserve', 'Edited after upgrade']
-    assert db.one('PRAGMA user_version')['user_version'] == 2
+    from companion.db import SCHEMA_VERSION
+    assert db.one('PRAGMA user_version')['user_version'] == SCHEMA_VERSION
     db.close()

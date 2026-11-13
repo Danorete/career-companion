@@ -51,6 +51,14 @@ class DraftOut(BaseModel):
     gaps: list[str]
 
 
+class QuickLogOut(BaseModel):
+    context: str
+    uncertain: list[str]
+    possible_commitments: list[str]
+    next_steps: list[str]
+    clarification: str
+
+
 class Requirement(BaseModel):
     requirement: str
     evidence_ids: list[int]
@@ -60,6 +68,22 @@ class Requirement(BaseModel):
 class CompareOut(BaseModel):
     summary: str
     requirements: list[Requirement]
+
+
+class MetricOut(BaseModel):
+    value: str
+    unit: str
+    label: str
+
+
+class EvidenceCandidate(BaseModel):
+    title: str
+    claim: str
+    metrics: list[MetricOut]
+
+
+class ExtractOut(BaseModel):
+    entries: list[EvidenceCandidate]
 
 
 # ---- call profiles --------------------------------------------------------------------
@@ -74,7 +98,11 @@ class Profile:
 PROFILES: dict[str, Profile] = {
     "companion_turn": Profile("claude-sonnet-5-5", 1200, "medium"),
     "draft": Profile("claude-sonnet-5-5", 1800, "medium"),
+    "connection_plan": Profile("claude-sonnet-5-5", 1800, "medium"),
+    "connection_practice": Profile("claude-sonnet-5-5", 900, "medium"),
+    "quicklog": Profile("claude-sonnet-5-5", 1400, "medium"),
     "compare": Profile("claude-sonnet-5-5", 1800, "medium"),
+    "extract": Profile("claude-sonnet-5-5", 4000, "medium"),
 }
 # Cheapest thinking setting each model accepts (verified 2026-11-10).
 THINKING: dict[str, dict[str, str]] = {
@@ -150,6 +178,23 @@ class MockAI:
             return AIResult(parsed=item, usage=self.usage)
         return AIResult(parsed=getattr(self, f"_{req.call_type}")(req), usage=self.usage)
 
+    def _connection_plan(self, req: AIRequest):
+        from .coaching import manual_plan
+        out = manual_plan(req.meta.get('mode', 'starting'))
+        out.acknowledgment = '[MOCK] This demonstrates how Link helps you choose a starting point.'
+        return out
+
+    def _connection_practice(self, req: AIRequest):
+        from .coaching import PracticeReply
+        return PracticeReply(simulated_reply='[MOCK REHEARSAL] What would you like to learn about my work?',
+            feedback='Example feedback: make one specific request and leave room to decline.',
+            next_question='How would you introduce the question you want to explore?')
+
+    def _quicklog(self, req: AIRequest) -> QuickLogOut:
+        return QuickLogOut(context="[MOCK] Review your original note and write a factual summary before saving.",
+                           uncertain=["Mock mode does not interpret your recollection."],
+                           possible_commitments=[], next_steps=[], clarification="")
+
     def _companion_turn(self, req: AIRequest) -> CompanionTurn:
         msg = str(req.meta.get("user_message", ""))
         focus = req.meta.get("focus_title") or "what you picked"
@@ -169,6 +214,8 @@ class MockAI:
                  "draft panel and I'll check the claims against your evidence.")
         if req.meta.get("has_import"):
             reply = "[mock AI] I read the pasted material as reference only. What do you want to do with it?"
+        if re.search(r"\b(your name|who are you|what are you called|tempo)\b", low):
+            reply = "[mock AI] I’m Link, your connection companion. This is a canned preview, not a live AI response."
         return CompanionTurn(reply=reply, proposals=proposals)
 
     def _draft(self, req: AIRequest) -> DraftOut:
@@ -189,6 +236,14 @@ class MockAI:
             claims.append(Claim(text=e["claim"], evidence_id=e["id"]))
         gaps = [] if ev else ["No eligible evidence was selected, so this draft makes no factual claims."]
         return DraftOut(body="\n\n".join(lines), claims=claims, gaps=gaps)
+
+    def _extract(self, req: AIRequest) -> ExtractOut:
+        entries = []
+        for chunk in re.split(r"\n\s*\n|\n(?=[-•*] )", str(req.meta.get("material", ""))):
+            chunk = " ".join(chunk.strip(" -•*\t\n").split())
+            if len(chunk) >= 25:
+                entries.append(EvidenceCandidate(title=chunk[:60], claim=chunk[:400], metrics=[]))
+        return ExtractOut(entries=entries[:20])
 
     def _compare(self, req: AIRequest) -> CompareOut:
         ev = req.meta.get("evidence", [])

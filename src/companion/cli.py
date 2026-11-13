@@ -18,10 +18,22 @@ def _run(args: argparse.Namespace) -> int:
 
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     settings = Settings.from_env()
+    demo_dir = None
+    if args.demo:
+        import tempfile
+        from dataclasses import replace
+        from pathlib import Path
+        demo_dir = tempfile.TemporaryDirectory(prefix="link-demo-")
+        settings = replace(settings, data_dir=Path(demo_dir.name), ai_mode="mock")
     app = create_app(settings)
+    if args.demo:
+        from .people import load_demo
+        from .services import local_today
+        load_demo(app.state.db, local_today(settings))
+        app.state.db.run("INSERT OR REPLACE INTO kv(key,value) VALUES('demo_mode','1')")
     url = f"http://{settings.host}:{settings.port}/#t={app.state.security.launch_token}"
     ai = app.state.gateway.availability()
-    print("Link — Your career, connected")
+    print("Link — Connection Studio" + (" [FICTIONAL DEMO]" if args.demo else ""))
     print(f"  Data folder : {settings.data_dir}")
     print(f"  AI          : {ai['mode']} ({ai['reason']})")
     print(f"  Open        : {url}")
@@ -29,7 +41,12 @@ def _run(args: argparse.Namespace) -> int:
     if not args.no_browser:
         webbrowser.open(url)
     # Access logging is off: request lines are not needed and logs stay free of personal data.
-    uvicorn.run(app, host=settings.host, port=settings.port, access_log=False, log_level="warning")
+    try:
+        uvicorn.run(app, host=settings.host, port=settings.port, access_log=False, log_level="warning")
+    finally:
+        app.state.db.close()
+        if demo_dir is not None:
+            demo_dir.cleanup()
     return 0
 
 
@@ -67,10 +84,11 @@ def _status(_: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="companion", description="Link (local career companion, single user)")
+    parser = argparse.ArgumentParser(prog="companion", description="Link (local connection companion, single user)")
     sub = parser.add_subparsers(dest="command")
     run = sub.add_parser("run", help="start the app and open the browser")
     run.add_argument("--no-browser", action="store_true")
+    run.add_argument("--demo", action="store_true", help="use temporary fictional data and mock AI; never opens your personal database")
     run.set_defaults(func=_run)
     sub.add_parser("set-key", help="store the API key in the system keychain").set_defaults(func=_set_key)
     sub.add_parser("delete-key", help="remove the API key").set_defaults(func=_delete_key)

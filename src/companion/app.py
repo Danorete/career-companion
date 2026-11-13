@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import services, store
+from . import services, store, people, coaching, network_imports
 from .ai import AIClient, AIUnavailable, CompanionTurn, Gateway, build_client
 from .budget import Budget
 from .config import Settings
@@ -65,6 +65,57 @@ class ItemIn(In):
     private_notes: str = Long
     shareable_context: str = Field(default="", max_length=2000)
     status: Literal[store.ITEM_STATUSES] = "active"  # type: ignore[valid-type]
+
+
+class PersonIn(In):
+    name: str = Field(min_length=1, max_length=200)
+    org: str = Field(default="", max_length=200)
+    profile_link: str = Field(default="", max_length=1000, pattern=r"^(https?://[^\s]+)?$")
+    context: str = Field(default="", max_length=2000)
+    notes: str = Field(default="", max_length=8000)
+    category: Literal["", "want_to_meet", "getting_acquainted", "stay_in_touch", "paused"] = ""
+
+
+class WhenIn(In):
+    kind: Literal["today", "yesterday", "date", "approx", "unknown"] = "unknown"
+    date: str = Field(default="", max_length=10)
+    text: str = Field(default="", max_length=80)
+
+
+class LogIn(In):
+    note: str = Field(default="", max_length=8000)
+    item_id: int | None = Field(default=None, gt=0)
+    when: WhenIn = Field(default_factory=WhenIn)
+    exchange: str = Field(default="", max_length=12000)
+    keep_exchange: bool = False
+
+
+class LogEditIn(In):
+    note: str | None = Field(default=None, max_length=8000)
+    summary: str | None = Field(default=None, max_length=1200)
+    uncertain: str | None = Field(default=None, max_length=2000)
+    commitments: str | None = Field(default=None, max_length=2000)
+    next_steps: str | None = Field(default=None, max_length=1000)
+    when: WhenIn | None = None
+    drop_exchange: bool = False
+
+
+class AssignIn(In):
+    item_id: int | None = Field(default=None, gt=0)
+
+
+class NextIn(In):
+    title: str = Field(min_length=1, max_length=200)
+    remind_on: str | None = None
+
+
+class RestoreNextIn(NextIn):
+    id: int = Field(gt=0)
+    state: Literal['suggested', 'drafted', 'reviewed']
+
+
+class SuggestLogIn(In):
+    exchange: str = Field(default="", max_length=12000)
 
 
 class ActionIn(In):
@@ -143,6 +194,36 @@ class DraftClaimIn(In):
     evidence_id: int = Field(gt=0)
 
 
+class ItemCreateIn(ItemIn):
+    posting: str = Field(default="", max_length=60_000)
+
+
+class PostingIn(In):
+    content: str = Field(min_length=1, max_length=60_000)
+
+
+class ExtractIn(In):
+    text: str = Field(min_length=40, max_length=60_000)
+
+
+class BulkEntry(In):
+    title: str = Field(min_length=1, max_length=200)
+    claim: str = Field(min_length=1, max_length=2000)
+    metrics: list[Metric] = Field(default_factory=list, max_length=20)
+    confidential: bool = False
+
+
+class EvidenceBulkIn(In):
+    entries: list[BulkEntry] = Field(min_length=1, max_length=40)
+    source_ref: str = Field(min_length=1, max_length=500)
+    confirmed: bool = False
+    permitted_uses: list[Literal[store.USES]] = Field(default_factory=list)  # type: ignore[valid-type]
+
+
+class ConfirmAllIn(In):
+    source_ref: str = Field(min_length=1, max_length=500)
+
+
 class DraftSuggestIn(DraftGenIn):
     selection: str = Field(min_length=1, max_length=6000)
     operation: Literal["shorten", "clarify", "check"]
@@ -163,6 +244,31 @@ class CompareIn(In):
 
 class ReconcileIn(In):
     console_total_usd: float = Field(ge=0, le=10_000)
+
+
+class NetworkFileIn(In):
+    text: str = Field(min_length=1, max_length=300000)
+
+
+class ConnectionDecision(In):
+    row: int = Field(ge=0)
+    choice: Literal['skip', 'add', 'fill_missing'] = 'skip'
+    target_id: int | None = Field(default=None, gt=0)
+
+
+class ConnectionsConfirmIn(NetworkFileIn):
+    decisions: list[ConnectionDecision] = Field(min_length=1, max_length=1000)
+
+
+class MessagesPreviewIn(NetworkFileIn):
+    kind: Literal['csv', 'text'] = 'csv'
+
+
+class MessagesConfirmIn(MessagesPreviewIn):
+    selected: list[int] = Field(min_length=1, max_length=1000)
+    person_id: int | None = Field(default=None, gt=0)
+    note: str = Field(min_length=1, max_length=8000)
+    retain: bool = False
 
 
 class StarterAction(In):
@@ -239,7 +345,7 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
 
     @app.get("/api/bootstrap")
     def bootstrap(request: Request) -> dict:
-        return {"csrf": security.csrf_for(request.cookies.get(COOKIE_NAME)), "ai": gateway.availability(),
+        return {"demo": bool(db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'")), "csrf": security.csrf_for(request.cookies.get(COOKIE_NAME)), "ai": gateway.availability(),
                 "budget": budget.status(), "onboarding": services.onboarding_state(db),
                 "setup": services.setup_progress(db),
                 "has_sample": bool(db.one("SELECT 1 FROM evidence WHERE is_sample=1 UNION SELECT 1 FROM actions WHERE is_sample=1")),
@@ -321,6 +427,19 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
         store.check_evidence(fields)
         return store.update(db, "evidence", eid, is_sample=0, **fields)  # type: ignore[return-value]
 
+    @app.post("/api/evidence/extract")
+    def evidence_extract(body: ExtractIn) -> dict:
+        return services.extract_evidence(db, gateway, body.text)
+
+    @app.post("/api/evidence/bulk")
+    def evidence_bulk(body: EvidenceBulkIn) -> dict:
+        data = body.model_dump()
+        return services.add_evidence_bulk(db, data["entries"], data["source_ref"], data["confirmed"], data["permitted_uses"])
+
+    @app.post("/api/evidence/confirm-all")
+    def evidence_confirm_all(body: ConfirmAllIn) -> dict:
+        return services.confirm_all_evidence(db, body.source_ref)
+
     @app.delete("/api/evidence/{eid}")
     def evidence_delete(eid: int) -> dict:
         return {"deleted": store.delete(db, "evidence", eid)}
@@ -332,11 +451,20 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
         for it in items:
             it["outcomes"] = store.rows(db, "outcomes", "item_id=?", (it["id"],))
             it["actions"] = store.rows(db, "actions", "item_id=?", (it["id"],))
+            it["posting"] = services.posting_for(db, it["id"])
         return items
 
     @app.post("/api/items")
-    def item_add(body: ItemIn) -> dict:
-        return store.insert(db, "items", **body.model_dump())
+    def item_add(body: ItemCreateIn) -> dict:
+        fields = body.model_dump()
+        posting = fields.pop("posting").strip()
+        item = store.insert(db, "items", **fields)
+        item["posting"] = services.attach_posting(db, item, posting) if posting else None
+        return item
+
+    @app.post("/api/items/{iid}/posting")
+    def item_posting(iid: int, body: PostingIn) -> dict:
+        return services.attach_posting(db, need("items", iid), body.content)
 
     @app.put("/api/items/{iid}")
     def item_edit(iid: int, body: ItemIn) -> dict:
@@ -345,7 +473,158 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
 
     @app.delete("/api/items/{iid}")
     def item_delete(iid: int) -> dict:
-        return {"deleted": store.delete(db, "items", iid)}
+        with db.tx():
+            network_imports.forget_import_reference(db, person_id=iid)
+            return {"deleted": store.delete(db, "items", iid)}
+
+    # ---- guided relationship building -------------------------------------------------
+    @app.get("/api/connections/plans")
+    def connection_plans(item_id: int | None = None) -> list[dict]:
+        return coaching.list_plans(db,item_id)
+
+    @app.post("/api/connections/plans")
+    def connection_plan(body: coaching.PlanInput) -> dict:
+        return coaching.generate(db,gateway,body)
+
+    @app.post("/api/connections/plans/{pid}/confirm")
+    def connection_confirm(pid: int, body: coaching.ConfirmInput) -> dict:
+        return coaching.confirm(db,pid,body,services.local_today(settings))
+
+    @app.post("/api/connections/plans/{pid}/practice")
+    def connection_practice(pid: int, body: coaching.PracticeInput) -> dict:
+        return coaching.practice(db,gateway,pid,body.answer,body.previous_question)
+
+    @app.delete("/api/connections/plans/{pid}")
+    def connection_plan_delete(pid: int) -> dict:
+        return {"deleted":store.delete(db,'connection_plans',pid)}
+
+    @app.get("/api/connections/follow-ups")
+    def connection_follow_ups() -> list[dict]:
+        return coaching.follow_up_candidates(db)
+
+    @app.post("/api/connections/follow-ups/{lid}/dismiss")
+    def connection_follow_up_dismiss(lid: int) -> dict:
+        people.get_log(db,lid)
+        db.run("INSERT OR REPLACE INTO kv(key,value) VALUES(?,'1')", (f"followup_dismissed_{lid}",))
+        return {"ok":True}
+
+    @app.post("/api/onboarding/skip")
+    def onboarding_skip() -> dict:
+        db.run("INSERT INTO kv(key,value) VALUES('onboarding_step','2') ON CONFLICT(key) DO UPDATE SET value='2'")
+        return services.onboarding_state(db)
+
+    # One local unfinished recap; never used as coaching memory or drafting context.
+    @app.get("/api/workspace/quicklog")
+    def quicklog_workspace() -> dict:
+        row = db.one("SELECT value FROM kv WHERE key='quicklog_workspace'")
+        return json.loads(row["value"]) if row else {}
+
+    @app.put("/api/workspace/quicklog")
+    def save_quicklog_workspace(body: LogIn) -> dict:
+        data = body.model_dump()
+        # Pasting is not consent to retain the original exchange.
+        if not data["keep_exchange"]:
+            data["exchange"] = ""
+        db.run("INSERT INTO kv(key,value) VALUES('quicklog_workspace',?) "
+               "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (json.dumps(data),))
+        return {"saved": True}
+
+    @app.delete("/api/workspace/quicklog")
+    def discard_quicklog_workspace() -> dict:
+        db.run("DELETE FROM kv WHERE key='quicklog_workspace'")
+        return {"deleted": True}
+
+    # Local, explicitly selected snapshots. Preview routes do not write or call models.
+    @app.post('/api/network/connections/preview')
+    def preview_connections(body: NetworkFileIn) -> dict:
+        return network_imports.connections_preview(db, body.text)
+
+    @app.post('/api/network/connections/confirm')
+    def import_connections(body: ConnectionsConfirmIn) -> dict:
+        return network_imports.confirm_connections(db, body.text, [d.model_dump() for d in body.decisions])
+
+    @app.get('/api/network/people/{pid}/source')
+    def imported_person_source(pid: int) -> dict:
+        return network_imports.person_source(db, pid)
+
+    @app.post('/api/network/messages/preview')
+    def preview_messages(body: MessagesPreviewIn) -> dict:
+        return network_imports.messages_preview(body.text, body.kind)
+
+    @app.post('/api/network/messages/confirm')
+    def import_messages(body: MessagesConfirmIn) -> dict:
+        return network_imports.confirm_messages(db, body.text, body.kind, body.selected, body.person_id,
+                                               body.note, body.retain, services.local_today(settings))
+
+    @app.post('/api/network/calendar/preview')
+    def preview_calendar(body: NetworkFileIn) -> dict:
+        return network_imports.calendar_preview(body.text)
+
+    # ---- people and quick log: all writes require the existing CSRF guard ---------------
+    @app.get("/api/people")
+    def people_list() -> list[dict]:
+        return people.list_people(db)
+
+    @app.post("/api/people")
+    def person_add(body: PersonIn) -> dict:
+        return people.save_person(db, None, body.model_dump())
+
+    @app.get("/api/people/{pid}")
+    def person_get(pid: int) -> dict:
+        return people.person_detail(db, pid)
+
+    @app.put("/api/people/{pid}")
+    def person_edit(pid: int, body: PersonIn) -> dict:
+        return people.save_person(db, pid, body.model_dump())
+
+    @app.post("/api/people/{pid}/next")
+    def person_next(pid: int, body: NextIn) -> dict:
+        if body.remind_on:
+            from datetime import date
+            try:
+                date.fromisoformat(body.remind_on)
+            except ValueError:
+                raise store.RuleError("Choose a valid reminder date.")
+        return people.set_next_action(db, pid, body.title, body.remind_on)
+
+    @app.post("/api/people/{pid}/next/restore")
+    def person_restore_next(pid: int, body: RestoreNextIn) -> dict:
+        return people.restore_next_action(db, pid, body.model_dump())
+
+    @app.post("/api/people/{pid}/complete")
+    def person_complete(pid: int) -> dict:
+        return people.complete_next_action(db, pid, services.local_today(settings))
+
+    @app.delete("/api/people/{pid}/next")
+    def person_clear(pid: int) -> dict:
+        people.get_person(db, pid)
+        return people.clear_next_action(db, pid)
+
+    @app.get("/api/logs")
+    def logs_list(unassigned: bool = False) -> list[dict]:
+        return people.list_logs(db, unassigned)
+
+    @app.post("/api/logs")
+    def log_add(body: LogIn) -> dict:
+        return people.create_log(db, **body.model_dump(), today=services.local_today(settings))
+
+    @app.put("/api/logs/{lid}")
+    def log_edit(lid: int, body: LogEditIn) -> dict:
+        return people.update_log(db, lid, body.model_dump(), services.local_today(settings))
+
+    @app.post("/api/logs/{lid}/assign")
+    def log_assign(lid: int, body: AssignIn) -> dict:
+        return people.assign_log(db, lid, body.item_id)
+
+    @app.post("/api/logs/{lid}/suggest")
+    def log_suggest(lid: int, body: SuggestLogIn) -> dict:
+        return people.suggest_log(db, gateway, lid, body.exchange)
+
+    @app.delete("/api/logs/{lid}")
+    def log_delete(lid: int) -> dict:
+        with db.tx():
+            network_imports.forget_import_reference(db, log_id=lid)
+            return {"deleted": store.delete(db, "interactions", lid)}
 
     # ---- actions ----------------------------------------------------------------------
     @app.get("/api/actions")
