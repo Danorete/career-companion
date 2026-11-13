@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 5
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -35,6 +35,15 @@ CREATE TABLE IF NOT EXISTS items (
     private_notes TEXT NOT NULL DEFAULT '', shareable_context TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'active', is_sample INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+
+CREATE TABLE IF NOT EXISTS interactions (
+    id INTEGER PRIMARY KEY, item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
+    source TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', summary TEXT NOT NULL DEFAULT '',
+    uncertain TEXT NOT NULL DEFAULT '', commitments TEXT NOT NULL DEFAULT '', next_steps TEXT NOT NULL DEFAULT '',
+    exchange TEXT NOT NULL DEFAULT '', when_kind TEXT NOT NULL DEFAULT 'unknown', occurred_on TEXT,
+    when_text TEXT NOT NULL DEFAULT '', sort_date TEXT NOT NULL, is_sample INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS interactions_person ON interactions(item_id);
 
 CREATE TABLE IF NOT EXISTS actions (
     id INTEGER PRIMARY KEY, item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
@@ -76,7 +85,7 @@ CREATE TABLE IF NOT EXISTS ideas (
 -- Pasted, untrusted material.
 CREATE TABLE IF NOT EXISTS imports (
     id INTEGER PRIMARY KEY, kind TEXT NOT NULL, label TEXT NOT NULL, content TEXT NOT NULL,
-    created_at TEXT NOT NULL);
+    created_at TEXT NOT NULL, item_id INTEGER REFERENCES items(id) ON DELETE SET NULL);
 
 -- Model suggestions waiting for a click.
 CREATE TABLE IF NOT EXISTS proposals (
@@ -102,6 +111,12 @@ CREATE TABLE IF NOT EXISTS ledger (
     cw_tok INTEGER NOT NULL DEFAULT 0, cr_tok INTEGER NOT NULL DEFAULT 0,
     note TEXT NOT NULL DEFAULT '');
 
+CREATE TABLE IF NOT EXISTS connection_plans (
+    id INTEGER PRIMARY KEY, item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
+    mode TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', source TEXT NOT NULL,
+    inputs TEXT NOT NULL, payload TEXT NOT NULL, result TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+
 -- Metadata only. Never private content.
 CREATE TABLE IF NOT EXISTS activity (
     id INTEGER PRIMARY KEY, ts TEXT NOT NULL, event TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '');
@@ -109,7 +124,7 @@ CREATE TABLE IF NOT EXISTS activity (
 
 USER_TABLES = (
     "kv", "memory", "evidence", "items", "actions", "drafts", "outcomes", "reminders",
-    "ideas", "imports", "proposals", "sessions", "messages", "ledger", "activity", "draft_versions",
+    "ideas", "imports", "proposals", "sessions", "messages", "ledger", "activity", "draft_versions", "interactions", "connection_plans",
 )
 
 
@@ -134,6 +149,13 @@ class Database:
         for pragma in ("journal_mode=WAL", "foreign_keys=ON", "secure_delete=ON"):
             self.conn.execute(f"PRAGMA {pragma}")
         self.conn.executescript(SCHEMA)
+        columns = {r[1] for r in self.conn.execute("PRAGMA table_info(items)")}
+        for column in ("category", "profile_link"):
+            if column not in columns:
+                self.conn.execute(f"ALTER TABLE items ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
+        # Additive migrations for databases created by earlier versions. Existing rows are untouched.
+        if "item_id" not in {r["name"] for r in self.conn.execute("PRAGMA table_info(imports)")}:
+            self.conn.execute("ALTER TABLE imports ADD COLUMN item_id INTEGER REFERENCES items(id) ON DELETE SET NULL")
         self.conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         try:
             os.chmod(self.path, 0o600)

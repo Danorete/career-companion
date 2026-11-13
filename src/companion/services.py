@@ -6,20 +6,17 @@ from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from . import context, store
-from .ai import AIUnavailable, CompanionTurn, CompareOut, DraftOut, Gateway
+from .ai import AIUnavailable, CompanionTurn, CompareOut, DraftOut, ExtractOut, Gateway
 from .config import Settings
 from .db import Database, now
 from .ranking import Option, rank
-from .validate import validate_draft
+from .validate import quantities, validate_draft
 
 MAX_PROPOSALS_PER_TURN = 3
 
 ONBOARDING = [
-    ("goal", "What are you working toward in the next few months?", "A sentence or two is plenty."),
-    ("constraint", "What gets in the way of your time and energy?",
-     "Skip anything sensitive. I only need enough to plan around it."),
-    ("preference", "How do you like to be worked with?", "Blunt or gentle, short or detailed, anything that annoys you."),
-    ("boundary", "Is there anything I should never suggest or put in writing?", "For example a topic, an employer, or a tone."),
+    ("goal", "Would you like help meeting people, keeping in touch, or both?", "Start wherever you are. No existing network required."),
+    ("preference", "How would you like your companion to work with you?", "For example: a proactive colleague with clear recommendations, a quiet assistant, or someone to explore ideas with."),
 ]
 
 
@@ -143,7 +140,13 @@ def _valid_proposal(p) -> dict | None:
 def chat_turn(db: Database, gateway: Gateway, settings: Settings, message: str, import_id: int | None, context_item_id: int | None = None) -> dict:
     session = ensure_session(db)
     import_row = store.get(db, "imports", import_id) if import_id else None
-    tainted = int(bool(import_row))
+    previous = db.one("SELECT value FROM kv WHERE key='chat_context_item'")
+    scope = str(context_item_id or "")
+    if previous and previous["value"] != scope:
+        end_session(db)
+        session = ensure_session(db)
+    db.run("INSERT INTO kv(key,value) VALUES('chat_context_item',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (scope,))
+    tainted = int(bool(import_row or context_item_id))
     system, user, meta = context.planning_context(
         db, session, message, import_row, options_text(db, settings, session["minutes"]), context_item_id)
     store.insert(db, "messages", session_id=session["id"], role="user", content=message, has_import=tainted)
@@ -309,13 +312,85 @@ def run_compare(db: Database, gateway: Gateway, import_id: int) -> dict:
     return {"summary": out.summary[:600], "requirements": rows}
 
 
+# ---- less typing: postings attached to roles, résumé to evidence, one-click confirmation ----
+
+def attach_posting(db: Database, item: dict, content: str) -> dict:
+    """Store a job posting as pasted (untrusted) material linked to its role. One posting per role."""
+    db.run("DELETE FROM imports WHERE item_id=? AND kind='job_description'", (item["id"],))
+    label = (item["title"] + (" · " + item["org"] if item["org"] else "") + " posting")[:200]
+    row = store.insert(db, "imports", kind="job_description", label=label, content=content, item_id=item["id"])
+    db.log("posting_attached", f"item_id={item['id']} chars={len(content)}")
+    return {"id": row["id"], "length": len(content)}
+
+
+def posting_for(db: Database, item_id: int) -> dict | None:
+    row = db.one("SELECT id, LENGTH(content) AS length FROM imports WHERE item_id=? AND kind='job_description' "
+                 "ORDER BY id DESC LIMIT 1", (item_id,))
+    return row
+
+
+def extract_evidence(db: Database, gateway: Gateway, text: str) -> dict:
+    """Ask the model to turn a résumé into evidence candidates. Nothing is saved here: the caller shows the
+    candidates and the user approves them. Numbers the résumé does not contain are removed or flagged in code."""
+    system, user, meta = context.extract_context(text)
+    session = active_session(db)
+    out = gateway.call("extract", system, user, ExtractOut, session_id=session["id"] if session else None, meta=meta)
+    assert isinstance(out, ExtractOut)
+    source_values = {q["value"] for q in quantities(text)}
+    existing = {r["title"].strip().lower() for r in db.q("SELECT title FROM evidence")}
+    candidates = []
+    for entry in out.entries[:20]:
+        title, claim = entry.title.strip()[:200], entry.claim.strip()[:2000]
+        if not title or not claim:
+            continue
+        metrics = [{"value": m.value.strip()[:40], "unit": m.unit.strip()[:40], "label": m.label.strip()[:200]}
+                   for m in entry.metrics[:20]
+                   if m.value.strip() and all(q["value"] in source_values for q in quantities(m.value))]
+        invented = sorted({q["text"] for q in quantities(claim) if q["value"] not in source_values})
+        candidates.append({"title": title, "claim": claim, "metrics": metrics,
+                           "number_warnings": invented, "already_have": title.lower() in existing})
+    db.log("evidence_extracted", f"candidates={len(candidates)} chars={len(text)}")
+    return {"candidates": candidates, "truncated": len(text) > context.MAX_RESUME_CHARS}
+
+
+def add_evidence_bulk(db: Database, entries: list[dict], source_ref: str, confirmed: bool,
+                      permitted_uses: list[str]) -> dict:
+    """Save entries the user approved on screen. `confirmed` records that the user stands behind them,
+    with the résumé (or whatever they named) as the source."""
+    status = "user_verified_with_artifact" if confirmed else "unverified_user_claim"
+    store.check_evidence({"status": status, "source_ref": source_ref})
+    added = skipped = 0
+    with db.tx():
+        for e in entries:
+            if db.one("SELECT 1 FROM evidence WHERE LOWER(title)=LOWER(?)", (e["title"],)):
+                skipped += 1
+                continue
+            store.insert(db, "evidence", title=e["title"], claim=e["claim"], metrics=e.get("metrics", []),
+                         source_ref=source_ref, status=status, permitted_uses=permitted_uses, do_not_claim="",
+                         confidential=bool(e.get("confidential")), provenance="resume_import")
+            added += 1
+    db.log("evidence_bulk_added", f"added={added} skipped={skipped} confirmed={confirmed}")
+    return {"added": added, "skipped": skipped}
+
+
+def confirm_all_evidence(db: Database, source_ref: str) -> dict:
+    """One click for "I stand behind all of these". Entries that already name a source keep it."""
+    rows = db.q("SELECT id, source_ref FROM evidence WHERE status='unverified_user_claim' AND is_sample=0")
+    with db.tx():
+        for r in rows:
+            store.update(db, "evidence", r["id"], status="user_verified_with_artifact",
+                         source_ref=r["source_ref"].strip() or source_ref)
+    db.log("evidence_confirmed_all", f"count={len(rows)}")
+    return {"confirmed": len(rows)}
+
+
 # ---- setup progress: milestones, not field counts ------------------------------------
 
 SETUP_STEPS = [
     ("goal", "Say what you're working toward", "Better picks for the next thing to do"),
     ("project", "Add a project", "Drafts have something to cite"),
     ("verified", "Verify a claim", "Drafts can state it as fact"),
-    ("profile", "Paste your profile text", "Tempo sees where you're starting"),
+    ("profile", "Paste your profile text", "Link sees where you're starting"),
     ("person", "Add a person or role", "Follow-ups and ranking"),
 ]
 

@@ -11,10 +11,10 @@
   };
   const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
   function applyTheme() {
-    const preference = store.get("theme", "system");
+    const preference = store.get("theme", "light");
     const dark = preference === "dark" || (preference === "system" && systemTheme.matches);
     document.documentElement.dataset.theme = dark ? "dark" : "light";
-    document.querySelector('meta[name="theme-color"]').content = dark ? "#171a22" : "#F5F5F7";
+    document.querySelector('meta[name="theme-color"]').content = dark ? "#17221f" : "#f5f2e9";
   }
   systemTheme.addEventListener("change", applyTheme);
   applyTheme();
@@ -25,13 +25,12 @@
   const S = {
     csrf: "", ai: {}, budget: {}, onboarding: {}, enums: {}, hasSample: false, setup: null, addKind: null,
     tab: "today", minutes: store.get("minutes", 20), skipped: new Set(), session: null, timeUpSaid: null,
-    contextItem: null, busy: 0, attachImport: null, compare: null, open: new Set(), editEvidence: null, evidenceForm: false, pasteKind: "job_description",
+    contextItem: null, itemCompare: null, busy: 0, attachImport: null, compare: null, open: new Set(), editEvidence: null, evidenceForm: false, pasteKind: "job_description",
     draft: { action_id: null, purpose: "outreach", audience: "", evidence_ids: new Set(), instruction: "",
              shareable_note: "", include_item_context: false, current: null },
   };
-  const NAV = [["today", "Today", "today"], ["people", "People & roles", "people"], ["evidence", "Evidence", "evidence"],
-               ["drafts", "Drafts", "drafts"], ["me", "About me", "me"]];
-  const NAV_MINOR = [["pasted", "Pasted material", "pasted"], ["settings", "Settings & data", "settings"]];
+  const NAV = [["today", "Today", "today"], ["people", "People", "me"], ["quicklog", "Quick log", "docplus"], ["sources", "Import", "pasted"]];
+  const NAV_MINOR = [["roles", "Roles", "people"], ["evidence", "Evidence", "evidence"], ["drafts", "Drafts", "drafts"], ["me", "About me", "me"], ["pasted", "Pasted material", "pasted"], ["settings", "Settings & data", "settings"]];
   const PURPOSES = [["outreach", "First message"], ["follow_up", "Follow-up"], ["profile", "Profile text"],
                     ["application", "Résumé or application text"], ["post", "Post"], ["interview_prep", "Interview answer"]];
   const KIND_TO_PURPOSE = { outreach: "outreach", follow_up: "follow_up", profile_edit: "profile",
@@ -83,14 +82,28 @@
     help: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17v.5"],
     docplus: ["M6 3h9l4 4v14H6z", "M12 11v6M9 14h6"], clip: ["M7 4h10a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M9 4V3h6v1M9 10h6M9 14h4"],
   };
+  const GUIDANCE = new Set(["today","me","docplus","drafts","people","settings","pasted","plus","chev","down","send","help","info"]);
   function icon(name, size) {
+    if(GUIDANCE.has(name))return sv("svg",{width:size||18,height:size||18,viewBox:"0 0 24 24","aria-hidden":"true",fill:"none"},sv("use",{href:"/static/guidance-sprite.svg#"+name}));
     return sv("svg", { width: size || 18, height: size || 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "2",
       "stroke-linecap": "round", "stroke-linejoin": "round", "aria-hidden": "true" }, ...PATHS[name].map((d) => sv("path", { d })));
   }
   function playIcon() { return sv("svg", { width: 16, height: 16, viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": "true" }, sv("path", { d: "M7 4l13 8-13 8z" })); }
   function orbSvg(size) {
-    return sv("svg", { width: size, height: size, viewBox: "0 0 40 40", "aria-hidden": "true" },
-      sv("circle", { class: "bg", cx: 20, cy: 20, r: 18.5 }), sv("circle", { class: "ring-a", cx: 20, cy: 20, r: 12 }), sv("circle", { class: "core", cx: 20, cy: 20, r: 5 }));
+    return sv("svg", {width:size,height:size,viewBox:"0 0 64 64","aria-hidden":"true",class:"link-avatar"},
+      sv("rect",{x:5,y:5,width:54,height:54,rx:22,fill:"var(--accent)"}),
+      sv("path",{d:"M16 30v-3a11 11 0 0 1 22 0v10a7 7 0 0 1-14 0v-8 M48 34v3a11 11 0 0 1-22 0V27a7 7 0 0 1 14 0v8",fill:"none",stroke:"#e7efcf","stroke-width":4,"stroke-linecap":"round"}),
+      sv("g",{class:"avatar-eyes",fill:"#fff9e8"},sv("circle",{cx:25,cy:29,r:2}),sv("circle",{cx:39,cy:29,r:2})),
+      sv("path",{d:"M28 43q4 3 8 0",fill:"none",stroke:"#fff9e8","stroke-width":2,"stroke-linecap":"round"}));
+  }
+
+  function connectionMotif() {
+    return sv("svg",{class:"connection-motif",viewBox:"0 0 300 220",fill:"none","aria-hidden":"true"},
+      sv("ellipse",{cx:150,cy:110,rx:120,ry:48,transform:"rotate(-32 150 110)",class:"motif-orbit"}),
+      sv("ellipse",{cx:150,cy:110,rx:120,ry:48,transform:"rotate(32 150 110)",class:"motif-orbit"}),
+      sv("path",{d:"M66 163L232 58",class:"motif-orbit"}),
+      sv("circle",{cx:66,cy:163,r:29,class:"motif-node"}),sv("circle",{cx:232,cy:58,r:29,class:"motif-node"}),
+      sv("circle",{cx:150,cy:110,r:8,class:"motif-center"}));
   }
   // Session ring: `fraction` of the circle is drawn; the label sits in the middle.
   function ring(size, fraction, num, unit, cls) {
@@ -205,7 +218,7 @@
       show();
       const data = await Promise.allSettled([api("GET", "/api/items"), api("GET", "/api/evidence"), api("GET", "/api/drafts")]);
       const [items, evidence, drafts] = data.map(r => r.status === "fulfilled" ? r.value : []);
-      records.push(...items.map(item => ({label: item.title + (item.org ? " · " + item.org : ""), kind: "Person / role", run: () => { S.recordQuery = item.title; go("people"); }})),
+      records.push(...items.map(item => ({label: item.title + (item.org ? " · " + item.org : ""), kind: "Person / role", run: () => { if(item.kind === "relationship"){S.selectedPerson=item.id; go("people");}else{S.recordQuery=item.title;go("roles");} }})),
         ...evidence.map(e => ({label: e.title, kind: "Evidence", run: () => { S.recordQuery = e.title; go("evidence"); }})),
         ...drafts.map(d => ({label: d.body.slice(0, 90) || "Untitled draft", kind: "Draft", run: () => { S.draft.current = d; S.draft.action_id = d.action_id; S.draft.purpose = d.purpose; S.draft.audience = d.audience; go("drafts"); }})));
       if (dialog.open) show();
@@ -219,7 +232,7 @@
   // ---- status, sidebar, session timer ---------------------------------------------------
   async function refreshStatus() {
     const b = await api("GET", "/api/bootstrap");
-    Object.assign(S, { csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup });
+    Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup });
     renderSide(); syncCompanion();
   }
   async function loadToday() {
@@ -244,8 +257,8 @@
         btn("End", endSession, "quiet"));
     }
     fill($("side-main"),
-      h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}), h("small", {text: "Your career, connected"}))),
-      h("div", {class: "nav-caption", text: "Workspace"}), NAV.map((n) => link(n, false)), h("div", { class: "side-spacer" }), NAV_MINOR.map((n) => link(n, true)), session);
+      h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}), h("small", {text: "Your connection studio"}))),
+      h("div", {class: "nav-caption", text: "Workspace"}), h("div",{class:"primary-nav"},NAV.map((n) => link(n,false))), h("div", { class: "side-spacer" }), disc("career-tools", "Career tools", "Optional", NAV_MINOR.filter(n=>n[0]!=="settings"&&n[0]!=="me").map(n=>link(n,true))), link(["me","About me","me"],true), link(["settings","Settings & data","settings"],true), session);
     renderMobileTabs();
     updateSetupCard();
     fill($("side-status"),
@@ -277,7 +290,7 @@
       }
     }, h("span", {class: "more-dots", "aria-hidden": "true", text: "•••"}), h("span", {text: "More"}));
     fill($("mobile-tabs"), tabs, more);
-    fill($("mobile-more"), [NAV[4], ...NAV_MINOR].map(([id, label, ic]) => h("a", {
+    fill($("mobile-more"), NAV_MINOR.map(([id, label, ic]) => h("a", {
       class: "mobile-more-link", href: "#" + id, "aria-current": S.tab === id ? "page" : null,
       onclick: () => closeMore()
     }, icon(ic, 20), label)));
@@ -294,7 +307,7 @@
     project: ["Add a project", () => { S.evidenceForm = true; go("evidence"); }],
     verified: ["Open Evidence", () => go("evidence")],
     profile: ["Paste it", () => { S.pasteKind = "profile_text"; go("pasted"); }],
-    person: ["Add one", () => { S.open.add("additem"); go("people"); }],
+    person: ["Add one", () => { S.addPerson=true; go("people"); }],
   };
   function setupLabel() { return S.setup.done + " of " + S.setup.total + " steps"; }
   function progressBar(pct, cls) {
@@ -303,22 +316,8 @@
     bar.firstChild.style.width = pct + "%";
     return bar;
   }
-  // The sidebar card is built once and updated in place, so the bar slides when the number changes.
-  function updateSetupCard() {
-    const wrap = $("side-setup"), st = S.setup;
-    if (!st || !S.onboarding.done || (st.complete && !store.get("setupPinned", false))) { wrap.replaceChildren(); return; }
-    if (!wrap.firstChild) {
-      wrap.append(h("a", { class: "side-status side-setup", href: "#today", onclick: (e) => { e.preventDefault(); S.open.add("setup"); go("today"); } },
-        h("span", { class: "split" }, h("strong", { text: "Setup" }), h("strong", { class: "pct" })), progressBar(st.percent), h("span", { class: "detail muted steps" })));
-    }
-    const card = wrap.firstChild, bar = card.querySelector(".meter");
-    card.querySelector(".pct").textContent = st.percent + "%";
-    card.querySelector(".steps").textContent = st.complete ? "All " + st.total + " steps done" : setupLabel();
-    card.title = "Open the setup checklist";
-    bar.setAttribute("aria-valuenow", st.percent);
-    bar.setAttribute("aria-valuetext", st.percent + " percent, " + setupLabel());
-    bar.firstChild.style.width = st.percent + "%";
-  }
+  // Career setup remains available in Settings; connection onboarding has no checklist.
+  function updateSetupCard() { $("side-setup").replaceChildren(); }
   function setupChecklist() {
     const live = S.ai.available && S.ai.mode === "live";
     return h("ul", { class: "rows setup-list" },
@@ -361,8 +360,8 @@
     else if (pending) { state = "waiting"; text = "Waiting for your OK"; }
     for (const el of document.querySelectorAll(".orb")) el.className = "orb is-" + state;
     $("dock-status").textContent = text;
-    fill($("dock-pill"), h("span", { class: "orb is-" + state }, orbSvg(36)), "Tempo", pending ? h("span", { class: "count", text: String(pending) }) : null);
-    $("dock-pill").setAttribute("aria-label", "Open Tempo, your companion" + (pending ? ", " + plural(pending, "suggestion", "suggestions") + " waiting" : ""));
+    fill($("dock-pill"), h("span", { class: "orb is-" + state }, orbSvg(60)), h("span", {class:"avatar-label",text:"Link"}), pending ? h("span", { class: "count", text: String(pending) }) : null);
+    $("dock-pill").setAttribute("aria-label", "Open Link, your companion" + (pending ? ", " + plural(pending, "suggestion", "suggestions") + " waiting" : ""));
   }
   function say(role, text) {
     const el = h("div", { class: "msg " + role, text });
@@ -403,6 +402,8 @@
   function setDock(open) {
     if (dockMotion) { dockMotion.cancel(); dockMotion = null; }
     store.set("dockOpen", open);
+    $("dock-pill").setAttribute("aria-expanded",String(open));
+    window.dispatchEvent(new CustomEvent("link:dockchange",{detail:{open}}));
     const dock = $("dock"), reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     dock.inert = !open;
     dock.setAttribute("aria-hidden", String(!open));
@@ -438,6 +439,8 @@
   }
   function startDock() {
     $("orb").append(orbSvg(40));
+    $("dock-pill").setAttribute("aria-controls","dock");
+    $("dock-pill").setAttribute("aria-expanded",String(store.get("dockOpen",false)));
     $("dock-collapse").append(icon("collapse", 18));
     $("chat-send").append(icon("send", 18));
     $("dock-collapse").addEventListener("click", () => setDock(false));
@@ -493,7 +496,13 @@
     if (state === "done") say("companion", "Marked done: " + action.title + ". When you hear back, record it under People & roles.");
     render();
   }
-  function openFor(action) {
+  async function openFor(action) {
+    if(action.item_id && ["follow_up","outreach"].includes(action.kind)) {
+      const items=await act(()=>api("GET","/api/items"));
+      if(!items)return;
+      const selected=items.find(item=>item.id===action.item_id);
+      if(selected?.kind==="relationship") { workflows.open({mode:action.kind==="follow_up"?"follow_up":"prepare",item_id:selected.id,goal:action.title});return; }
+    }
     if (action.kind === "job_compare") { S.pasteKind = "job_description"; go("pasted"); return; }
     Object.assign(S.draft, { action_id: action.id, purpose: KIND_TO_PURPOSE[action.kind] || "outreach", current: null });
     go("drafts");
@@ -518,38 +527,12 @@
     return "Due " + (days < 7 ? d.toLocaleDateString(undefined, { weekday: "long" }) : d.toLocaleDateString(undefined, { day: "numeric", month: "short" }));
   }
   function sampleNotice() {
-    return S.hasSample ? h("div", { class: "notice warn center" }, icon("info", 18), h("span", { class: "grow", text: "Sample data is loaded. Anything marked [SAMPLE] is fictional." }),
+    return S.hasSample && !S.demo ? h("div", { class: "notice warn center" }, icon("info", 18), h("span", { class: "grow", text: "Sample data is loaded. Anything marked [SAMPLE] is fictional." }),
       btn("Remove it", async () => { await act(() => api("POST", "/api/sample/remove"), "Sample data removed."); await refreshStatus(); render(); }, "quiet")) : null;
   }
 
   // ---- onboarding: the companion, one question at a time ---------------------------------
-  function renderOnboarding(root) {
-    const o = S.onboarding;
-    const answer = h("textarea", { id: "onb-answer", rows: 3, maxlength: 4000, "aria-describedby": "onb-hint" });
-    const submit = async (text) => {
-      const next = await act(() => api("POST", "/api/onboarding/answer", { text }));
-      if (!next) return;
-      S.onboarding = next;
-      if (next.done) {
-        document.body.classList.remove("onboarding");
-        await render();
-        say("companion", "Thanks. That's saved under About me, where you can change or delete any of it.");
-        await greet();
-      } else { await render(); }
-    };
-    answer.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(answer.value.trim()); } });
-    root.append(h("section", { class: "onb", "aria-labelledby": "onb-q" },
-      h("div", { class: "onb-who" }, h("span", { class: "orb is-ready" }, orbSvg(56)), h("div", {}, h("div", { class: "name", text: "Tempo" }), h("div", { class: "muted small", text: "Your career companion" }))),
-      o.step === 0 ? h("p", { text: "I keep your place, tell you the one thing I'd do next, and push back when a claim isn't backed up. I can't see LinkedIn or your inbox, and I never send anything. You do that." }) : null,
-      h("div", { class: "onb-progress" }, h("span", { text: "Question " + (o.step + 1) + " of " + o.total }),
-        h("div", { class: "onb-bar", "aria-hidden": "true" }, Array.from({ length: o.total }, (_, i) => h("span", { class: i <= o.step ? "done" : "" })))),
-      h("h1", { id: "onb-q" }, h("label", { for: "onb-answer", text: o.question })),
-      answer, h("p", { id: "onb-hint", class: "muted small", text: o.hint || "" }),
-      h("div", { class: "row" }, btn("Continue", () => submit(answer.value.trim()), "primary big"), btn("Skip", () => submit(""), "quiet")),
-      help("Where do my answers go?", "They're saved on this Mac under About me. You can edit or delete any of them later, and skipping is fine.",
-        "They help with planning only. They are never passed to drafting.")));
-    setTimeout(() => answer.focus(), 0);
-  }
+  function renderOnboarding(root) { return workflows.onboard(root); }
 
   // ---- Today ----------------------------------------------------------------------------
   function timePicker(disabled) {
@@ -577,58 +560,61 @@
     const meta = [option.item ? clean(option.item.title) + (option.item.org ? " at " + option.item.org : "") : null,
       a.deadline ? dueText(a.deadline, today) : null, "About " + a.effort_min + " minutes"].filter(Boolean).join(". ") + ".";
     return h("section", { class: "hero", "aria-labelledby": "hero-title" },
-      h("div", { class: "hero-time" },
+      disc("focus-session", "Make a little time", "Optional focus session",h("div", { class: "hero-time" },
         h("div", {class: "focus-label", text: running ? "IN YOUR FOCUS ZONE" : "A MOMENT OF FOCUS"}),
-        running ? liveRing() : ring(168, 1, S.minutes, "minutes"),
-        timePicker(running), h("p", {class: "focus-caption", text: "A little time for what’s next."})),
+        running ? liveRing() : null,
+        timePicker(running), h("p", {class: "focus-caption", text: "A little time for what’s next."}),running ? btn("End focus session",endSession,"quiet") : btn("Start focus session",()=>startSession(a),"primary"))),
       h("div", { class: "hero-body" },
         h("div", { class: "row" }, h("span", { class: "eyebrow accent", text: a.state === "suggested" ? "Start here" : "Pick up where you left off" }),
-          a.is_sample ? chip("Sample data", "warn") : null, a.commitment ? chip("You committed to this") : null),
-        h("h1", { id: "hero-title", text: clean(a.title) }),
-        h("p", { class: "hero-task", text: "One concrete step toward your next chapter." }),
+          a.is_sample && !S.demo ? chip("Sample data", "warn") : null, a.commitment ? chip("You committed to this") : null),
+        h("h2", { id: "hero-title", text: clean(a.title) }),
+        h("p", { class: "hero-task", text: "A thoughtful next step for your connection." }),
         h("p", { class: "hero-meta", text: meta }),
         h("div", { class: "well" }, icon("bookmark", 18), h("div", { class: "grow" }, h("div", { class: "muted small", text: "You left it at" }), note)),
         h("div", { class: "row" },
           running ? [h("button", { type: "button", class: "btn primary big", onclick: () => openFor(a) }, playIcon(), "Continue"), btn("End session", endSession, "big")]
-            : [h("button", { type: "button", class: "btn primary big", onclick: () => startSession(a) }, playIcon(), "Start " + S.minutes + "-minute session"),
+            : [h("button", { type: "button", class: "btn primary big", onclick: () => openFor(a) }, playIcon(), "Work on this"),
                btn("Not today", () => { S.skipped.add(a.id); render(); }, "big")]),
         h("div", { class: "row" }, toggle("Why this one?", reasons), toggle("Already dealt with it?", dealt)),
         reasons, dealt));
   }
-  function firstSteps() {
-    const step = (primary, ic, title, sub, onclick) => h("button", { type: "button", class: "first-step" + (primary ? " primary" : ""), onclick }, icon(ic, 22), h("span", {}, h("b", { text: title }), h("span", { text: sub })));
-    return h("section", { class: "state" },
-      h("h1", { text: "Nothing's waiting on you." }),
-      h("p", { class: "hero-meta", text: S.setup.complete ? "Add a to-do below when something real comes up." : "Give me one real thing to work with and I'll take it from there." }),
-      S.setup.complete ? null : setupPanel(),
-      step(false, "evidence", "Import a starter file", "One step. Loads projects, goals and to-dos prepared for you.", () => { S.open.add("starter"); go("settings"); }),
-      S.hasSample ? null : h("div", {}, btn("Or look around with labelled sample data", async () => { await act(() => api("POST", "/api/sample/load")); await refreshStatus(); await render(); await greet(); }, "quiet")));
+  function todayHeader(hasPeople) {
+    return h('header',{class:'daily-intro'},h('div',{},h('h1',{text:hasPeople?'Pick up where you left off.':'Start with one connection.'}),
+      h('p',{text:'Choose one thoughtful next step. Link helps you prepare; you decide what to do.'})),
+      btn('I’m stuck — help me choose',()=>workflows.begin(),'quiet'));
+  }
+  function dailyShortcuts() {
+    return h('nav',{class:'daily-shortcuts','aria-label':'Quick actions'},
+      btn('Log a conversation',()=>go('quicklog'),'quiet'),
+      btn('Prepare for a conversation',()=>workflows.open({mode:'prepare'}),'quiet'),
+      btn('Import connections',()=>sources.open('connections'),'quiet'));
+  }
+  function dailyEmpty(hasPeople) {
+    return h('section',{class:'daily-empty'},h('span',{class:'eyebrow',text:'ONE SMALL STEP'}),
+      h('h2',{text:hasPeople?'Who’s on your mind?':'You can begin without a contact list.'}),
+      h('p',{text:hasPeople?'Open someone’s notes, pick up a conversation, or tell Link what you’d like help with. Nothing needs to be overdue to be worth doing.':'A classmate, someone you met at an event, or a community you’re curious about is enough to start. Link can help you work out an approach.'}),
+      h('div',{class:'row'},hasPeople?btn('Choose a person',()=>go('people'),'primary'):btn('I don’t know anyone yet',()=>workflows.open({mode:'starting'}),'primary'),
+        btn('Add someone I know',()=>{S.addPerson=true;go('people');},'quiet')));
   }
   async function renderToday(root) {
-    const [view, ideas, items, evidence, drafts] = await Promise.all([loadToday(), api("GET", "/api/ideas"), api("GET", "/api/items"), api("GET", "/api/evidence"), api("GET", "/api/drafts")]);
+    const [view, ideas, items] = await Promise.all([loadToday(), api("GET", "/api/ideas"), api("GET", "/api/items")]);
     const all = [view.recommended].concat(view.alternatives).filter(Boolean);
     const options = all.filter((o) => !S.skipped.has(o.action.id));
     const date = new Date(view.today + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-    const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", {class: "workspace-label", text: "YOUR SPACE TO MOVE FORWARD"}), h("span", {text: date})), sampleNotice());
+    const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", {class: "workspace-label", text: "YOUR CONNECTION STUDIO"}), h("span", {text: date})), sampleNotice());
     root.append(page);
+    const hasPeople=items.some(item=>item.kind==='relationship');
+    page.append(todayHeader(hasPeople),dailyShortcuts());
     if (options.length) page.append(hero(options[0], view.today));
-    else if (all.length) page.append(h("section", { class: "state" }, h("h1", { text: "That's everything set aside for today." }),
+    else if (all.length) page.append(h("section", { class: "state" }, h("h2", { text: "That's everything set aside for today." }),
       h("p", { class: "hero-meta", text: "Nothing was changed. Your to-dos are still there." }), h("div", {}, btn("Show them again", () => { S.skipped.clear(); render(); }))));
-    else page.append(firstSteps());
+    else page.append(dailyEmpty(hasPeople));
+    await workflows.todayTools(page,true);
+    await todayPeople(page,items.filter(i=>i.kind==="relationship"));
 
-    const summaries = [
-      ["people", "Connections & roles", items.length, "people"],
-      ["evidence", "Evidence collected", evidence.length, "evidence"],
-      ["drafts", "Drafts in your voice", drafts.length, "drafts"]
-    ];
-    page.append(h("section", {class: "workspace-overview", "aria-label": "Your workspace at a glance"},
-      summaries.map(([tab, label, count, ic]) => h("a", {class: "overview-item", href: "#" + tab},
-        h("span", {class: "overview-icon " + tab}, icon(ic, 20)),
-        h("span", {class: "grow"}, h("span", {class: "overview-count", text: String(count)}), h("span", {class: "overview-label", text: label})), icon("down", 16)))));
     const rest = options.slice(1);
     const tucked = h("section", { class: "section", "aria-label": "Everything else" }, h("div", { class: "eyebrow", text: "Next, at your pace" }));
     const list = h("div", {});
-    if (all.length && !S.setup.complete) list.append(disc("setup", "Finish setup", setupLabel() + " · " + S.setup.percent + "%", setupChecklist()));
     if (rest.length) list.append(disc("others", plural(rest.length, "other thing", "other things") + " you could do", rest.map((o) => o.action.title.replace("[SAMPLE] ", "")).join("; "),
       h("ul", { class: "rows" }, rest.map((o) => h("li", {}, h("div", { class: "grow" }, h("div", { text: o.action.title }), h("div", { class: "muted small", text: o.reasons.slice(0, 2).join(" ") })),
         btn("Do this instead", () => startSession(o.action)))))));
@@ -646,6 +632,14 @@
     list.append(disc("add", "Add a to-do or reminder", "", actionForm(items), reminderForm()));
     tucked.append(list);
     page.append(tucked);
+  }
+  async function todayPeople(page,items) {
+    if(!items.length)return;
+    const block=h("section",{class:"today-people"},h("div",{class:"section-title"},h("h2",{text:"Your people"}),h("a",{href:"#people",text:"View your people"})));
+    const people=await api("GET","/api/people");
+    block.append(h("div",{class:"today-people-list"},people.slice(0,3).map(person=>h("button",{type:"button",class:"today-person",onclick:()=>{S.selectedPerson=person.id;S.personSection="overview";go("people");}},
+      h("span",{class:"person-avatar small-avatar",text:person.name.slice(0,1).toUpperCase()}),h("span",{class:"grow"},h("strong",{text:person.name}),h("span",{class:"muted small",text:person.org||"Context grows over time"})),h("span",{class:"muted small",text:person.next_action?.title||whenLabel(person.last_interaction)}),icon("chev",16)))));
+    page.append(block);
   }
   function actionForm(items) {
     const f = { title: "", kind: "follow_up", item_id: "", commitment: false, importance: 2, effort_min: 15, deadline: "" };
@@ -675,6 +669,35 @@
   }
 
   // ---- People & roles -------------------------------------------------------------------
+  function compareTable(result) {
+    return h("div", { class: "stack" }, h("p", { text: result.summary }),
+      h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, ["They ask for", "Your evidence", "Gap"].map((t) => h("th", { scope: "col", text: t })))),
+        h("tbody", {}, result.requirements.map((r) => h("tr", {}, h("td", { text: r.requirement }),
+          h("td", {}, r.evidence.length ? r.evidence.map((e) => h("div", {}, e.title + " ", chip(e.status === "user_verified_with_artifact" ? "verified" : "unverified", e.status === "user_verified_with_artifact" ? "ok" : "warn"))) : h("span", { class: "muted", text: "None" })),
+          h("td", { text: r.gap })))))),
+      h("p", { class: "muted small", text: "A match means an entry relates to the requirement, not that it proves you meet it." }));
+  }
+  function postingBlock(it) {
+    if (it.kind !== "opportunity") return null;
+    const box = h("textarea", { rows: 4, maxlength: 60000, "aria-label": "Job posting text", placeholder: "Paste the whole posting, requirements included." });
+    const saveBox = h("div", { class: "stack" }, box, h("div", {}, btn("Save posting", async () => {
+      if (!box.value.trim()) { toast("Paste the posting first."); return; }
+      if (await act(() => api("POST", "/api/items/" + it.id + "/posting", { content: box.value }), "Posting saved.")) render();
+    })));
+    if (!it.posting) return help("Add the job posting", "Paste it here once. It stays with this role and is used for the comparison.", saveBox);
+    const shown = S.itemCompare && S.itemCompare.id === it.id ? S.itemCompare.result : null;
+    return h("div", { class: "stack" },
+      h("div", { class: "row" }, chip("Posting saved · " + it.posting.length.toLocaleString() + " characters", "ok"),
+        h("button", { type: "button", class: "btn", disabled: !S.ai.available, onclick: async (ev) => {
+          ev.currentTarget.disabled = true;
+          const result = await thinking(() => act(() => api("POST", "/api/compare", { import_id: it.posting.id })));
+          if (result) S.itemCompare = { id: it.id, result };
+          render();
+        } }, shown ? "Compare again" : "Compare with my evidence"),
+        shown ? btn("Hide comparison", () => { S.itemCompare = null; render(); }, "quiet") : null),
+      shown ? compareTable(shown) : null,
+      help("Replace the posting", saveBox));
+  }
   function todoRow(a, deletable) {
     const closed = a.state === "done" || a.state === "dropped";
     return h("li", {}, h("span", { class: "grow" }, a.title, " ", chip(STATE[a.state], a.state === "done" ? "ok" : "")),
@@ -682,21 +705,28 @@
         closed ? btn(a.state === "done" ? "Undo done" : "Bring back", () => setState(a, a.state === "done" ? "reviewed" : "suggested")) : btn("Work on it", () => startSession(a)),
         deletable ? btn("Delete", async () => { if (window.confirm("Delete this to-do?")) { await act(() => api("DELETE", "/api/actions/" + a.id)); render(); } }, "quiet") : null));
   }
-  async function renderPeople(root) {
+  async function renderRoles(root) {
     const [items, actions] = await Promise.all([api("GET", "/api/items"), api("GET", "/api/actions")]);
-    const page = h("div", { class: "page" }, pageHead("People & roles", "Who you're talking to, what you're going for, and what happened.",
+    const page = h("div", { class: "page" }, pageHead("Roles", "Who you're talking to, what you're going for, and what happened.",
       help("What do outcomes mean?", "One click records what you observed: a reply, an interview, silence.", "It's a record, not proof that any particular wording caused it.")), sampleNotice());
     root.append(page);
-    const f = { kind: "opportunity", title: "", org: "" };
-    const addForm = h("form", { class: "panel", onsubmit: async (e) => { e.preventDefault(); if (await act(() => api("POST", "/api/items", f), "Added.")) render(); } },
+    const f = { kind: "opportunity", title: "", org: "", posting: "" };
+    const postingField = field("Job posting (optional): paste the whole thing, requirements included",
+      h("textarea", { rows: 4, maxlength: 60000, oninput: (e) => { f.posting = e.target.value; } }));
+    const addForm = h("form", { class: "panel", onsubmit: async (e) => {
+      e.preventDefault();
+      const body = { ...f, posting: f.kind === "opportunity" ? f.posting : "" };
+      if (await act(() => api("POST", "/api/items", body), body.posting.trim() ? "Added, with its posting." : "Added.")) render();
+    } },
       h("div", { class: "grid2" },
-        field("Type", select([["opportunity", "Role or programme"], ["relationship", "Person"]], f.kind, (v) => { f.kind = v; })),
+        field("Type", select([["opportunity", "Role or programme"], ["relationship", "Person"]], f.kind, (v) => { f.kind = v; postingField.classList.toggle("hidden", v !== "opportunity"); })),
         field("Name or title", h("input", { required: true, maxlength: 200, oninput: (e) => { f.title = e.target.value; } })),
         field("Organisation", h("input", { maxlength: 200, oninput: (e) => { f.org = e.target.value; } }))),
+      postingField,
       h("div", {}, h("button", { type: "submit", class: "btn primary" }, "Add")));
     if (!items.length) page.append(h("section", { class: "section" }, h("h3", { text: "No one here yet" }), h("p", { class: "muted", text: "Add the first person or role you're actually pursuing." }), addForm));
     const listing = h("div", {});
-    for (const it of items) {
+    for (const it of items.filter(i => i.kind === "opportunity")) {
       const edit = { ...it };
       listing.append(h("section", { class: "entry" },
         h("div", { class: "row spread" }, h("h3", { text: it.title + (it.org ? " · " + it.org : "") }),
@@ -719,9 +749,10 @@
           chip(OUTCOME[o.type] + " · " + o.occurred_on, ["interview", "offer", "reply"].includes(o.type) ? "ok" : ""),
           btn("Undo", async () => { await act(() => api("DELETE", "/api/outcomes/" + o.id)); render(); }, "quiet")))) : null,
         it.actions.length ? h("ul", { class: "rows" }, it.actions.map((a) => todoRow(a, false))) : null,
+        postingBlock(it),
         help("Notes and details", h("div", { class: "stack" },
           field("Private notes (planning only, never sent to drafting)", h("textarea", { rows: 2, maxlength: 8000, value: it.private_notes, oninput: (e) => { edit.private_notes = e.target.value; } })),
-          field("Context you're happy to use in a draft", h("textarea", { rows: 2, maxlength: 2000, value: it.shareable_context, oninput: (e) => { edit.shareable_context = e.target.value; } })),
+          field("Short context you're happy to use in a draft (a sentence or two; the posting has its own place above)", h("textarea", { rows: 2, maxlength: 2000, value: it.shareable_context, oninput: (e) => { edit.shareable_context = e.target.value; } })),
           field("Status", select([["active", "Active"], ["waiting", "Waiting on them"], ["closed", "Closed"]], it.status, (v) => { edit.status = v; })),
           h("div", { class: "row" },
             btn("Save", async () => { const body = { kind: edit.kind, title: edit.title, org: edit.org, private_notes: edit.private_notes, shareable_context: edit.shareable_context, status: edit.status };
@@ -734,42 +765,270 @@
     if (items.length) page.append(h("div", {}, disc("additem", "Add a person or role", "", addForm)));
   }
 
+  const CATEGORY = [["", "Uncategorized"], ["want_to_meet", "Want to meet"], ["getting_acquainted", "Getting acquainted"], ["stay_in_touch", "Stay in touch"], ["paused", "Paused"]];
+  function whenLabel(e) { return !e ? "No interaction recorded" : e.when_kind === "approx" ? e.when_text + " · approximate" : e.when_kind === "exact" ? e.occurred_on : "Date unknown"; }
+  function scopePerson(person) {
+    if (S.contextItem?.id !== person.id) {
+      $("chat-log").replaceChildren();
+      $("chat-input").value = "";
+      say("companion", "Now discussing " + person.name + ". Tell me what you remember, or log an interaction to build context.");
+    }
+    S.contextItem = {id: person.id, title: person.name};
+    updateContextNote();
+    $("chat-input").placeholder = "Ask about " + person.name;
+  }
+  function personForm(person, after) {
+    const f = {name: person?.name || "", org: person?.org || "", profile_link: person?.profile_link || "", context: person?.context || "", notes: person?.notes || "", category: person?.category || ""};
+    const duplicates=h('div',{class:'duplicate-hints','aria-live':'polite'});let known=[],allowDuplicate=false;
+    if(!person)api('GET','/api/people').then(rows=>{known=rows;}).catch(()=>{});
+    const matches=()=>known.filter(p=>{const a=p.name.trim().toLocaleLowerCase(),b=f.name.trim().toLocaleLowerCase();return b.length>=3&&(a===b||a.includes(b)||b.includes(a));});
+    function showMatches(){allowDuplicate=false;const found=matches();fill(duplicates,found.length?h('p',{class:'muted small',text:'Could this be someone you already added?'}):null,found.slice(0,3).map(p=>btn('Open '+p.name+(p.org?' · '+p.org:''),()=>{S.selectedPerson=p.id;S.addPerson=false;render();},'quiet')));}
+    const input = (label, key, length, area) => field(label, h(area ? "textarea" : "input", {value:f[key], maxlength:length, required:key === "name", rows:2, oninput:e=>{f[key]=e.target.value;if(key==='name')showMatches();}}));
+    return h("form", {class:"panel stack", onsubmit:async e=>{
+      e.preventDefault();if(!person&&matches().length&&!allowDuplicate){if(!confirm('A similar name is already saved. Add a separate person anyway?'))return;allowDuplicate=true;} const saved = await act(()=>api(person ? "PUT":"POST", "/api/people"+(person?"/"+person.id:""), f), "Person saved.");
+      if(saved) { if(person)offerUndo('Person details updated.',()=>api('PUT','/api/people/'+person.id,personFields(person)));S.selectedPerson=saved.id; S.addPerson=false; if(after) after(saved); else render(); }
+    }}, input("Name", "name", 200),duplicates,h("p",{class:"muted small",text:"Don’t know their name? Use a description, like ‘Person from the career fair’, and rename them later."}),
+      disc("person-extra", "Optional details", "Add context when you have it",
+        input("Organization", "org", 200), input("Profile link (saved only; not fetched)", "profile_link", 1000),
+        input("Context approved for messages", "context", 2000, true), input("Private planning notes", "notes", 8000, true),
+        field("Group", select(CATEGORY, f.category, v=>f.category=v))),
+      h("div", {class:"row"}, h("button", {type:"submit",class:"btn primary"},person?"Save changes":"Add person"), btn("Cancel",()=>{S.addPerson=false; render();},"quiet")));
+  }
+  function restoreNext(pid,a){return api('POST','/api/people/'+pid+'/next/restore',{id:a.id,title:a.title,state:a.state,remind_on:a.remind_on});}
+  function personNextStep(person) {
+    let title = person.next_action?.title || '', remind = person.next_action?.remind_on || '';
+    const reminder=h('input',{type:'date',value:remind,oninput:e=>remind=e.target.value});
+    const reminderHint=h('span',{class:'muted small',text:'A reminder is optional.'});
+    const setReminder=value=>{remind=value;reminder.value=value;};
+    const form = h('form', {class:'stack', onsubmit:async e=>{
+      e.preventDefault();
+      if(await act(()=>api('POST','/api/people/'+person.id+'/next',{title,remind_on:remind||null}),'Next step saved.')){offerUndo('Next step saved.',()=>person.next_action?restoreNext(person.id,person.next_action):api('DELETE','/api/people/'+person.id+'/next'));render();}
+    }}, field('What would you like to do?', h('input',{required:true,maxlength:200,value:title,oninput:e=>title=e.target.value})),
+      field('Optional reminder',reminder),h('div',{class:'row'},btn('No reminder',()=>{setReminder('');reminderHint.textContent='No reminder. This connection is not an obligation.';},'quiet'),btn('Next week',()=>{const d=new Date();d.setDate(d.getDate()+7);setReminder([d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'));reminderHint.textContent='One week from today. Save the next step to confirm.';},'quiet'),btn('After an event',()=>{reminderHint.textContent='Choose a date after your event. No date is assumed.';reminder.focus();},'quiet')),reminderHint,
+      h('p',{class:'muted small',text:'Choose a step when it makes sense. Reminders appear while the app is open.'}),
+      h('div',{class:'row'},h('button',{type:'submit',class:'btn primary'},'Save next step'),
+        person.next_action?btn('I completed this',async()=>{
+          const actionId=person.next_action.id;
+          if(await act(()=>api('POST','/api/people/'+person.id+'/complete'),'Completed. Log any contact separately.')){S.undoAction={personId:person.id,actionId,previous:person.next_action};render();}
+        }):null,
+        person.next_action?btn('Clear',async()=>{if(await act(()=>api('DELETE','/api/people/'+person.id+'/next'))){offerUndo('Next step cleared.',()=>restoreNext(person.id,person.next_action));render();}},'quiet'):null));
+    return h('section',{class:'studio-step stack'},h('span',{class:'eyebrow',text:'A step you choose'}),h('h3',{text:person.next_action?'Continue with intention.':'Make room for what’s next.'}),form);
+  }
+  async function renderPeople(root) {
+    const list = await api('GET','/api/people');
+    if(S.selectedPerson && !list.some(person=>person.id===S.selectedPerson))S.selectedPerson=null;
+    const page = h('div',{class:'page people-page'},pageHead('Your people.','A little context makes the next conversation easier.'));
+    root.append(page);
+    page.append(h('div',{class:'row people-source-entry'},btn('Import connections',()=>go('sources'),'quiet'),h('span',{class:'muted small',text:'Bring a LinkedIn export; choose what to keep.'})));
+    const frame = h('div',{class:'people-studio'});
+    const directory = h('aside',{class:'people-directory','aria-label':'People directory'});
+    const workspace = h('section',{class:'person-workspace','aria-label':'Selected person'});
+    page.append(frame);frame.append(directory,workspace);
+    directory.append(h('div',{class:'row spread'},h('span',{class:'eyebrow',text:plural(list.length,'person','people')}),btn('Add person',()=>{S.addPerson=true;render();},'primary')));
+    const search=h('input',{type:'search',placeholder:'Find someone…','aria-label':'Search people',value:S.peopleSearch||''});
+    let category=S.peopleCategory||'all';
+    const rows=h('div',{class:'people-rows'});
+    const selectPerson=p=>{S.selectedPerson=p.id;S.addPerson=false;S.personSection='overview';render();};
+    const draw=()=>{
+      const q=search.value.trim().toLowerCase();
+      const shown=list.filter(p=>(category==='all'||p.category===category)&&[p.name,p.org,p.context].join(' ').toLowerCase().includes(q));
+      fill(rows,shown.length?shown.map(p=>h('button',{type:'button',class:'person-row'+(p.id===S.selectedPerson?' selected':''),'aria-pressed':String(p.id===S.selectedPerson),onclick:()=>selectPerson(p)},
+        h('span',{class:'person-avatar small-avatar',text:p.name.slice(0,1).toUpperCase()}),
+        h('span',{class:'person-row-main'},h('strong',{text:p.name}),h('span',{class:'muted small',text:p.org||CATEGORY.find(c=>c[0]===p.category)?.[1]||'Context grows over time'})),icon('chev',14))):h('p',{class:'muted small directory-empty',text:list.length?'No matches. Try another name or group.':'Your first person can be someone you know, just met, or hope to meet.'}));
+    };
+    search.addEventListener('input',()=>{S.peopleSearch=search.value;draw();});
+    rows.addEventListener('keydown',e=>{
+      if(!e.target.closest('.person-row')||!['ArrowDown','ArrowUp','Home','End'].includes(e.key))return;
+      const buttons=[...rows.querySelectorAll('.person-row')];if(!buttons.length)return;
+      e.preventDefault();const current=buttons.indexOf(e.target.closest('.person-row'));
+      const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(current+(e.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;
+      buttons[next].focus();
+    });
+    directory.append(search,field('Group',select([['all','All people'],...CATEGORY],category,value=>{category=value;S.peopleCategory=value;draw();})),rows,
+      h('div',{class:'directory-footer'},btn('Capture a moment',()=>go('quicklog'),'quiet'),btn('Find a starting point',()=>workflows.open(),'quiet')));
+    draw();
+    if(S.addPerson){workspace.append(h('div',{class:'studio-person-form'},h('span',{class:'eyebrow',text:'One person is a beginning'}),h('h2',{text:'Who’s on your mind?'}),h('p',{class:'muted',text:'A name is enough. Add the rest as your connection develops.'}),personForm(null)));return;}
+    if(!S.selectedPerson){workspace.append(h('div',{class:'people-welcome'},connectionMotif(),h('span',{class:'eyebrow',text:'Your connection studio'}),h('h2',{text:list.length?'Pick up a conversation.':'Good connections start somewhere.'}),h('p',{text:list.length?'Choose someone to see what you remember, what you’ve learned, and what might come next.':'Link can help you find a starting point, even before you know who to approach.'}),h('div',{class:'row'},btn('Help me get started',()=>workflows.open(),'primary'),btn('Log someone you met',()=>go('quicklog')))));return;}
+    const person=await api('GET','/api/people/'+S.selectedPerson);scopePerson(person);
+    const importedSource=await api('GET','/api/network/people/'+person.id+'/source');
+    workspace.append(h('div',{class:'person-heading'},h('div',{class:'person-avatar',text:person.name.slice(0,1).toUpperCase()}),h('div',{class:'grow'},h('span',{class:'eyebrow',text:'A connection, in context'}),h('h2',{text:person.name}),person.org?h('p',{class:'muted',text:person.org}):null),btn('← All people',()=>{S.selectedPerson=null;S.contextItem=null;document.getElementById('chat-log').replaceChildren();render();},'quiet')));
+    if(importedSource.source)workspace.append(h('details',{class:'import-provenance'},h('summary',{text:'LinkedIn snapshot · source details'}),h('p',{class:'muted small',text:'Role at export: '+(importedSource.position||'Not supplied')+' · Connected on: '+(importedSource.connected_on||'Not supplied')}),h('p',{class:'muted small',text:'Imported '+importedSource.imported_at.slice(0,10)+'. This is not a current employment check or a recorded conversation.'})));
+    if(importedSource.source&&!person.notes.trim()&&!person.context.trim()&&!person.timeline.length){
+      const answer=h('textarea',{rows:2,maxlength:1000,'aria-label':'How do you know this person?',placeholder:'A class, an event, a mutual acquaintance—or “we haven’t met yet”.'});
+      workspace.append(h('section',{class:'import-context-prompt stack'},h('span',{class:'eyebrow',text:'ONE THING AN EXPORT CAN’T TELL US'}),h('h3',{text:'How do you know '+person.name+'?'}),h('p',{class:'muted small',text:'A rough answer helps Link suggest a thoughtful next step. You can leave this until later.'}),answer,
+        btn('Save private context',async()=>{if(!answer.value.trim())return;if(await act(()=>api('PUT','/api/people/'+person.id,{...personFields(person),notes:answer.value.trim()}),'Context saved for planning.')){offerUndo('Relationship context saved.',()=>api('PUT','/api/people/'+person.id,personFields(person)));render();}},'quiet')));
+    }
+    const tabs=[['overview','Overview'],['conversations','Conversations'],['next','Next step']];
+    const section=tabs.some(([id])=>id===S.personSection)?S.personSection:'overview';
+    const tablist=h('div',{class:'person-tabs',role:'tablist','aria-label':'Person sections'});
+    const panel=h('div',{class:'person-tab-panel',role:'tabpanel',id:'person-panel',tabindex:0,'aria-labelledby':'person-tab-'+section});
+    tabs.forEach(([id,label])=>tablist.append(h('button',{type:'button',class:'person-tab',id:'person-tab-'+id,role:'tab','aria-selected':String(section===id),'aria-controls':'person-panel',tabindex:section===id?0:-1,onclick:()=>{S.personSection=id;render().then(()=>document.getElementById('person-tab-'+id)?.focus({preventScroll:true}));}},label)));
+    tablist.addEventListener('keydown',e=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+      e.preventDefault();const current=tabs.findIndex(([id])=>id===section);
+      S.personSection=tabs[e.key==='Home'?0:e.key==='End'?tabs.length-1:(current+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length][0];
+      render().then(()=>document.getElementById('person-tab-'+S.personSection)?.focus({preventScroll:true}));
+    });
+    workspace.append(tablist,panel);
+    if(section==='overview'){
+      panel.append(h('div',{class:'person-context stack'},h('span',{class:'eyebrow',text:'How you know each other'}),h('p',{text:person.context||'Your story with this person is still taking shape. A quick log can hold the fragments.'}),
+        person.notes?disc('private-person','Private planning notes','Only shared with planning when selected',h('p',{text:person.notes})):null),
+        h('div',{class:'row person-primary-actions'},btn('Log interaction',()=>{S.logPerson=person.id;go('quicklog');},'primary'),btn('Prepare a message',()=>workflows.open({mode:'prepare',item_id:person.id})),btn('Think with Link',()=>{scopePerson(person);setDock(true);},'quiet')),
+        h('section',{class:'person-next-summary'},h('span',{class:'eyebrow',text:'Next, when you’re ready'}),h('p',{text:person.next_action?.title||'No step chosen. There’s no need to invent one.'}),btn(person.next_action?'Review next step':'Choose a next step',()=>{S.personSection='next';render();},'quiet')));
+      await workflows.personTools(panel,person);
+      panel.append(h('div',{class:'section-title'},h('h3',{text:'Recent moments'}),btn('See conversations',()=>{S.personSection='conversations';render();},'quiet')),
+        h('div',{class:'recent-moments'},person.timeline.length?person.timeline.slice(0,2).map(entry=>h('article',{class:'moment-preview'},h('span',{class:'eyebrow',text:whenLabel(entry)}),h('p',{text:entry.summary||entry.note||entry.original_label||'Recorded interaction'}))):h('p',{class:'muted small',text:'Nothing recorded yet. A few fragments are enough.'})));
+    }else if(section==='conversations'){
+      panel.append(h('div',{class:'row spread'},h('div',{},h('h3',{text:'The moments that matter.'}),h('p',{class:'muted small',text:'Your recorded history; dates can stay approximate.'})),btn('Log interaction',()=>{S.logPerson=person.id;go('quicklog');},'primary')),
+        h('div',{class:'conversation-timeline'},person.timeline.length?person.timeline.map(entry=>timelineCard(entry,list)):h('p',{class:'muted',text:'No conversations recorded. Start with what you remember.'})));
+    }else{
+      panel.append(personNextStep(person));
+      if(S.undoAction?.personId===person.id)panel.append(btn('Undo task completion',async()=>{if(await act(()=>restoreNext(person.id,S.undoAction.previous))){S.undoAction=null;render();}},'quiet'));
+      if(person.next_action?.other_open)panel.append(h('p',{class:'muted small',text:person.next_action.other_open+' other open steps are preserved in Career tools.'}));
+    }
+    workspace.append(disc('edit-person','Person details','Edit as context grows',personForm(person),btn(person.category==='paused'?'Resume connection':'Pause connection',async()=>{if(await act(()=>api('PUT','/api/people/'+person.id,{...personFields(person),category:person.category==='paused'?'': 'paused'}))){offerUndo('Connection group changed. History is kept.',()=>api('PUT','/api/people/'+person.id,personFields(person)));render();}},'quiet'),btn('Permanently delete person',async()=>{if(!confirm('Delete this person? Quick logs remain unassigned; historical outcomes are deleted.'))return;await act(()=>api('DELETE','/api/items/'+person.id));$('undo-bar')?.remove();S.selectedPerson=null;S.contextItem=null;render();},'quiet danger')));
+    if(section==='overview')workspace.append(disc('quick-message-'+person.id,'Quick message editor','Optional',messageComposer(person)));
+  }
+
+  function messageComposer(person) {
+    let instruction="", approvedContext=person.context||"";
+    const output=h("div",{class:"stack"});
+    return h("section",{class:"panel stack"},h("h3",{text:"Prepare a message"}),h("p",{class:"muted small",text:"Only the recipient name, organization, the context below, your instruction, and public voice preferences go to drafting. Private notes and chat are excluded. Review uncertainty before including it."}),
+      field("Context you approve for this message",h("textarea",{rows:3,value:approvedContext,maxlength:1500,oninput:e=>approvedContext=e.target.value})),
+      field("What would you like to say?",h("textarea",{rows:2,maxlength:1000,oninput:e=>instruction=e.target.value})),
+      btn("Prepare draft",async()=>{const result=await act(()=>api("POST","/api/drafts/generate",{purpose:"outreach",audience:"peer",evidence_ids:[],instruction:instruction||"Write a brief, thoughtful message.",shareable_note:"Recipient: "+person.name+"; "+person.org+"\n"+approvedContext,include_item_context:false}));
+        if(!result)return;const draft=result.draft;const text=h("textarea",{rows:6,value:draft.body,"aria-label":"Message draft"});
+        fill(output,text,h("p",{class:"muted small",text:"Review before sending. Copying does not mark this sent."}),btn("Copy",async()=>{try{await navigator.clipboard.writeText(text.value);toast("Copied. Send it yourself when ready.");}catch(e){toast("Select the draft and copy it manually.");}}),
+          btn("I sent this",async()=>{if(await act(()=>api("POST","/api/logs",{item_id:person.id,note:"Sent a message: "+text.value,when:{kind:"today"},keep_exchange:false}),"Recorded as your recap.")){S.messageFor=null;render();}}));
+      },"primary"),output);
+  }
+  function timelineCard(entry, people) {
+    if(entry.type==="outcome")return h("article",{class:"timeline-card"},chip("Historical outcome"),h("strong",{text:OUTCOME[entry.original_label]||entry.original_label}),h("p",{class:"muted small",text:whenLabel(entry)}),h("p",{text:entry.note||""}));
+    const card=h("article",{class:"timeline-card stack"},h("div",{class:"row spread"},chip(entry.source.replaceAll("_"," ")),h("span",{class:"muted small",text:whenLabel(entry)})),
+      h("p",{text:entry.note||"Pasted exchange"}),entry.summary?h("p",{text:entry.summary}):null,
+      entry.uncertain?h("p",{class:"notice",text:"Uncertain: "+entry.uncertain}):null,
+      entry.commitments?h("p",{text:"Possible commitments (not tasks): "+entry.commitments}):null,
+      entry.next_steps?h("p",{text:"Suggestions: "+entry.next_steps}):null,
+      entry.exchange?disc("exchange-"+entry.id,"Retained original exchange","",h("p",{text:entry.exchange})):null,
+      h("span",{class:"muted small",text:"Logged "+entry.logged_on}));
+    let assignment=entry.item_id;const editor=h("div",{});
+    card.append(field("Associated person",select([["","Unassigned"],...people.map(p=>[p.id,p.name])],assignment||"",async v=>{if(await act(()=>api("POST","/api/logs/"+entry.id+"/assign",{item_id:v?Number(v):null}))){offerUndo("Log association changed.",()=>api("POST","/api/logs/"+entry.id+"/assign",{item_id:entry.item_id}));render();}})),
+      h("div",{class:"row"},btn("Edit",()=>editLog(editor,entry)),btn("Organize with Link",async()=>{const proposal=await act(()=>api("POST","/api/logs/"+entry.id+"/suggest",{exchange:""}));if(!proposal)return;if(!proposal.available){toast(proposal.reason);return;}editLog(editor,{...entry,summary:proposal.context,uncertain:proposal.uncertain.join("\n"),commitments:proposal.possible_commitments.join("\n"),next_steps:proposal.next_steps.join("\n")});if(proposal.clarification)editor.prepend(h("p",{text:"Optional clarification: "+proposal.clarification}));}),
+        btn("Permanently delete",async()=>{if(confirm("Delete this entry and its retained text?")){await act(()=>api("DELETE","/api/logs/"+entry.id));$("undo-bar")?.remove();render();}},"quiet danger")),editor);return card;
+  }
+  function editLog(root,entry) {
+    const fields={note:entry.note,summary:entry.summary,uncertain:entry.uncertain,commitments:entry.commitments,next_steps:entry.next_steps};
+    let kind=entry.when_kind==="exact"?"date":entry.when_kind, exact=entry.occurred_on||"", rough=entry.when_text||"",drop=false;
+    fill(root,h("form",{class:"stack panel",onsubmit:async e=>{e.preventDefault();if(await act(()=>api("PUT","/api/logs/"+entry.id,{...fields,when:{kind,date:exact,text:rough},drop_exchange:drop}),"Entry saved.")){if(drop)$('undo-bar')?.remove();if(!drop)offerUndo('Reviewed entry updated.',()=>api('PUT','/api/logs/'+entry.id,{note:entry.note,summary:entry.summary,uncertain:entry.uncertain,commitments:entry.commitments,next_steps:entry.next_steps,when:{kind:entry.when_kind==='exact'?'date':entry.when_kind,date:entry.occurred_on||'',text:entry.when_text||''}}));render();}}},
+      h("p",{class:"muted small",text:"Review facts and preserve uncertainty. Nothing changes until you save."}),
+      Object.entries({note:"Original recollection",summary:"Reviewed factual summary",uncertain:"Uncertain details",commitments:"Possible commitments",next_steps:"Optional suggestions"}).map(([key,label])=>field(label,h("textarea",{rows:2,value:fields[key],maxlength:key==="note"?8000:key==="summary"?1200:key==="next_steps"?1000:2000,oninput:e=>fields[key]=e.target.value}))),
+      field("When",select([["date","Exact date"],["approx","Approximately"],["unknown","Unknown"]],kind,v=>kind=v)),field("Exact date (if selected)",h("input",{type:"date",value:exact,oninput:e=>exact=e.target.value})),field("Approximate wording (if selected)",h("input",{maxlength:80,value:rough,oninput:e=>rough=e.target.value})),
+      entry.exchange?h("label",{class:"check"},h("input",{type:"checkbox",onchange:e=>drop=e.target.checked}),"Delete retained original exchange"):null,
+      h("div",{class:"row"},h("button",{type:"submit",class:"btn primary"},"Save reviewed entry"),btn("Cancel",()=>root.replaceChildren(),"quiet"))));
+  }
+  // Only presentation preferences live in localStorage. Unfinished recaps use the local DB.
+  let quickWorkspace=null, quickWrite=Promise.resolve(), quickTimer=null, quickDirty=false, quickPending=0;
+  function writeQuickWorkspace() {
+    clearTimeout(quickTimer);quickTimer=null;
+    if(!quickDirty)return quickWrite;
+    const value=structuredClone(quickWorkspace);quickDirty=false;quickPending++;
+    quickWrite=quickWrite.catch(()=>{}).then(()=>api('PUT','/api/workspace/quicklog',value)).then(()=>{
+      const status=$('quick-draft-status');if(status&&!quickDirty&&quickPending===1)status.textContent='Draft saved on this Mac';
+    }).catch(()=>{quickDirty=true;const status=$('quick-draft-status');if(status)status.textContent='Draft not saved — keep this page open and try again.';}).finally(()=>{quickPending--;});
+    return quickWrite;
+  }
+  window.addEventListener('beforeunload',e=>{if(quickDirty||quickTimer||quickPending){e.preventDefault();e.returnValue='';}});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)writeQuickWorkspace();});
+  function offerUndo(message,restore) {
+    let bar=$('undo-bar');if(!bar){bar=h('section',{id:'undo-bar',class:'undo-bar','aria-label':'Last change'});document.body.append(bar);}
+    fill(bar,h('span',{role:'status',text:message}),btn('Undo',async e=>{e.currentTarget.disabled=true;if(await act(async()=>{await restore();return true;},'Change undone.')){bar.remove();render();}else bar.querySelector('button').disabled=false;},'quiet'),btn('Dismiss',()=>bar.remove(),'quiet'));
+  }
+  function personFields(p){return {name:p.name,org:p.org,profile_link:p.profile_link,context:p.context,notes:p.notes||'',category:p.category};}
+  async function renderQuickLog(root) {
+    const [people,logs]=await Promise.all([api("GET","/api/people"),api("GET","/api/logs")]);
+    if(quickWorkspace===null)quickWorkspace=await api("GET","/api/workspace/quicklog");
+    const page=h("div",{class:"page quicklog-page"},pageHead("Keep the moment.","A name, a thought, a rough memory. Start there."));root.append(page);
+    let person=quickWorkspace.item_id||S.logPerson||"",kind=quickWorkspace.when?.kind||"unknown",exact=quickWorkspace.when?.date||"",rough=quickWorkspace.when?.text||"",keep=quickWorkspace.keep_exchange||false;
+    if(person&&!people.some(p=>p.id===Number(person)))person="";
+    const draftStatus=h('p',{id:'quick-draft-status',class:'muted small',role:'status',text:quickWorkspace.note?'Draft saved on this Mac':'Your unfinished recap is saved locally as you type.'});
+    const note=h("textarea",{rows:4,maxlength:8000,value:quickWorkspace.note||"",required:false,placeholder:"Met someone at an event last week. Talked about…","aria-label":"What do you remember?"});
+    const exchange=h("textarea",{rows:4,maxlength:12000,value:quickWorkspace.exchange||"","aria-label":"Optional pasted exchange"});
+    const exactField=field("Date",h("input",{type:"date",value:exact,oninput:e=>exact=e.target.value})); exactField.hidden=kind!=="date";
+    const roughField=field("Roughly when, in your own words",h("input",{maxlength:80,value:rough,placeholder:"Last week, sometime in October…",oninput:e=>rough=e.target.value}));roughField.hidden=kind!=="approx";
+    const remember=()=>{quickWorkspace={note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:keep?exchange.value:'',keep_exchange:keep};quickDirty=true;draftStatus.textContent='Saving draft…';clearTimeout(quickTimer);quickTimer=setTimeout(writeQuickWorkspace,280);};
+    const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),"Saved. No tasks were created.");if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();}}},
+      field("What do you remember?",note),draftStatus,workflows.quickPrompts(note),h("div",{class:"grid2"},field("Person (optional)",select([["","Not sure / choose later"],...people.map(p=>[p.id,p.name])],person,v=>person=v)),
+      field("When (optional)",select([["unknown","Not sure"],["today","Today"],["yesterday","Yesterday"],["approx","Approximately"],["date","Exact date"]],kind,v=>{kind=v;exactField.hidden=v!=="date";roughField.hidden=v!=="approx";}))),exactField,roughField,
+      disc("paste-log","Paste an exchange instead","Optional",exchange,h("label",{class:"check"},h("input",{type:"checkbox",checked:keep,onchange:e=>keep=e.target.checked}),"Keep the original exchange on this Mac"),h("p",{class:"muted small",text:"Unchecked: only your written recap is saved. To retain an exchange without a recap, explicitly check this box."})),
+      h("button",{type:"submit",class:"btn primary"},"Save quick log"),btn('Discard unfinished note',async()=>{if(!confirm('Discard this unfinished note?'))return;clearTimeout(quickTimer);quickTimer=null;quickDirty=false;await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};S.logPerson=null;render();},'quiet'),h("p",{class:"muted small",text:"Saving stays local and works without AI. Organizing with Link sends the selected log to your configured provider in live mode."}));
+    form.addEventListener('input',remember);form.addEventListener('change',remember);page.append(form);
+    page.append(h("section",{class:"section"},h("h3",{text:"Recent logs"}),logs.length?logs.map(log=>h("div",{},h("h4",{text:log.person||"Unassigned · associate when ready"}),timelineCard(log,people))):h("p",{class:"muted",text:"A name, a moment, a few details. That's enough to begin."})));
+  }
+
   // ---- Evidence -------------------------------------------------------------------------
   function parseMetrics(text) {
     return text.split("\n").map((l) => l.split("|").map((p) => p.trim())).filter((p) => p[0]).map((p) => ({ value: p[0], unit: p[1] || "", label: p[2] || "" }));
   }
   function evidenceImporter() {
-    const text = h("textarea", {rows: 6, maxlength: 60000, "aria-label": "Résumé or README text", placeholder: "Paste your résumé or project README. Nothing is sent to AI."});
-    const source = h("input", {maxlength: 500, value: "Pasted résumé or README", "aria-label": "Imported source label"});
+    const text = h("textarea", {rows: 6, maxlength: 60000, "aria-label": "Résumé text", placeholder: "Paste your master résumé here, or choose a text file."});
+    const source = h("input", {maxlength: 500, value: "Master résumé", "aria-label": "Source label"});
     const preview = h("div", {class: "stack"});
-    let permittedUse = "profile";
+    let uses = "all";
     const file = h("input", {type: "file", accept: ".txt,.md,text/plain,text/markdown", "aria-label": "Choose text or Markdown file", onchange: async event => {
       const selected = event.target.files[0]; if (!selected) return;
       if (selected.size > 200000) { toast("Choose a text file under 200 KB."); return; }
       const content = await selected.text();
-      if (content.length > 60000) { toast("Choose a passage under 60,000 characters."); return; }
+      if (content.length > 60000) { toast("Choose a file under 60,000 characters."); return; }
       text.value = content; source.value = selected.name;
     }});
-    const review = () => {
-      const chunks = [...new Set(text.value.split(/\n\s*\n|\n(?=[-•*] )/).map(t => t.trim()).filter(t => t.length >= 25))].slice(0, 20);
-      const candidates = chunks.map(chunk => ({include: true, title: chunk.split("\n")[0].replace(/^#+\s*/, "").slice(0, 120), claim: chunk.slice(0, 2000), confidential: false}));
-      fill(preview, h("p", {class: "muted small", text: "These are extracted passages, not verified claims. Edit them, remove personal details, and choose what belongs in your evidence library. Up to 20 passages are shown."}),
-        candidates.map(candidate => h("div", {class: "panel"},
-          h("label", {class: "check"}, h("input", {type: "checkbox", checked: true, onchange: e => candidate.include = e.target.checked}), "Include this passage"),
-          field("Evidence title", h("input", {value: candidate.title, maxlength: 200, oninput: e => candidate.title = e.target.value})),
-          field("Claim to review", h("textarea", {rows: 3, value: candidate.claim, maxlength: 2000, oninput: e => candidate.claim = e.target.value})),
-          h("label", {class: "check"}, h("input", {type: "checkbox", onchange: e => candidate.confidential = e.target.checked}), "Confidential: hold back from AI drafting"))),
-        candidates.length ? btn("Add selected passages as unverified evidence", async () => {
-          const chosen = candidates.filter(c => c.include);
-          if (!chosen.length || chosen.some(c => !c.title.trim() || !c.claim.trim())) { toast("Select at least one passage with a title and claim."); return; }
-          const result = await act(() => api("POST", "/api/starter/import", {career_companion_starter: 1, evidence: chosen.map(c => ({title:c.title, claim:c.claim, source_ref:source.value, status:"unverified_user_claim", permitted_uses:[permittedUse], confidential:c.confidential}))}));
-          if (result) { toast("Added " + result.added.evidence + " entries; skipped " + result.skipped + " duplicates."); render(); }
-        }, "primary") : h("p", {text: "No passages found. Paste a paragraph describing your work."}));
+    const show = (candidates, note) => {
+      const addButton = (label, confirmed, cls) => btn(label, async () => {
+        const chosen = candidates.filter(c => c.include);
+        if (!chosen.length || chosen.some(c => !c.title.trim() || !c.claim.trim())) { toast("Tick at least one entry that has a title and a claim."); return; }
+        if (!source.value.trim()) { toast("Give the source a name, for example Master résumé."); return; }
+        const result = await act(() => api("POST", "/api/evidence/bulk", {
+          entries: chosen.map(c => ({title: c.title, claim: c.claim, metrics: c.metrics, confidential: c.confidential})),
+          source_ref: source.value, confirmed, permitted_uses: uses === "all" ? S.enums.uses : [uses]}));
+        if (result) { toast("Added " + result.added + (result.skipped ? ". Skipped " + result.skipped + " you already had." : ".")); S.open.delete("resume"); render(); }
+      }, cls);
+      if (!candidates.length) { fill(preview, h("p", {text: "Nothing usable was found. Paste a few lines describing your work."})); return; }
+      const count = () => candidates.filter(c => c.include).length;
+      fill(preview, h("p", {class: "muted small", text: note}),
+        candidates.map(c => h("div", {class: "panel"},
+          h("div", {class: "row"}, h("label", {class: "check"}, h("input", {type: "checkbox", checked: c.include, onchange: e => { c.include = e.target.checked; }}), "Include"),
+            c.already_have ? chip("Already in your evidence", "warn") : null),
+          c.number_warnings.length ? h("div", {class: "notice warn"}, icon("warn", 18), "Check before adding: " + c.number_warnings.join(", ") + " is not in the text you pasted.") : null,
+          field("Title", h("input", {value: c.title, maxlength: 200, oninput: e => { c.title = e.target.value; }})),
+          field("Claim", h("textarea", {rows: 2, value: c.claim, maxlength: 2000, oninput: e => { c.claim = e.target.value; }})),
+          c.metrics.length ? h("p", {class: "small muted", text: "Numbers recorded: " + c.metrics.map(m => m.value + " " + m.unit).join("; ")}) : null,
+          h("label", {class: "check"}, h("input", {type: "checkbox", onchange: e => { c.confidential = e.target.checked; }}), "Confidential: hold back from AI drafting"))),
+        h("p", {class: "small", text: "Confirmed means you stand behind each entry, with “" + source.value + "” recorded as the source. You can still edit or delete any of them."}),
+        h("div", {class: "row"}, addButton("Add as confirmed evidence", true, "primary"), addButton("Add as unverified", false, "")));
+      preview.scrollIntoView({block: "nearest"});
     };
-    return h("details", {class: "disc import-evidence"}, h("summary", {}, h("span", {class: "t", text: "Import from résumé or README"})),
-      h("div", {class: "stack"}, h("p", {class: "muted small", text: "Use plain text or Markdown, or paste text copied from a PDF. Extraction stays local; nothing is added until you approve it."}),
-        file, text, field("Source label", source), field("Approve selected entries for", select(S.enums.uses.map(u => [u,u]), permittedUse, value => permittedUse = value)),
-        btn("Preview evidence passages", review), preview));
+    const withAi = async (ev) => {
+      if (text.value.trim().length < 40) { toast("Paste your résumé first."); return; }
+      const button = ev.currentTarget; button.disabled = true;
+      const out = await thinking(() => act(() => api("POST", "/api/evidence/extract", {text: text.value})));
+      button.disabled = false;
+      if (!out) return;
+      await refreshStatus();
+      show(out.candidates.map(c => ({...c, include: !c.already_have, confidential: false})),
+        "Link found " + out.candidates.length + " entries. Read them once, untick or fix anything wrong, then add them together." + (out.truncated ? " Only the first 30,000 characters were read." : ""));
+    };
+    const withoutAi = () => {
+      const chunks = [...new Set(text.value.split(/\n\s*\n|\n(?=[-•*] )/).map(t => t.trim()).filter(t => t.length >= 25))].slice(0, 20);
+      show(chunks.map(chunk => ({include: true, title: chunk.split("\n")[0].replace(/^#+\s*/, "").slice(0, 120), claim: chunk.slice(0, 2000), metrics: [], number_warnings: [], already_have: false, confidential: false})),
+        "These are passages split from your text, without AI. Edit them into claims, then add them together. Up to 20 are shown.");
+    };
+    return disc("resume", "Import from your résumé", "paste it once and review the entries together",
+      h("p", {class: "muted small", text: S.ai.available && S.ai.mode === "live" ? "Link reads the résumé text you paste (it is sent to the AI provider) and writes one entry per role or project. Nothing is added until you approve it."
+        : "Nothing is added until you approve it. " + (S.ai.available ? "In mock mode the entries are rough splits of your text." : "AI is off, so use the split without AI.")}),
+      file, text,
+      h("div", {class: "grid2"}, field("Source label", source),
+        field("Approve the entries for", select([["all", "Everything"]].concat(S.enums.uses.map(u => [u, u + " only"])), uses, value => { uses = value; }))),
+      h("div", {class: "row"}, h("button", {type: "button", class: "btn primary", disabled: !S.ai.available, onclick: withAi}, "Extract with Link"), btn("Split into passages without AI", withoutAi)),
+      preview);
   }
   async function renderEvidence(root) {
     const list = await api("GET", "/api/evidence");
@@ -777,7 +1036,16 @@
       help("How is this used?", "A draft can only state facts that link to an entry here. Numbers are checked against the value and unit you record.",
         "“Verified” means you've noted where the proof is. “Do not claim” entries are never sent to drafting. Confidential entries aren't either.")), sampleNotice());
     root.append(page);
-    page.append(evidenceImporter());
+    page.append(h("div", {}, evidenceImporter()));
+    const pending = list.filter((e) => e.status === "unverified_user_claim" && !e.is_sample);
+    if (pending.length) page.append(h("div", { class: "notice center" }, icon("info", 18),
+      h("span", { class: "grow", text: plural(pending.length, "entry is", "entries are") + " marked as not yet verified." }),
+      btn("Confirm all " + pending.length, async () => {
+        if (!window.confirm("Mark all " + pending.length + " as verified? You are saying you stand behind each one. Entries with no source will record “Confirmed by me”.")) return;
+        const stamp = "Confirmed by me, " + new Date().toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+        const out = await act(() => api("POST", "/api/evidence/confirm-all", { source_ref: stamp }));
+        if (out) { toast("Confirmed " + out.confirmed + "."); render(); }
+      }, "primary")));
     const showForm = S.evidenceForm || S.editEvidence || !list.length;
     const e0 = S.editEvidence || { title: "", claim: "", metrics: [], source_ref: "", status: "unverified_user_claim", permitted_uses: [], do_not_claim: "", confidential: false };
     const f = { ...e0, permitted_uses: new Set(e0.permitted_uses), metricsText: e0.metrics.map((m) => [m.value, m.unit, m.label].join(" | ")).join("\n") };
@@ -854,7 +1122,7 @@
     if (D.current) D.current = drafts.find(d => d.id === D.current.id) || D.current;
     const action = actions.find((a) => a.id === D.action_id) || null;
     if (!D.current && action) D.current = drafts.find((d) => d.action_id === action.id) || null;
-    const page = h("div", { class: "page" }, pageHead("Drafts", "Write it yourself or with Tempo. Either way, every save is checked against your evidence.",
+    const page = h("div", { class: "page" }, pageHead("Drafts", "Write it yourself or with Link. Either way, every save is checked against your evidence.",
       help("What can drafting see?", "Only this page: the evidence you tick, your voice notes for the audience, and what you type here.",
         "It never sees your private planning notes, your goals, or the chat.",
         S.ai.available && S.ai.mode === "live" ? "In live mode, those three things are sent to the AI provider." : "In mock mode nothing leaves this Mac.")));
@@ -873,7 +1141,7 @@
     }
     const retry = btn("Retry save", () => save(), "quiet"); retry.classList.add("hidden");
     let timer = null;
-    const editor = h("textarea", { rows: 9, maxlength: 20000, value: work.body, placeholder: "Write here, or draft with Tempo.", "aria-label": "Draft text",
+    const editor = h("textarea", { rows: 9, maxlength: 20000, value: work.body, placeholder: "Write here, or draft with Link.", "aria-label": "Draft text",
       oninput: () => { work.body = editor.value; work.dirty = true; stamp.textContent = "Unsaved changes"; clearTimeout(timer); timer = setTimeout(save, 900); } });
     async function save() {
       clearTimeout(timer);
@@ -903,7 +1171,7 @@
     if (work.dirty) retry.classList.remove("hidden");
     reportBox.append(D.current ? reportView(D.current, evidence, editor) : h("p", { class: "muted", text: "Checks appear here once there's a draft." }));
 
-    const suggestion = h("section", {class: "suggestion-preview hidden", "aria-label": "Tempo suggestion"});
+    const suggestion = h("section", {class: "suggestion-preview hidden", "aria-label": "Link suggestion"});
     const selectionAction = async operation => {
       const start = editor.selectionStart, end = editor.selectionEnd, original = editor.value;
       if (start === end) { toast("Select a passage in your draft first."); editor.focus(); return; }
@@ -917,7 +1185,7 @@
       suggestion.classList.remove("hidden");
       fill(suggestion, h("h3", {text: S.ai.mode === "mock" ? "Mock suggestion — preview only" : "Suggested change"}),
         h("div", {class: "grid2"}, h("div", {}, h("strong", {text: "Your passage"}), h("pre", {text: original.slice(start,end)})),
-          h("div", {}, h("strong", {text: "Tempo's suggestion"}), h("pre", {text: out.body}))),
+          h("div", {}, h("strong", {text: "Link's suggestion"}), h("pre", {text: out.body}))),
         reportView(out, evidence), h("div", {class: "row"}, btn("Accept suggestion", async () => {
           if (editor.value !== original) { toast("Your draft changed. Request a fresh suggestion to preserve those edits."); return; }
           const next = original.slice(0,start) + out.body + original.slice(end);
@@ -956,7 +1224,7 @@
           say("companion", out.draft.report.overall === "passed" ? "Draft's ready and the checks passed. Still read it before you use it." : "Draft's ready, and I flagged things to look at. The notes are under the text.");
         }
         await refreshStatus(); render();
-      } }, S.ai.mode === "mock" ? "Draft with Tempo (mock)" : "Draft with Tempo")))));
+      } }, S.ai.mode === "mock" ? "Draft with Link (mock)" : "Draft with Link")))));
 
     page.append(h("section", { class: "section draft-document" }, h("div", { class: "row spread" }, h("div", { class: "eyebrow", text: "Your working draft" }), h("span", {class: "row"}, stamp, retry)), selectionTools, editor, suggestion,
       h("div", { class: "row" },
@@ -1001,7 +1269,7 @@
   async function renderPasted(root) {
     const list = await api("GET", "/api/imports");
     const page = h("div", { class: "page" }, pageHead("Pasted material", "Job descriptions, messages, or your profile text, kept as reference.",
-      help("Is pasting safe?", "Pasted text is treated as reference only. Nothing in it can change what Tempo remembers or does, and a chat message with pasted text attached can't save anything.",
+      help("Is pasting safe?", "Pasted text is treated as reference only. Nothing in it can change what Link remembers or does, and a chat message with pasted text attached can't save anything.",
         "This app never fetches web pages and never opens LinkedIn. You paste; it reads.")));
     root.append(page);
     const f = { kind: S.pasteKind, label: "", content: "" };
@@ -1041,8 +1309,8 @@
   // ---- About me -------------------------------------------------------------------------
   async function renderMe(root) {
     const list = await api("GET", "/api/memory");
-    const page = h("div", { class: "page" }, pageHead("About me", "Everything Tempo remembers about you. Change or delete any of it.",
-      help("How does Tempo learn things?", "From what you type here, your onboarding answers, and suggestions it makes in chat.", "A suggestion is never saved until you click Save it.")));
+    const page = h("div", { class: "page" }, pageHead("About me", "Everything Link remembers about you. Change or delete any of it.",
+      help("How does Link learn things?", "From what you type here, your onboarding answers, and suggestions it makes in chat.", "A suggestion is never saved until you click Save it.")));
     root.append(page);
     const groups = [["Private planning context", "Used to plan with you. Never sent to drafting.", S.enums.memory_private],
                     ["Your voice for outward writing", "Sent to drafting, matched by audience.", S.enums.memory_public]];
@@ -1054,7 +1322,7 @@
         const ta = h("textarea", { rows: 2, maxlength: 4000, value: m.text, "aria-label": MEMORY[m.kind] });
         sec.append(h("div", { class: "stack" },
           h("div", { class: "row" }, chip(MEMORY[m.kind], "accent"), m.audience ? chip("for " + m.audience) : null,
-            chip(m.provenance === "user_confirmed" ? "Suggested by Tempo, confirmed by you" : m.provenance === "sample" ? "Sample data" : m.provenance === "imported_file" ? "Imported from your file" : "Typed by you", m.provenance === "sample" ? "warn" : "")),
+            chip(m.provenance === "user_confirmed" ? "Suggested by Link, confirmed by you" : m.provenance === "sample" ? "Sample data" : m.provenance === "imported_file" ? "Imported from your file" : "Typed by you", m.provenance === "sample" ? "warn" : "")),
           h("p", {class: "memory-text", text: m.text}), h("details", {class: "memory-edit"}, h("summary", {text: "Edit entry"}), ta, h("div", { class: "row" }, btn("Save", async () => { if (await act(() => api("PUT", "/api/memory/" + m.id, { kind: m.kind, text: ta.value, audience: m.audience }), "Saved.")) render(); }),
             btn("Delete", async () => { if (window.confirm("Delete this entry from About me?")) { await act(() => api("DELETE", "/api/memory/" + m.id), "Deleted."); render(); } }, "quiet")))));
       }
@@ -1077,8 +1345,10 @@
     const s = b.status, level = s.level === "hard_stop" ? "bad" : s.level === "warn" ? "warn" : "";
     const page = h("div", { class: "page" }, pageHead("Settings & data", "Setup, AI mode, spending, and everything stored on this Mac."));
     root.append(page);
+    page.append(h("section",{class:"section"},h("h3",{text:"Your networking sources"}),h("p",{text:"Import a LinkedIn snapshot, choose conversation excerpts or prepare from a calendar file."}),btn("Open Sources & imports",()=>go("sources"),"quiet")));
+    page.append(h("section", {class:"section"}, h("h3",{text:"Meet Link"}), btn("Take the guided walkthrough",()=>window.LinkGuide.start(),"quiet")));
     page.append(h("section", {class: "section"}, h("h3", {text: "Appearance"}),
-      field("Color theme", select([["system","Follow system"],["light","Light"],["dark","Dark"]], store.get("theme", "system"), value => { store.set("theme", value); applyTheme(); })),
+      field("Color theme", select([["system","Follow system"],["light","Light"],["dark","Dark"]], store.get("theme", "light"), value => { store.set("theme", value); applyTheme(); })),
       h("p", {class: "muted small", text: "Your theme is remembered on this browser. Motion follows your device's reduced-motion setting."})));
     page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Setup" }), setupPanel(),
       S.setup.complete ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: store.get("setupPinned", false),
@@ -1139,7 +1409,9 @@
       help("Delete everything", "This removes the database files. It can't reach Time Machine or other backups, exports you saved, or copies the AI provider keeps for up to 30 days. It isn't forensic erasure.",
         h("form", { class: "row", onsubmit: async (e) => {
           e.preventDefault();
+          await writeQuickWorkspace();
           if (!(await act(() => api("POST", "/api/wipe", { confirm: phrase.value }), "Everything was deleted."))) return;
+          quickWorkspace={};quickDirty=false;clearTimeout(quickTimer);quickTimer=null;$("undo-bar")?.remove();
           $("chat-log").replaceChildren();
           Object.assign(S.draft, { current: null, action_id: null }); S.draft.evidence_ids.clear(); S.session = null; S.skipped.clear();
           await refreshStatus(); go("today");
@@ -1162,7 +1434,9 @@
   }
 
   // ---- shell: routing, loading and error states -----------------------------------------
-  const RENDERERS = { today: renderToday, people: renderPeople, evidence: renderEvidence, drafts: renderDrafts, me: renderMe, pasted: renderPasted, settings: renderSettings };
+  const workflows = window.LinkWorkflows.create({h,btn,field,select,disc,api,act,S,go,render,toast,orbSvg,connectionMotif,openSource:kind=>sources.open(kind)});
+  const sources = window.LinkSources.create({h,btn,field,select,api,act,S,go,render,workflows});
+  const RENDERERS = { sources:root=>sources.start(root), connect: root=>workflows.start(root), today: renderToday, people: renderPeople, quicklog: renderQuickLog, roles: renderRoles, evidence: renderEvidence, drafts: renderDrafts, me: renderMe, pasted: renderPasted, settings: renderSettings };
   function skeleton() {
     const bar = (w, ht) => { const s = h("span", {}); s.style.width = w; s.style.height = ht + "px"; return s; };
     return h("div", { class: "skeleton", "aria-busy": "true" }, h("span", { class: "sr", text: "Loading" }), bar("30%", 12), bar("85%", 40), bar("60%", 40), bar("70%", 16), bar("100%", 56), bar("45%", 56));
@@ -1174,29 +1448,38 @@
       help("What to check", "Is the terminal window that started the app still open and running?", "If you restarted the app, use the new link it printed. The old page can't reconnect.", "Details: " + err.message));
   }
   const STUDIO_CONTEXT = {
-    today: ["A little progress, every day.", "Choose one action worth your attention. Tempo can help you work through it."],
-    people: ["Keep the conversation moving.", "Open a person's notes for context, or record an outcome when something changes."],
+    sources: ["Bring context, keep control.", "File previews stay local. Choose the people, excerpts or meeting you want to work with; nothing is fetched from LinkedIn."],
+    connect: ["Let’s work through it.", "No complete profile required. We clarify your next step, then you choose what to save."],
+    today: ["A little progress, every day.", "Choose one action worth your attention. Link can help you work through it."],
+    people: ["Build context, one moment at a time.", "Open a person to review your history or prepare a thoughtful next step."],
+    quicklog: ["Fragments are enough.", "Save what you remember. Uncertain details stay uncertain; suggestions never become tasks on their own."],
+    roles: ["Career tools.", "Your saved opportunities remain available here."],
     evidence: ["Good stories start with proof.", "Record your claims and sources here. Verification stays in your hands."],
-    drafts: ["Sound like yourself.", "Choose the evidence and context you approve before asking Tempo to draft. Private planning notes stay out."],
+    drafts: ["Sound like yourself.", "Choose the evidence and context you approve before asking Link to draft. Private planning notes stay out."],
     me: ["A working portrait of you.", "Your goals guide planning. Your voice notes guide writing. You control both."],
     pasted: ["Bring your own context.", "Reference material stays separate from instructions and approved evidence."],
     settings: ["Your workspace, your rules.", "Manage AI mode, spending and your local data here."]
   };
   function updateContextNote() {
     const context = STUDIO_CONTEXT[S.tab] || STUDIO_CONTEXT.today;
-    fill($("studio-context"), h("div", {class: "eyebrow", text: "AT YOUR SIDE"}), h("h3", {text: context[0]}), h("p", {text: context[1]}),
+    fill($("studio-context"), h("div", {class: "eyebrow", text: "A LITTLE CLARITY"}), h("h3", {text: context[0]}), h("p", {text: context[1]}),
       S.contextItem ? h("div", {class: "stack"}, h("p", {text: "Discussing: " + S.contextItem.title + ". Its private notes are available to this planning conversation."}),
         btn("Clear record context", () => { S.contextItem = null; updateContextNote(); $("chat-input").placeholder = "Talk it through…"; }, "quiet")) : null,
       S.tab === "drafts" ? h("p", {text: "Use the passage actions in the editor for drafting. This chat is separate from your outward writing."}) : null);
+  }
+  function iconCredit() {
+    return h("footer",{class:"studio-credit"},"Guidance icons by ",h("a",{href:"https://www.streamlinehq.com/icons/guidance",target:"_blank",rel:"noopener noreferrer",text:"Streamline"})," · ",h("a",{href:"https://creativecommons.org/licenses/by/4.0/",target:"_blank",rel:"noopener noreferrer",text:"CC BY 4.0"}));
   }
   function composeStudio(root) {
     const page = root.querySelector(".page");
     if (!page) return;
     page.classList.add("studio-" + S.tab);
-    const sectionName = NAV.concat(NAV_MINOR).find(([id]) => id === S.tab)[1];
+    page.append(iconCredit());
+    const sectionName = S.tab === "connect" ? "Build a connection" : NAV.concat(NAV_MINOR).find(([id]) => id === S.tab)[1];
+    if(S.demo) page.prepend(h("div",{class:"demo-label",text:"Demo workspace · fictional people · mock AI"}));
     page.prepend(h("div", {class: "workspace-toolbar"},
       h("span", {class: "toolbar-breadcrumb"}, "Link", h("span", {"aria-hidden": "true", text: "/"}), h("strong", {text: sectionName})),
-      h("span", {class: "row"}, h("button", {class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)", text: "Search ⌘K"}), h("span", {class: "local-indicator"}, h("span", {class: "dot"}), "Local workspace"))));
+      h("span", {class: "row"}, btn("Quick log",()=>go("quicklog"),"quiet"), h("button", {class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)", text: "Search ⌘K"}), h("span", {class: "local-indicator"}, h("span", {class: "dot"}), "Local workspace"))));
 
     updateContextNote();
     if (S.tab === "drafts") {
@@ -1227,7 +1510,7 @@
       });
       page.querySelector(".page-head").after(spread);
     }
-    if (S.tab === "evidence" || S.tab === "people") {
+    if (S.tab === "evidence") {
       const entries = [...page.querySelectorAll(".entry")];
       if (entries.length) {
         entries[0].parentElement.classList.add(S.tab === "evidence" ? "evidence-library" : "relationship-list");
@@ -1255,7 +1538,8 @@
     if (!S.onboarding.done) {
       document.body.classList.add("onboarding");
       const fresh = h("div", {});
-      renderOnboarding(fresh);
+      await renderOnboarding(fresh);
+      fresh.append(iconCredit());
       main.replaceChildren(...fresh.childNodes);
       return;
     }
@@ -1265,22 +1549,24 @@
     try { await refreshStatus(); await RENDERERS[S.tab](fresh); composeStudio(fresh); }
     catch (err) { fresh.replaceChildren(errorView(err)); }
     clearTimeout(wait);
-    if (seq === renderSeq) main.replaceChildren(...fresh.childNodes);
+    if (seq === renderSeq) {
+      main.replaceChildren(...fresh.childNodes);
+      if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+        const page=main.querySelector('.page');if(page)page.animate([{opacity:.35,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:220,easing:'cubic-bezier(.22,1,.36,1)'});
+      }
+    }
   }
   function route() {
+    writeQuickWorkspace();
     const tab = window.location.hash.replace("#", "");
     S.tab = RENDERERS[tab] ? tab : "today";
     closeMore();
-    document.title = "Link — Your career, connected";
+    document.title = "Link — Connection Studio";
     // Moving focus to the new page lets keyboard and screen-reader users land in it directly.
     render().then(() => {
       if (!S.onboarding.done) return;
       $("main").scrollTop = 0; $("main").focus({ preventScroll: true });
-      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        const page = $("main").querySelector(".page");
-        if (page) page.animate([{opacity: .2, transform: "translateY(8px)"}, {opacity: 1, transform: "translateY(0)"}],
-          {duration: 340, easing: "cubic-bezier(.22, 1, .36, 1)"});
-      }
+
     });
   }
 

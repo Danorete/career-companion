@@ -81,3 +81,125 @@ Implemented sequentially, from workflow value to polish:
 Backend: 135 tests pass on Linux. Browser workflow checks include version restore, suggestion acceptance, a simulated save outage and retry, import, command search and readiness. The new database table is additive. Unsaved text recovery is in-memory, not protection against browser crashes.
 
 Still requires the owner's environment: a real live-provider call and billing reconciliation; macOS/Safari verification. `graphify` is unavailable here, so its query/update commands could not run.
+
+## Less typing — 2026-11-12 (decision D27)
+
+Prompted by the first real session, where adding one role took two screens and silently cut the posting off.
+
+1. People & roles: the add form takes the job posting too. Each role shows its posting, "Compare with my
+   evidence" and the result in place. An existing role can have a posting added or replaced.
+2. Evidence: "Import from your résumé" now has "Extract with Tempo" (one AI call, résumé text only) with a
+   single review list, and "Add as confirmed evidence" for the whole list. The no-AI split is still there.
+3. Evidence: "Confirm all N" marks every unverified entry as verified in one click.
+
+Backend: `imports.item_id` (additive, migrated in place; schema version 3), `POST /api/items` accepts
+`posting`, `POST /api/items/{id}/posting`, `POST /api/evidence/extract`, `/bulk`, `/confirm-all`, and an
+`extract` AI call profile. 143 tests pass. Checked in headless Chromium in mock mode.
+
+Not done: `graphify update .` (graphify is not installed in the cloud session, so `graphify-out/` is stale
+for these changes). The extraction prompt has not been run against the live model.
+
+
+## Connection-first continuation — 2026-11-12 (Codex)
+
+Resumed from the public repository plus the user-pasted, unfinished `people.py`. The interrupted
+session's other local files were unavailable. Preserved the newer `claude/less-friction` branch
+(postings/extraction) by merging it into `codex/people-quick-log` rather than replacing its work.
+
+Implemented People list/filter/search, minimal add/edit, person detail/timeline, next steps,
+Quick log (unassigned/approximate dates), explicit exchange retention, reviewable AI proposals,
+context-approved message drafting and manual sent confirmation. Primary navigation is Today,
+People, Quick log; career tools are secondary. Two-question general onboarding preserves old memory.
+Added isolated temporary `--demo` mode. No new external access or background model calls.
+
+Important corrections to pasted code: no raw-note fallback into drafting; no exchange retention
+without opt-in; completing an internal task is not a contact interaction. Selected-person chat
+is isolated on context switches; reading recorded relationship material disables memory proposals.
+
+Validation and exact results are recorded in the implementation PR. Mock AI only; no paid calls.
+macOS/Keychain/Safari/live-provider verification still needs the owner's machine. `graphify` is
+not installed in this environment, so query/update could not run.
+
+When the interrupted Claude Code session resumes, fetch this branch first and compare its local
+uncommitted work. Do not overwrite or reset either version. Back up/export the personal database
+before upgrading. Remaining product refinement: use real sessions to tune density and copy;
+provider summary extraction remains probabilistic and always requires review.
+
+Final continuation checks: **154 tests passed** on Linux/Python 3.12. Headless Chromium exercised
+onboarding, minimal person creation, an assigned approximate-date log, editable mock organization,
+person timeline, context-approved drafting, search, and a 390px mobile layout with no JS errors.
+`node --check` and `git diff --check` passed. Browser smoke script: `scripts/check_people_browser.py`.
+GitHub publication failed with HTTP 403 for both connector branch creation and Git push. Deliver
+as source archive and patch; no remote branch or PR was created by this continuation.
+
+## Guided desktop continuation — 2026-11-12
+
+Research-led implementation order accepted by the owner: Link-led onboarding, conversation purpose/
+preparation, substantive follow-ups, opportunity requests. Mobile capture and visual redesign deferred.
+
+- App and companion named Link; old data/CLI names retained for compatibility.
+- Three onboarding paths work before contact entry. Preparation plans are pending until explicit review;
+  confirmation is transactional/idempotent and can attach an existing person without duplicate creation.
+- Purpose/why/questions, optional clarification, rehearsal with short ephemeral question continuity,
+  separate context-approved message drafting, resume/delete plan history.
+- Private planning is structurally excluded from outward requests. User-confirmed working preferences
+  can guide planning; constraints/private notes/chat cannot. Mock and manual guides are visibly labeled.
+- Contextual follow-ups are dismissible and ignore paused people; time alone produces no suggestion.
+- Opportunity flow supports perspective, feedback, team/role questions, introductions and referrals.
+- Existing career features and endpoint/budget controls retained. Schema v5 adds connection_plans.
+- Guided demo no longer skips onboarding. All data remain local; no new external sources/integrations.
+
+Checks and platform limitations are recorded in HANDOFF.md. No real-provider calls. macOS/Safari/
+Keychain/live-provider validation remains for the owner's Mac. `graphify` is unavailable here.
+GitHub writes previously returned 403; do not assume this source is pushed to the remote.
+
+Final guided workflow checks: 168 automated tests passed on Linux/Python 3.12. Both
+`scripts/check_connection_browser.py` and `scripts/check_people_browser.py` passed in Chromium
+with no JS errors. Syntax and whitespace checks passed. The guided script additionally verifies
+referral ask selection and saved-plan resumption after reload. No live AI calls were made.
+
+### Identity correction
+
+The UI rename alone was insufficient: the general planning prompt did not explicitly name the
+assistant. It now identifies the companion as Link and states that obsolete historical names do
+not change its current identity. Mock identity questions also return Link. Existing history is
+preserved. Live model obedience remains a behavioral check rather than a mathematical guarantee.
+
+## Connection Studio design implementation — 2026-11-12
+
+Built the approved desktop direction: dedicated `static/studio.css`, paper/forest palette with dark
+scheme, Georgia/Inter typography, top navigation, split onboarding, split plan review, People directory
+and person tabs, quieter Quick log, and expandable Link panel. Existing workflows are retained.
+Today work no longer requires a timer; focus sessions remain explicit. Relationship work uses the
+relevant guided flow rather than jumping directly to career evidence drafting.
+
+Locally bundled original link mark/vector motif plus 13 attributed Guidance icon symbols from pinned
+upstream. No reference-site image/video/font assets copied and no new runtime network access.
+The CSS pass introduced no database migration. Existing privacy and budget boundaries remain.
+
+Verification: all 170 Python tests passed on Linux/Python 3.12. Existing People and guided-connection
+Chromium scripts passed; new `scripts/check_studio_browser.py` passed keyboard directory/tabs,
+next-step completion/undo without false contact, expandable/resizable Link panel, light/dark palette,
+desktop overflow, attribution, and opening work without starting a timer. No JS errors. Syntax and
+whitespace checks passed. Mock AI only; macOS/Safari/live API still require the owner's environment.
+Graphify is unavailable here; its update command could not run. GitHub write access was previously
+403, so deliver as source archive rather than claiming a remote PR exists.
+
+## Avatar + walkthrough
+Added original Link character, click-to-open panel, optional contextual six-step guide, pause/resume/replay, Settings entry and deterministic UI-only progression. Browser acceptance: `scripts/check_avatar_browser.py`. No schema changes. Deliverable folder: `link-avatar-guide`.
+
+
+## Quality-of-life + fluid interactions
+Added local Quick log recovery, undo for common edits and log save, exact task/reminder restoration, duplicate suggestions, descriptive-name guidance, direct starting prompts, flexible reminder shortcuts, reversible pause, and reduced-motion-aware transitions. New acceptance script: scripts/check_qol_browser.py. Latest source folder: link-polished-workflows. Graphify remains unavailable.
+
+## Conversation scope fix
+Removed the blanket evidence-audit instruction from private chat. Selected person context and reviewed summaries now reach planning. Outward claim checks/privacy boundaries remain intact. Latest folder: link-context-advice. Live response quality still needs the user's real conversation test.
+
+## Networking sources + imagery
+Added Sources & imports with user-reviewed LinkedIn CSV, selected conversations and local ICS meeting preparation. Added original people/conversation/calendar SVGs, People/Settings entry points, snapshot source labels, and one optional private relationship-context question. No schema migration, OAuth, browser extension, external fetch or automatic engagement. Latest folder: link-network-sources. Acceptance script: scripts/check_network_browser.py. No personal exports were used in development.
+
+## Clear first clicks
+Replaced the hard-to-discover entry flow with illustrated Today capabilities and direct one-click imports/logging/calendar/coaching. Import is now primary navigation. First welcome can bypass coaching straight to connection import. New acceptance script: scripts/check_first_clicks_browser.py. Latest folder: link-clear-start.
+
+## Daily home / Import separation
+Today now resumes actual work, with compact shortcuts and useful empty states. Import alone owns the illustrated source catalogue and review flows. No backend/schema changes. Latest source folder: link-daily-home. Updated first-click browser checks assert the pages differ while remaining easy to navigate.
