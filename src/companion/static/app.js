@@ -159,10 +159,36 @@
   }
   // Motion polish only. Anime.js and Motion are vendored under /static/vendor (no CDN) and load on demand;
   // the app behaves the same if they fail to load. Respect the system motion preference.
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  function motionOff() { return reduceMotion.matches || store.get("pauseMotion", false); }
+  function applyMotion() { document.documentElement.dataset.motion = store.get("pauseMotion", false) ? "paused" : "auto"; }
+  applyMotion();
+  // Typed text: short headlines and Link's replies appear letter by letter. The full text is in the DOM
+  // from the start (screen readers and find-in-page see it), and motion off means it simply appears.
+  const typedOnce = new Set();
+  function typeInto(el, key) {
+    const full = el.textContent;
+    if (!full || motionOff() || (key && typedOnce.has(key))) return;
+    if (key) typedOnce.add(key);
+    const done = h("span", {}), rest = h("span", { class: "rest", text: full });
+    const visual = h("span", { class: "typed-visual", "aria-hidden": "true" }, done, h("span", { class: "typed-caret" }), rest);
+    el.classList.add("typed");
+    el.replaceChildren(h("span", { class: "sr", text: full }), visual);
+    const step = Math.max(10, Math.min(30, 900 / full.length));
+    let i = 0;
+    const tick = () => {
+      if (!visual.isConnected) return;
+      if (motionOff()) i = full.length; else i += 1;
+      done.textContent = full.slice(0, i); rest.textContent = full.slice(i);
+      if (i < full.length) setTimeout(tick, step);
+      else { el.replaceChildren(full); el.classList.remove("typed"); }
+    };
+    setTimeout(tick, 120);
+  }
   const libs = {};
   const lib = (name) => libs[name] || (libs[name] = import("/static/vendor/" + name + ".js").catch(() => null));
   async function fx(name, run) {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (motionOff()) return;
     const m = await lib(name);
     if (m) try { run(m); } catch (err) { /* decoration only */ }
   }
@@ -245,10 +271,15 @@
     if (!S.session) return 0;
     return S.session.minutes * 60 - (Date.now() - Date.parse(S.session.started_at)) / 1000;
   }
+  const ROOM_HINT = { today: "Your next step", people: "Who you know", quicklog: "Capture a memory", sources: "Contacts and calendar" };
   function renderSide() {
-    const b = S.budget, level = b.level === "hard_stop" ? "bad" : b.level === "warn" ? "warn" : "";
-    const mode = !S.ai.available ? ["AI is off", "bad"] : S.ai.mode === "mock" ? ["Mock AI", "warn"] : ["Live AI", ""];
-    const link = ([id, label, ic], minor) => h("a", { class: "nav-link" + (minor ? " minor" : ""), href: "#" + id, "aria-current": S.tab === id ? "page" : null }, icon(ic, minor ? 16 : 18), h("span", {text: label}));
+    const b = S.budget;
+    const mode = !S.ai.available ? ["Off", "bad"] : S.ai.mode === "mock" ? ["Mock", ""] : ["Live", ""];
+    const paused = store.get("pauseMotion", false);
+    const room = ([id, label, ic], i) => h("a", { class: "room-link nav-link", href: "#" + id, "aria-label": label, "aria-current": S.tab === id ? "page" : null },
+      h("span", { class: "room-num", "aria-hidden": "true", text: "0" + (i + 1) }), icon(ic, 20),
+      h("span", { class: "room-text", "aria-hidden": "true" }, h("strong", { text: label }), h("span", { text: ROOM_HINT[id] })));
+    const minor = ([id, label]) => h("a", { class: "rail-link nav-link minor", href: "#" + id, "aria-current": S.tab === id ? "page" : null, text: label });
     let session = null;
     if (S.session) {
       const left = secondsLeft(), mins = Math.max(0, Math.ceil(left / 60));
@@ -256,17 +287,23 @@
         h("div", { class: "grow" }, h("strong", { text: left > 0 ? mins + " min left" : "Time's up" }), h("span", { class: "muted", text: "Session" })),
         btn("End", endSession, "quiet"));
     }
-    fill($("side-main"),
-      h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}), h("small", {text: "Your connection studio"}))),
-      h("div", {class: "nav-caption", text: "Workspace"}), h("div",{class:"primary-nav"},NAV.map((n) => link(n,false))), h("div", { class: "side-spacer" }), disc("career-tools", "Career tools", "Optional", NAV_MINOR.filter(n=>n[0]!=="settings"&&n[0]!=="me").map(n=>link(n,true))), link(["me","About me","me"],true), link(["settings","Settings & data","settings"],true), session);
+    const minorById = Object.fromEntries(NAV_MINOR.map((n) => [n[0], n]));
+    fill($("side-main"), h("div", { class: "rail" },
+      h("a", { class: "rail-brand brand", href: "#today", "aria-label": "Link, Today" }, h("img", { src: "/static/link-mark.svg", width: 30, height: 34, alt: "" }), h("strong", { text: "Link" })),
+      h("div", { class: "rail-group primary-nav" }, h("span", { class: "rail-caption", text: "Rooms" }), NAV.map(room)),
+      session,
+      h("div", { class: "rail-group" }, h("span", { class: "rail-caption", text: "Career tools" }), ["roles", "evidence", "drafts"].map((id) => minor(minorById[id]))),
+      h("div", { class: "rail-foot" }, ["me", "pasted", "settings"].map((id) => minor(minorById[id])),
+        h("a", { class: "rail-status", href: "#settings", title: S.ai.reason || "",
+          "aria-label": "AI " + mode[0] + ". Budget " + money(b.committed_usd || 0) + " of $" + Math.round(b.hard_stop_usd || 16) + ". Data stays on this Mac." },
+          h("span", { class: mode[1] }, "AI", h("b", { text: mode[0] })),
+          h("span", { class: b.level === "hard_stop" ? "bad" : "" }, "Budget", h("b", { text: money(b.committed_usd || 0) + " / $" + Math.round(b.hard_stop_usd || 16) })),
+          h("span", {}, "Data", h("b", { text: "This Mac only" }))),
+        h("button", { type: "button", class: "pause-motion", "aria-pressed": String(paused),
+          onclick: () => { store.set("pauseMotion", !paused); applyMotion(); renderSide(); document.querySelector(".pause-motion")?.focus(); } }, "Pause motion"))));
     renderMobileTabs();
     updateSetupCard();
-    fill($("side-status"),
-      h("a", { class: "side-status", href: "#settings", title: S.ai.reason || "" },
-        h("span", { class: "mode" }, h("span", { class: "dot " + mode[1] }), mode[0]),
-        h("span", { class: "detail muted", text: !S.ai.available ? "Everything else still works." : S.ai.mode === "mock" ? "Canned replies. Nothing leaves this Mac." : "Text you send goes to the AI provider." }),
-        h("span", { class: "detail split" }, h("span", { text: "AI budget" }), h("span", { text: money(b.committed_usd || 0) + " / $" + Math.round(b.hard_stop_usd || 16) })),
-        (function () { const m = h("span", { class: "detail meter " + level }, h("span", {})); m.firstChild.style.width = Math.min(100, 100 * (b.committed_usd || 0) / (b.hard_stop_usd || 16)) + "%"; return m; })()));
+    $("side-status").replaceChildren();
   }
   // Mobile tab bar adapts the kit's five-item capsule. Utility sections live in More.
   let moreOpen = false;
@@ -366,6 +403,7 @@
   function say(role, text) {
     const el = h("div", { class: "msg " + role, text });
     $("chat-log").append(el);
+    if (role === "companion" && String(text).length <= 240) typeInto(el);
     el.scrollIntoView({ block: "end" });
     fx("motion", ({ animate }) => animate(el, { opacity: [0, 1], transform: ["translateY(6px)", "translateY(0)"] }, { duration: 0.18 }));
     return el;
@@ -404,7 +442,7 @@
     store.set("dockOpen", open);
     $("dock-pill").setAttribute("aria-expanded",String(open));
     window.dispatchEvent(new CustomEvent("link:dockchange",{detail:{open}}));
-    const dock = $("dock"), reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const dock = $("dock"), reduced = motionOff();
     dock.inert = !open;
     dock.setAttribute("aria-hidden", String(!open));
     if (!window.matchMedia("(max-width: 1000px)").matches) {
@@ -565,12 +603,12 @@
         running ? liveRing() : null,
         timePicker(running), h("p", {class: "focus-caption", text: "A little time for what’s next."}),running ? btn("End focus session",endSession,"quiet") : btn("Start focus session",()=>startSession(a),"primary"))),
       h("div", { class: "hero-body" },
-        h("div", { class: "row" }, h("span", { class: "eyebrow accent", text: a.state === "suggested" ? "Start here" : "Pick up where you left off" }),
-          a.is_sample && !S.demo ? chip("Sample data", "warn") : null, a.commitment ? chip("You committed to this") : null),
+        h("div", { class: "row" }, h("span", { class: "eyebrow accent", text: a.state === "suggested" ? "Next action" : "In progress" }),
+          a.is_sample && !S.demo ? chip("Sample data", "warn") : null, a.commitment ? chip("Your promise", "marker") : null),
         h("h2", { id: "hero-title", text: clean(a.title) }),
         h("p", { class: "hero-task", text: "A thoughtful next step for your connection." }),
         h("p", { class: "hero-meta", text: meta }),
-        h("div", { class: "well" }, icon("bookmark", 18), h("div", { class: "grow" }, h("div", { class: "muted small", text: "You left it at" }), note)),
+        h("div", { class: "well" }, icon("bookmark", 18), h("div", { class: "grow" }, h("div", { class: "muted small", text: "Where you left off" }), note)),
         h("div", { class: "row" },
           running ? [h("button", { type: "button", class: "btn primary big", onclick: () => openFor(a) }, playIcon(), "Continue"), btn("End session", endSession, "big")]
             : [h("button", { type: "button", class: "btn primary big", onclick: () => openFor(a) }, playIcon(), "Work on this"),
@@ -579,15 +617,15 @@
         reasons, dealt));
   }
   function todayHeader(hasPeople) {
-    return h('header',{class:'daily-intro'},h('div',{},h('h1',{text:hasPeople?'Pick up where you left off.':'Start with one connection.'}),
-      h('p',{text:'Choose one thoughtful next step. Link helps you prepare; you decide what to do.'})),
-      btn('I’m stuck — help me choose',()=>workflows.begin(),'quiet'));
+    const stuck=btn('Help me choose',()=>workflows.begin(),'quiet');stuck.setAttribute('aria-label','I’m stuck — help me choose');
+    return h('header',{class:'daily-intro'},h('div',{},h('h1',{text:hasPeople?'One thing today.':'Start with one person.'})),stuck);
   }
   function dailyShortcuts() {
-    return h('nav',{class:'daily-shortcuts','aria-label':'Quick actions'},
-      btn('Log a conversation',()=>go('quicklog'),'quiet'),
-      btn('Prepare for a conversation',()=>workflows.open({mode:'prepare'}),'quiet'),
-      btn('Import connections',()=>sources.open('connections'),'quiet'));
+    const short=(label,full,fn)=>{const b=btn(label,fn,'quiet');b.setAttribute('aria-label',full);return b;};
+    return h('nav',{class:'daily-shortcuts room-shortcuts','aria-label':'Quick actions'},
+      short('Log','Log a conversation',()=>go('quicklog')),
+      short('Prepare','Prepare for a conversation',()=>workflows.open({mode:'prepare'})),
+      short('Import','Import connections',()=>sources.open('connections')));
   }
   function dailyEmpty(hasPeople) {
     return h('section',{class:'daily-empty'},h('span',{class:'eyebrow',text:'ONE SMALL STEP'}),
@@ -605,10 +643,13 @@
     root.append(page);
     const hasPeople=items.some(item=>item.kind==='relationship');
     page.append(todayHeader(hasPeople),dailyShortcuts());
-    if (options.length) page.append(hero(options[0], view.today));
-    else if (all.length) page.append(h("section", { class: "state" }, h("h2", { text: "That's everything set aside for today." }),
-      h("p", { class: "hero-meta", text: "Nothing was changed. Your to-dos are still there." }), h("div", {}, btn("Show them again", () => { S.skipped.clear(); render(); }))));
-    else page.append(dailyEmpty(hasPeople));
+    const grid = h("div", { class: "today-grid" });
+    page.append(grid);
+    if (options.length) grid.append(hero(options[0], view.today));
+    else if (all.length) grid.append(h("section", { class: "state" }, h("h2", { text: "All set aside for today." }),
+      h("p", { class: "hero-meta", text: "Nothing changed." }), h("div", {}, btn("Show them again", () => { S.skipped.clear(); render(); }))));
+    else grid.append(dailyEmpty(hasPeople));
+    grid.append(await todayRecent());
     await workflows.todayTools(page,true);
     await todayPeople(page,items.filter(i=>i.kind==="relationship"));
 
@@ -633,9 +674,26 @@
     tucked.append(list);
     page.append(tucked);
   }
+  function whenChip(e) {
+    const kind = !e ? "unknown" : e.when_kind;
+    const text = kind === "exact" ? new Date(e.occurred_on + "T12:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" }) : kind === "approx" ? "~ " + e.when_text : "Date unknown";
+    return h("span", { class: "when-chip " + (kind === "exact" ? "" : kind), text });
+  }
+  // Recent context: the last few quick logs, newest first, with honest dates.
+  async function todayRecent() {
+    const logs = (await api("GET", "/api/logs")).slice(0, 3);
+    const block = h("section", { class: "today-recent", "aria-labelledby": "recent-title" },
+      h("div", { class: "section-title" }, h("h2", { id: "recent-title", text: "Recent context" }), h("a", { href: "#quicklog", text: "All logs" })));
+    if (!logs.length) { block.append(h("p", { class: "muted", text: "Nothing logged yet." }), btn("Log a conversation", () => go("quicklog"), "quiet")); return block; }
+    block.append(h("ul", { class: "recent-list" }, logs.map((e) => h("li", {},
+      h("span", { class: "recent-head" }, whenChip(e), h("strong", { text: e.person || "Not assigned yet" })),
+      h("p", { text: (e.summary || e.note || "").replace(/\s+/g, " ").slice(0, 110) || "No note." }),
+      e.person ? null : h("a", { href: "#quicklog", text: "Assign" })))));
+    return block;
+  }
   async function todayPeople(page,items) {
     if(!items.length)return;
-    const block=h("section",{class:"today-people"},h("div",{class:"section-title"},h("h2",{text:"Your people"}),h("a",{href:"#people",text:"View your people"})));
+    const block=h("section",{class:"today-people"},h("div",{class:"section-title"},h("h2",{text:"Keep in touch"}),h("a",{href:"#people",text:"All people"})));
     const people=await api("GET","/api/people");
     block.append(h("div",{class:"today-people-list"},people.slice(0,3).map(person=>h("button",{type:"button",class:"today-person",onclick:()=>{S.selectedPerson=person.id;S.personSection="overview";go("people");}},
       h("span",{class:"person-avatar small-avatar",text:person.name.slice(0,1).toUpperCase()}),h("span",{class:"grow"},h("strong",{text:person.name}),h("span",{class:"muted small",text:person.org||"Context grows over time"})),h("span",{class:"muted small",text:person.next_action?.title||whenLabel(person.last_interaction)}),icon("chev",16)))));
@@ -817,7 +875,7 @@
   async function renderPeople(root) {
     const list = await api('GET','/api/people');
     if(S.selectedPerson && !list.some(person=>person.id===S.selectedPerson))S.selectedPerson=null;
-    const page = h('div',{class:'page people-page'},pageHead('Your people.','A little context makes the next conversation easier.'));
+    const page = h('div',{class:'page people-page'},pageHead('Your people.'));
     root.append(page);
     page.append(h('div',{class:'row people-source-entry'},btn('Import connections',()=>go('sources'),'quiet'),h('span',{class:'muted small',text:'Bring a LinkedIn export; choose what to keep.'})));
     const frame = h('div',{class:'people-studio'});
@@ -851,7 +909,7 @@
     if(!S.selectedPerson){workspace.append(h('div',{class:'people-welcome'},connectionMotif(),h('span',{class:'eyebrow',text:'Your connection studio'}),h('h2',{text:list.length?'Pick up a conversation.':'Good connections start somewhere.'}),h('p',{text:list.length?'Choose someone to see what you remember, what you’ve learned, and what might come next.':'Link can help you find a starting point, even before you know who to approach.'}),h('div',{class:'row'},btn('Help me get started',()=>workflows.open(),'primary'),btn('Log someone you met',()=>go('quicklog')))));return;}
     const person=await api('GET','/api/people/'+S.selectedPerson);scopePerson(person);
     const importedSource=await api('GET','/api/network/people/'+person.id+'/source');
-    workspace.append(h('div',{class:'person-heading'},h('div',{class:'person-avatar',text:person.name.slice(0,1).toUpperCase()}),h('div',{class:'grow'},h('span',{class:'eyebrow',text:'A connection, in context'}),h('h2',{text:person.name}),person.org?h('p',{class:'muted',text:person.org}):null),btn('← All people',()=>{S.selectedPerson=null;S.contextItem=null;document.getElementById('chat-log').replaceChildren();render();},'quiet')));
+    workspace.append(h('div',{class:'person-heading'},h('div',{class:'person-avatar',text:person.name.slice(0,1).toUpperCase()}),h('div',{class:'grow'},h('span',{class:'eyebrow',text:'Connection'}),h('h2',{text:person.name}),person.org?h('p',{class:'muted',text:person.org}):null),btn('← All people',()=>{S.selectedPerson=null;S.contextItem=null;document.getElementById('chat-log').replaceChildren();render();},'quiet')));
     if(importedSource.source)workspace.append(h('details',{class:'import-provenance'},h('summary',{text:'LinkedIn snapshot · source details'}),h('p',{class:'muted small',text:'Role at export: '+(importedSource.position||'Not supplied')+' · Connected on: '+(importedSource.connected_on||'Not supplied')}),h('p',{class:'muted small',text:'Imported '+importedSource.imported_at.slice(0,10)+'. This is not a current employment check or a recorded conversation.'})));
     if(importedSource.source&&!person.notes.trim()&&!person.context.trim()&&!person.timeline.length){
       const answer=h('textarea',{rows:2,maxlength:1000,'aria-label':'How do you know this person?',placeholder:'A class, an event, a mutual acquaintance—or “we haven’t met yet”.'});
@@ -947,7 +1005,7 @@
   async function renderQuickLog(root) {
     const [people,logs]=await Promise.all([api("GET","/api/people"),api("GET","/api/logs")]);
     if(quickWorkspace===null)quickWorkspace=await api("GET","/api/workspace/quicklog");
-    const page=h("div",{class:"page quicklog-page"},pageHead("Keep the moment.","A name, a thought, a rough memory. Start there."));root.append(page);
+    const page=h("div",{class:"page quicklog-page"},pageHead("What do you remember?","Fuzzy is fine."));root.append(page);
     let person=quickWorkspace.item_id||S.logPerson||"",kind=quickWorkspace.when?.kind||"unknown",exact=quickWorkspace.when?.date||"",rough=quickWorkspace.when?.text||"",keep=quickWorkspace.keep_exchange||false;
     if(person&&!people.some(p=>p.id===Number(person)))person="";
     const draftStatus=h('p',{id:'quick-draft-status',class:'muted small',role:'status',text:quickWorkspace.note?'Draft saved on this Mac':'Your unfinished recap is saved locally as you type.'});
@@ -957,7 +1015,7 @@
     const roughField=field("Roughly when, in your own words",h("input",{maxlength:80,value:rough,placeholder:"Last week, sometime in October…",oninput:e=>rough=e.target.value}));roughField.hidden=kind!=="approx";
     const remember=()=>{quickWorkspace={note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:keep?exchange.value:'',keep_exchange:keep};quickDirty=true;draftStatus.textContent='Saving draft…';clearTimeout(quickTimer);quickTimer=setTimeout(writeQuickWorkspace,280);};
     const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),"Saved. No tasks were created.");if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();}}},
-      field("What do you remember?",note),draftStatus,workflows.quickPrompts(note),h("div",{class:"grid2"},field("Person (optional)",select([["","Not sure / choose later"],...people.map(p=>[p.id,p.name])],person,v=>person=v)),
+      field("Memory",note),draftStatus,workflows.quickPrompts(note),h("div",{class:"grid2"},field("Person (optional)",select([["","Not sure / choose later"],...people.map(p=>[p.id,p.name])],person,v=>person=v)),
       field("When (optional)",select([["unknown","Not sure"],["today","Today"],["yesterday","Yesterday"],["approx","Approximately"],["date","Exact date"]],kind,v=>{kind=v;exactField.hidden=v!=="date";roughField.hidden=v!=="approx";}))),exactField,roughField,
       disc("paste-log","Paste an exchange instead","Optional",exchange,h("label",{class:"check"},h("input",{type:"checkbox",checked:keep,onchange:e=>keep=e.target.checked}),"Keep the original exchange on this Mac"),h("p",{class:"muted small",text:"Unchecked: only your written recap is saved. To retain an exchange without a recap, explicitly check this box."})),
       h("button",{type:"submit",class:"btn primary"},"Save quick log"),btn('Discard unfinished note',async()=>{if(!confirm('Discard this unfinished note?'))return;clearTimeout(quickTimer);quickTimer=null;quickDirty=false;await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};S.logPerson=null;render();},'quiet'),h("p",{class:"muted small",text:"Saving stays local and works without AI. Organizing with Link sends the selected log to your configured provider in live mode."}));
@@ -1448,17 +1506,17 @@
       help("What to check", "Is the terminal window that started the app still open and running?", "If you restarted the app, use the new link it printed. The old page can't reconnect.", "Details: " + err.message));
   }
   const STUDIO_CONTEXT = {
-    sources: ["Bring context, keep control.", "File previews stay local. Choose the people, excerpts or meeting you want to work with; nothing is fetched from LinkedIn."],
-    connect: ["Let’s work through it.", "No complete profile required. We clarify your next step, then you choose what to save."],
-    today: ["A little progress, every day.", "Choose one action worth your attention. Link can help you work through it."],
-    people: ["Build context, one moment at a time.", "Open a person to review your history or prepare a thoughtful next step."],
-    quicklog: ["Fragments are enough.", "Save what you remember. Uncertain details stay uncertain; suggestions never become tasks on their own."],
-    roles: ["Career tools.", "Your saved opportunities remain available here."],
-    evidence: ["Good stories start with proof.", "Record your claims and sources here. Verification stays in your hands."],
-    drafts: ["Sound like yourself.", "Choose the evidence and context you approve before asking Link to draft. Private planning notes stay out."],
-    me: ["A working portrait of you.", "Your goals guide planning. Your voice notes guide writing. You control both."],
-    pasted: ["Bring your own context.", "Reference material stays separate from instructions and approved evidence."],
-    settings: ["Your workspace, your rules.", "Manage AI mode, spending and your local data here."]
+    sources: ["Your files, your call.", "Previews stay on this Mac. Nothing is fetched from LinkedIn."],
+    connect: ["Let’s work it through.", "No profile needed. You choose what to save."],
+    today: ["A little progress.", "Pick a step. Link can help."],
+    people: ["Context, one moment at a time.", "Open someone to prepare a next step."],
+    quicklog: ["Fragments are enough.", "Fuzzy stays fuzzy. Nothing becomes a task on its own."],
+    roles: ["Career tools.", "Your saved opportunities."],
+    evidence: ["Proof first.", "Your claims and sources. You verify them."],
+    drafts: ["Sound like yourself.", "Only the context you approve. Private notes stay out."],
+    me: ["About you.", "Goals guide planning. Voice notes guide writing."],
+    pasted: ["Your reference material.", "Kept apart from instructions and evidence."],
+    settings: ["Your rules.", "AI mode, spending and your local data."]
   };
   function updateContextNote() {
     const context = STUDIO_CONTEXT[S.tab] || STUDIO_CONTEXT.today;
@@ -1477,9 +1535,19 @@
     page.append(iconCredit());
     const sectionName = S.tab === "connect" ? "Build a connection" : NAV.concat(NAV_MINOR).find(([id]) => id === S.tab)[1];
     if(S.demo) page.prepend(h("div",{class:"demo-label",text:"Demo workspace · fictional people · mock AI"}));
-    page.prepend(h("div", {class: "workspace-toolbar"},
-      h("span", {class: "toolbar-breadcrumb"}, "Link", h("span", {"aria-hidden": "true", text: "/"}), h("strong", {text: sectionName})),
-      h("span", {class: "row"}, btn("Quick log",()=>go("quicklog"),"quiet"), h("button", {class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)", text: "Search ⌘K"}), h("span", {class: "local-indicator"}, h("span", {class: "dot"}), "Local workspace"))));
+    const roomIndex = NAV.findIndex(([id]) => id === S.tab);
+    const label = roomIndex >= 0 ? "0" + (roomIndex + 1) + " / 0" + NAV.length + " · " + sectionName : sectionName;
+    page.prepend(h("div", {class: "workspace-toolbar meta-strip"},
+      h("span", {class: "room-index", text: label}),
+      h("span", {class: "row"}, h("span", {class: "meta-date", text: new Date().toLocaleDateString(undefined, {weekday: "short", day: "numeric", month: "short"})}),
+        h("button", {class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)"}, h("span", {text: "Search"}), h("span", {class: "mono", text: "⌘K"})))));
+    if (roomIndex >= 0) {
+      const prev = NAV[roomIndex - 1], next = NAV[roomIndex + 1];
+      page.append(h("nav", {class: "room-pager", "aria-label": "Rooms"},
+        prev ? h("a", {href: "#" + prev[0], text: "← " + prev[1]}) : h("span", {}),
+        h("span", {text: label}),
+        next ? h("a", {href: "#" + next[0], text: next[1] + " →"}) : h("span", {})));
+    }
 
     updateContextNote();
     if (S.tab === "drafts") {
@@ -1541,6 +1609,7 @@
       await renderOnboarding(fresh);
       fresh.append(iconCredit());
       main.replaceChildren(...fresh.childNodes);
+      const welcome = main.querySelector("h1"); if (welcome) typeInto(welcome, "onboarding");
       return;
     }
     renderSide();
@@ -1551,7 +1620,9 @@
     clearTimeout(wait);
     if (seq === renderSeq) {
       main.replaceChildren(...fresh.childNodes);
-      if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+      const headline = main.querySelector(".page h1, .page .page-head h2, .person-heading h2");
+      if (headline) typeInto(headline, S.tab + ":" + headline.textContent);
+      if(!motionOff()){
         const page=main.querySelector('.page');if(page)page.animate([{opacity:.35,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:220,easing:'cubic-bezier(.22,1,.36,1)'});
       }
     }

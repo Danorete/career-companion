@@ -10,6 +10,7 @@ from companion import store
 from playwright.sync_api import sync_playwright
 
 import argparse
+import os
 parser=argparse.ArgumentParser()
 parser.add_argument('--output', type=Path, default=Path('/tmp/link-browser-check'))
 args=parser.parse_args()
@@ -27,7 +28,7 @@ base='http://127.0.0.1:8876'
 errors=[]
 try:
  with sync_playwright() as p:
-  browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+  browser=p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),headless=True,args=['--no-sandbox'])
   page=browser.new_page(viewport={'width':1470,'height':956},reduced_motion='reduce')
   page.on('pageerror',lambda err:errors.append(str(err)))
   page.goto(base)

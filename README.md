@@ -76,8 +76,8 @@ First run is Link's guided onboarding: **Find a starting point**, **Approach som
 of an encounter**. You can also skip straight to importing your connections. The workspace appears
 afterwards.
 
-Primary navigation is at the top: **Today**, **People**, **Quick log** and **Import**, with **Career
-tools**, **About me** and **Settings & data** beside them. Each area is described in more detail in the
+Navigation is a rail on the left: four numbered rooms (**01 Today**, **02 People**, **03 Quick log**,
+**04 Import**), then **Career tools**, then **About me**, **Pasted material** and **Settings & data**. Each area is described in more detail in the
 later sections of this file.
 
 - **Today**: your recommended next action and where you left off, with compact shortcuts to log a
@@ -312,16 +312,36 @@ it in headless Chromium, and writes screenshots to the `--output` folder:
 | `check_connection_browser.py` | Guided onboarding, preparation, rehearsal, drafting, resume after reload |
 | `check_qol_browser.py` | Quick log recovery, undo, duplicate-name suggestions, reminders, reduced motion |
 | `check_avatar_browser.py` | Link character and the Meet Link walkthrough |
+| `check_rail_browser.py` | Left rail, typed headlines, Pause motion, reduced motion, page links, Link panel |
 
 They need the Python `playwright` package (`.venv/bin/pip install playwright`), which is not part of
-`.[dev]`. Every script launches Chromium from `/usr/bin/chromium`, which suits the Linux machines they
-were written on. On a Mac, change `executable_path` in the script to your browser, for example
-`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`, or remove it and run
-`.venv/bin/playwright install chromium` once. Run a script from the repository root:
+`.[dev]`. Each script launches the browser named by `CHROMIUM_PATH`, or `/usr/bin/chromium` if it is not
+set. On a Mac, point it at Chrome. Run a script from the repository root:
 
 ```bash
-.venv/bin/python scripts/check_first_clicks_browser.py --output /tmp/link-check
+CHROMIUM_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" .venv/bin/python scripts/check_rail_browser.py --output /tmp/link-check
 ```
 
-The first four in the table were re-run on Linux on 2026-11-13 and passed with no JavaScript errors.
-The other three last passed in the sessions recorded in `VALIDATION.md`.
+All eight passed on Linux on 2026-11-13 with no JavaScript errors.
+
+## Field notebook design (2026-11-13)
+
+The layout follows the proposal in Figma (decision D38):
+
+- **Left rail.** Four numbered rooms with a one-line hint each, Career tools below a rule, then About me,
+  Pasted material and Settings. The foot of the rail shows AI mode, budget and "This Mac only", and a
+  **Pause motion** button.
+- **Meta strip and page links.** Each page starts with its number ("02 / 04 · People"), the date and Search
+  (⌘K), and ends with links to the previous and next room.
+- **Today** puts the next action beside **Recent context**: your last three quick logs with honest dates
+  (exact, "~ last week", or "Date unknown").
+- **Fewer words.** Headlines, labels and the Link panel's notes are shorter. Where a visible label was
+  shortened, its accessible name keeps the full wording (for example "Log" is announced as "Log a
+  conversation").
+- **Typed headlines.** A page's headline, and Link's short replies, type themselves out on the first visit in
+  a session. The full text is in the page from the start for screen readers. With macOS "Reduce motion" on,
+  or Pause motion pressed, text appears at once and animations stop.
+- **Type.** Source Serif 4 for headings and IBM Plex Mono for labels, both bundled locally under the SIL
+  Open Font License (`static/fonts/LICENSE-*.txt`). Inter stays for body text.
+
+No database or API changes. Phone layout is unchanged and still deferred.

@@ -29,12 +29,11 @@
         const page=h('section',{class:(onboarding?'onb connection-onboarding':'page connection-page')+' studio-welcome'},
           h('div',{class:'welcome-cover'},h('div',{class:'cover-brand'},h('span',{class:'orb is-ready'},orbSvg(35)),h('span',{text:'Link'})),
             h('span',{class:'eyebrow',text:'Your connection studio'}),h('h1',{text:'Good people. Real possibilities.'}),
-            h('p',{class:'cover-caption',text:'A little confidence. A thoughtful conversation. Your next opportunity can start here.'}),connectionMotif()),
+            h('p',{class:'cover-caption',text:'Start, prepare, keep in touch.'}),connectionMotif()),
           h('div',{class:'welcome-choices'},h('span',{class:'eyebrow',text:'01 / A place to begin'}),h('h2',{text:'Where shall we begin?'}),
-            h('p',{text:'Tell Link what’s on your mind. We’ll build the context together.'}),
             h('div',{class:'connection-paths'},['starting','reconnect','met'].map(mode=>h('button',{type:'button',class:'path-choice','aria-label':modes[mode][0],onclick:()=>{flow={inputs:{mode},plan:null};render();}},
               h('span',{},h('strong',{text:modes[mode][0]}),h('small',{text:descriptions[mode]})),h('span',{class:'path-arrow','aria-hidden':'true',text:'→'})))),
-            h('div',{class:'welcome-import-path'},h('strong',{text:'Already have a network?'}),h('p',{class:'muted small',text:'Bring LinkedIn contacts, select conversation excerpts, or prepare from a calendar file. You choose what stays.'}),btn('Import my connections',async()=>{
+            h('div',{class:'welcome-import-path'},h('strong',{text:'Already have a network?'}),h('p',{class:'muted small',text:'Contacts, messages or a calendar file.'}),btn('Import my connections',async()=>{
               if(onboarding){if(!await act(()=>api('POST','/api/onboarding/skip')))return;S.onboarding.done=true;document.body.classList.remove('onboarding');}
               openSource('connections');
             },'quiet')),
@@ -187,9 +186,9 @@
             btn('Review and decide',()=>open({mode:'follow_up',item_id:c.item_id,recollection:[c.summary,c.possible_commitments ? 'Possible commitment (unconfirmed): '+c.possible_commitments : '',c.suggestions].filter(Boolean).join('\n')})),btn('Not relevant',async()=>{await act(()=>api('POST','/api/connections/follow-ups/'+c.id+'/dismiss'));render();},'quiet')))));
       }
       function quickPrompts(note) {
-        const prompt=h('div',{class:'row'},h('span',{class:'muted small',text:'Need a memory cue?'}));
+        const prompt=h('div',{class:'row'},h('span',{class:'muted small',text:'Nudges'}));
         const help=h('p',{class:'muted small',role:'status'});
-        ['What stood out?','Did either of you offer to do anything?','What would you like to ask next time?'].forEach(q=>prompt.append(btn(q,()=>{help.textContent=q+' Leave it unknown if you’re not sure.';note.focus();},'quiet')));
+        [['What stood out?','What stood out?'],['Any offers?','Did either of you offer to do anything?'],['Ask next time?','What would you like to ask next time?']].forEach(([short,q])=>{const b=btn(short,()=>{help.textContent=q+' Leave it unknown if you’re not sure.';note.focus();},'quiet');b.setAttribute('aria-label',q);prompt.append(b);});
         return h('div',{},prompt,help);
       }
       return {open,begin:()=>{flow=null;go('connect');},start,onboard:root=>start(root,true),personTools,todayTools,quickPrompts};

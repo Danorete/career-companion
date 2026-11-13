@@ -57,6 +57,8 @@ In the order it was built (details in `PROGRESS.md`, reasons in `DECISIONS.md` D
   locally and reviewed before anything is saved.
 - Today and Import are separate: Today resumes your work, Import holds the source catalogue.
 - From `claude/less-friction`: job postings on roles, résumé-to-evidence extraction, "Confirm all".
+- Field notebook redesign (D38): left rail of numbered rooms, Recent context on Today, shorter copy,
+  typed headlines with Pause motion, bundled Source Serif 4 and IBM Plex Mono.
 
 ## Checks and what is still unverified
 
@@ -68,7 +70,8 @@ Safari and the Keychain. Phone-width layout is deferred. Mock AI only so far.
 
 ## Open threads
 
-- `claude/connections-redesign` is a separate, unmerged People and Quick log implementation, built in
-  parallel with this one. This build doesn't include it. Compare the two before deleting either branch.
+- `claude/connections-redesign` was closed unmerged (Danorete/career-companion#4); its branch still exists.
+- Proposed but not built: the connection map, conversation storyboard and annotated message (Figma file
+  "Link redesign proposal", Ideas row).
 - `graphify-out/` was rebuilt on 2026-11-13 from code only. Docs and images aren't in it yet; run
   `/graphify --update` in an assistant session to add them.
