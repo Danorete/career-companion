@@ -72,23 +72,35 @@ job comparison send only the evidence you tick, your voice notes, and what you t
 
 ## What it does
 
-First run is a short conversation with the companion (working name: Tempo): four questions, one at a time,
-each skippable. The workspace appears afterwards.
+First run is Link's guided onboarding: **Find a starting point**, **Approach someone**, or **Make sense
+of an encounter**. You can also skip straight to importing your connections. The workspace appears
+afterwards.
 
-- **Today**: one recommended action beside a session ring. Pick 15, 20 or 30 minutes and start; the ring
-  counts down. Other options, reminders, and the idea parking lot are tucked into rows below. An empty
-  account offers two first steps: add a project, or paste your profile text.
-- **People & roles**: status, last recorded interaction, next action, and one-click outcomes with undo. Explicitly select a record to discuss its private planning context with Tempo.
+Primary navigation is at the top: **Today**, **People**, **Quick log** and **Import**, with **Career
+tools**, **About me** and **Settings & data** beside them. Each area is described in more detail in the
+later sections of this file.
+
+- **Today**: your recommended next action and where you left off, with compact shortcuts to log a
+  conversation, prepare for one, or import connections. "Work on this" opens the task without starting a
+  timer; focus sessions are optional. With no contacts yet, Today offers a guided start instead.
+- **People**: a directory beside each person's Overview, Conversations and Next step. Explicitly select a
+  person to discuss their private planning context with Link. See "Connection-first workflow" below.
+- **Quick log**: capture a conversation with an approximate or unknown date, with or without a person.
+- **Import**: LinkedIn connections CSV, selected message excerpts and calendar files. See "Networking
+  sources and imagery" below.
+
+Career tools keep the earlier workflows:
+
+- **Roles**: status, last recorded interaction, next action, job postings, and one-click outcomes with undo.
 - **Evidence**: claims with a status, numbers, approved uses, banned phrases, and a confidential flag.
 - **Drafts**: write beside an adjustable evidence inspector, inspect linked claims, preview passage suggestions, compare prior versions and restore them. Every save is checked against current evidence.
 - **About me**: everything the companion remembers, editable and deletable.
-- **Pasted material** and **Settings & data** sit lower in the sidebar: reference text, AI mode, spending,
-  export, delete, activity log. AI mode and budget are always visible at the bottom of the sidebar.
-- **Setup progress**: a card in the sidebar shows how far setup has got (for example "60%, 3 of 5 steps").
-  Each step says what it unlocks and links to where you do it. Sample data doesn't count, and live AI is
-  optional. The card disappears at 100%.
-- **The companion panel**: shows whether it is ready, thinking, waiting for your OK, or off. Drag its edge
-  (or focus the edge and use the arrow keys) to resize; collapse it to a corner pill.
+- **Pasted material** and **Settings & data**: reference text, AI mode, spending, export, delete,
+  activity log. AI mode and budget are always visible in the top-right corner.
+- **Setup progress**: shows how far setup has got (for example "60%, 3 of 5 steps"). Each step says what
+  it unlocks and links to where you do it. Sample data doesn't count, and live AI is optional.
+- **The Link panel**: click the Link character to open it. It shows whether Link is ready, thinking,
+  waiting for your OK, or off. Drag its edge (or focus the edge and use the arrow keys) to resize.
 
 Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Enter sends a chat message
 (Shift+Enter for a new line), Escape closes the companion on a narrow window. Motion is removed when macOS
@@ -96,7 +108,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`143 passed` on Linux, Python 3.12, 2026-11-12. Not yet run on macOS. Coverage by acceptance criterion:
+`199 passed` on Linux, Python 3.12, 2026-11-13. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -113,6 +125,13 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 | Session timer starts only on a chosen action, and ends | `test_session_timer_info_and_end` |
 | Setup progress: starts at 0, ignores samples, each step independent, drops on delete | `test_setup_*` and `test_each_setup_step_flips_on_its_own` (5 tests) |
 | Starter file: one-step import, never pre-verified, safe to repeat, validated | `test_starter_file_*` (4 tests), `test_imported_private_memory_still_stays_out_of_drafting` |
+| People, Quick log, next steps, person-scoped drafting | `test_people.py` |
+| Guided onboarding, preparation, follow-ups and requests | `test_connection_coaching.py` |
+| LinkedIn CSV, message and calendar imports | `test_network_imports.py` |
+| Private advice is not an evidence audit | `test_conversation_scope.py`, `test_record_context.py` |
+| The companion identifies as Link | `test_identity.py` |
+
+Browser checks are in `scripts/check_*_browser.py`; see "Running the browser checks" at the end of this file.
 
 The interface was also driven in headless Chromium at 1470 x 860 (13-inch MacBook Air), 1710 x 1010 and
 390 x 844: onboarding, the empty account, sample data, a confirmed suggestion, a full session, a draft and
@@ -180,7 +199,7 @@ available in the sidebar; existing roles, evidence, drafts, and outcome labels a
 
 Add a person with just a name. Open them for context, a timeline, and an optional next step.
 Quick log captures fragments with an approximate or unknown date and can stay unassigned until
-later. Save locally without AI. “Organize with Tempo” sends that selected log to your provider
+later. Save locally without AI. “Organize with Link” sends that selected log to your provider
 in live mode and returns an editable proposal; it does not commit facts or create tasks.
 Original exchanges are retained only when explicitly selected. Private planning notes and chat
 are excluded from message drafting. Review the exact approved context before generating a message.
@@ -203,8 +222,7 @@ existing records. This remains a local single-user app, not a public hosted serv
 Optional browser smoke check (requires Playwright and Chromium installed separately):
 `python scripts/check_people_browser.py --output /tmp/link-browser-check`.
 It runs synthetic records in a temporary database with mock AI and writes screenshots only.
-The script currently uses `/usr/bin/chromium` for Linux verification; adapt the executable path
-for a local macOS browser. The Python regression suite does not require Playwright.
+The Python regression suite does not require Playwright. See "Running the browser checks" below.
 
 ## Guided desktop connection building
 
@@ -279,3 +297,31 @@ Official references checked November 13, 2026: [LinkedIn access](https://learn.m
 **Today** is the daily workspace: one recommended next action, a resume point, quick logging/preparation, saved plans and your people. With no contacts, it offers a small guided start or a way to add someone you know. It does not repeat the illustrated import catalogue. The compact **Import connections** shortcut remains visible, and **Import** stays in primary navigation.
 
 **Import** owns the source overview: connection CSV, selected message excerpts and calendar files, followed by their explicit review controls. It remains one click away. The initial welcome screen still allows importing without completing coaching questions. Existing saved data, Keychain configuration and import safeguards are unchanged.
+
+## Running the browser checks
+
+Each script in `scripts/` starts the app on synthetic data in a temporary database with mock AI, drives
+it in headless Chromium, and writes screenshots to the `--output` folder:
+
+| Script | What it checks |
+|---|---|
+| `check_first_clicks_browser.py` | Today and Import are different pages; shortcuts, onboarding bypass, empty states |
+| `check_network_browser.py` | LinkedIn CSV preview and matching, selected conversations, calendar preparation |
+| `check_studio_browser.py` | People directory and tabs by keyboard, next-step undo, Link panel, both themes |
+| `check_people_browser.py` | People, Quick log, approximate dates, review, search, narrow layout |
+| `check_connection_browser.py` | Guided onboarding, preparation, rehearsal, drafting, resume after reload |
+| `check_qol_browser.py` | Quick log recovery, undo, duplicate-name suggestions, reminders, reduced motion |
+| `check_avatar_browser.py` | Link character and the Meet Link walkthrough |
+
+They need the Python `playwright` package (`.venv/bin/pip install playwright`), which is not part of
+`.[dev]`. Every script launches Chromium from `/usr/bin/chromium`, which suits the Linux machines they
+were written on. On a Mac, change `executable_path` in the script to your browser, for example
+`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`, or remove it and run
+`.venv/bin/playwright install chromium` once. Run a script from the repository root:
+
+```bash
+.venv/bin/python scripts/check_first_clicks_browser.py --output /tmp/link-check
+```
+
+The first four in the table were re-run on Linux on 2026-11-13 and passed with no JavaScript errors.
+The other three last passed in the sessions recorded in `VALIDATION.md`.

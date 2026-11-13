@@ -1,73 +1,74 @@
-# Link — Connection Studio
+# Link — handoff
 
-This is the complete working app with the approved desktop design, guided connection workflows,
-and the earlier People/Quick log redesign. It is not a standalone mockup.
+The source of truth is this repository, `Danorete/career-companion`. Earlier builds were passed
+around as ZIP archives (`link-connection-studio`, `link-avatar-guide`, `link-polished-workflows`,
+`link-context-advice`, `link-network-sources`, `link-clear-start`, `link-daily-home`) because pushes
+from those sessions were refused. The last of them, `link-daily-home`, is now committed here and
+contains everything in the earlier ones. Work from a clone, not from an extracted ZIP.
 
-## Preview on your Mac
+## Run it on your Mac
 
-1. Stop the previous app with Ctrl+C.
-2. Extract the ZIP into a NEW folder. It is named `link-connection-studio`.
-3. Run the following. The `&&` guards stop subsequent commands if the folder or setup fails,
-   so an older app cannot accidentally be launched from the previous working directory.
+Stop any older copy first with Ctrl+C, so an old build isn't still serving the port.
 
 ```bash
-cd ~/Downloads/link-connection-studio &&
-python3 -m venv .venv &&
-.venv/bin/pip install -e ".[dev]" &&
+git clone https://github.com/Danorete/career-companion.git
+```
+
+```bash
+cd career-companion && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+```
+
+Try it with fictional people and mock AI, in a temporary database that never touches your records:
+
+```bash
 .venv/bin/companion run --demo
 ```
 
-Python 3.11+ is supported. On this user's Mac, Python 3.13 is already available. Open the freshly
-printed browser link. The terminal/browser title says **Link — Connection Studio**.
+Use your own records (the data folder and Keychain key are unchanged from earlier builds):
 
-Demo uses fictional people in a separate temporary database and always forces mock AI. No personal
-database or credentials are included or opened. Stop with Ctrl+C. Normal shutdown removes demo data;
-a forced kill can leave the isolated temporary folder behind.
+```bash
+.venv/bin/companion run
+```
 
-To use an EMPTY, persistent preview without opening your original records:
+Add `COMPANION_AI_MODE=live` in front of that command for live AI; see "Turning on live AI" in the
+README first. Python 3.11 or newer is required.
+
+To try an empty, persistent workspace without opening your real records:
 
 ```bash
 COMPANION_DATA_DIR="$HOME/Library/Application Support/LinkStudioPreview" COMPANION_AI_MODE=mock .venv/bin/companion run
 ```
 
-Before ordinary use with your original records, back up/export your database. This design pass adds
-no migration beyond the prior schema v5. Do not overwrite your original source folder or the paused
-Claude Code working tree; compare and integrate after preserving both versions.
+Back up or export your data before upgrading. The database is at schema version 5; upgrades are
+additive and don't delete records. Demo mode removes its temporary folder on a normal shutdown; a
+forced kill can leave it behind in the system temporary folder.
 
-## What changed
+## What the current build contains
 
-- Framed warm-paper layout, editorial serif headings, forest accents and a matching dark theme.
-- Top navigation; compact People directory with Overview/Conversations/Next step tabs.
-- Two-part onboarding and plan review; quieter Quick log; expandable/resizable Link panel.
-- Work without a compulsory timer; focus sessions remain optional.
-- Locally bundled Guidance icons (CC BY 4.0), attribution in the interface and source license file.
+In the order it was built (details in `PROGRESS.md`, reasons in `DECISIONS.md` D28–D37):
 
-## Checks and limits
+- People, Quick log with approximate dates, next steps, and person-scoped message drafting.
+- Guided onboarding and connection workflows: prepare, follow up, ask for help or an opportunity.
+- The Connection Studio design: top navigation, People directory with tabs, light and dark themes.
+- The Link character, the optional Meet Link walkthrough, and the resizable Link panel.
+- Quick log recovery, Undo for common edits, duplicate-name suggestions, reminder shortcuts.
+- Private advice no longer turns into an evidence audit.
+- Import: LinkedIn connections CSV, selected message excerpts and `.ics` calendar files, all parsed
+  locally and reviewed before anything is saved.
+- Today and Import are separate: Today resumes your work, Import holds the source catalogue.
+- From `claude/less-friction`: job postings on roles, résumé-to-evidence extraction, "Confirm all".
 
-170 automated Python tests passed on Linux/Python 3.12. People, guided workflow, and new studio
-browser checks passed in Chromium. No JS errors; syntax and whitespace checks passed. No paid API
-calls. Live model behavior, Safari, Keychain and macOS installation still need local verification.
-Motion honors reduced-motion preferences. Mobile capture and a hosted multi-user version are deferred.
+## Checks and what is still unverified
 
-GitHub write access previously returned 403. This archive contains the local implementation; no
-remote PR publication is implied. `PROGRESS.md`, decisions D28-D30 and `VALIDATION.md` document
-resume points. Graphify was not installed, so its graph update could not run.
+199 Python tests pass on Linux, Python 3.12 (2026-11-13). The browser checks in `scripts/` are
+described at the end of `README.md`; history of each run is in `VALIDATION.md`.
 
-## Latest delivery: link-avatar-guide
-Latest source adds the Link character and optional interactive desktop walkthrough. Unzip into its own folder; stop the old server before launching. Existing personal application data remains outside this source folder. `companion run --demo` uses isolated sample data and mock AI. No database migration is needed. No GitHub push was performed.
+Never tested: a real call to the AI provider, provider billing against the app's own ledger, macOS,
+Safari and the Keychain. Phone-width layout is deferred. Mock AI only so far.
 
+## Open threads
 
-## Latest delivery: link-polished-workflows
-Contains avatar/guide and quality-of-life update. Stop the old server and launch this extracted folder. Normal launch uses existing app data; --demo remains isolated mock mode. No schema migration. Draft protection covers the main Quick log recap; other forms retain their existing behavior. Undo history is session-local, one latest common edit, with explicit permanent-delete exceptions. No GitHub push performed. macOS/Safari/live AI verification remains pending.
-
-## Latest delivery: link-context-advice
-Includes all earlier UI/workflow improvements plus the private-chat scope fix. Use the same Keychain key and data directory; no migration or re-import required. Stop the old server, install from this folder and launch with COMPANION_AI_MODE=live (without --demo). Local files and GitHub content are not automatically accessible to chat.
-
-## Latest delivery: link-network-sources
-Includes all earlier changes plus Sources & imports, three original local illustrations and an optional relationship-context prompt. Existing DB/Keychain location is unchanged; no migration or resume re-import is required. Stop the old process and launch from this extracted folder using COMPANION_AI_MODE=live (omit --demo). All source parsing is local and model-free; preparation/chat uses the normal provider gate. No live LinkedIn/Google account connection is present. Limits, data handling and deferred OAuth are in README. No GitHub push performed; Mac/Safari testing remains pending.
-
-## Latest delivery: link-clear-start
-Usability correction after the user could not find Sources & imports. The default Today screen now shows Bring your connections, Capture a conversation and Prepare for a meeting; Import appears in primary navigation. Each CTA opens its actual task. Welcome offers direct import without coaching questions. All data locations and Keychain setup remain unchanged; no migration or re-import. Stop the older process before starting this folder. Source import rules and deferred live account sync remain as before. No GitHub push performed.
-
-## Latest delivery: link-daily-home
-Fixes Today/Import duplication. Today: next action, resume point, quick log/preparation and people. Import: source choices and review tools. Main Import navigation and the welcome import bypass remain. Data, key and app launch settings are unchanged; no migration or re-import. No GitHub push performed. Mac/Safari verification remains pending.
+- `claude/connections-redesign` is a separate, unmerged People and Quick log implementation, built in
+  parallel with this one. This build doesn't include it. Compare the two before deleting either branch.
+- `graphify-out/` was rebuilt on 2026-11-13 from code only. Docs and images aren't in it yet; run
+  `/graphify --update` in an assistant session to add them.

@@ -4,6 +4,19 @@ Read `DECISIONS.md` first. This file says where the build stands so a later sess
 
 This project moved here from a folder in `Danorete/spotify-listening-bi` on 2026-11-10, with its history.
 
+## Current state (2026-11-13)
+
+- The `link-daily-home` build is committed to this repository. Builds between 2026-11-12 and
+  2026-11-13 were only delivered as ZIP archives, because pushes from those sessions were refused.
+  Notes below that say "no GitHub push performed" or "GitHub writes returned 403" describe those
+  sessions; they no longer apply.
+- 199 Python tests pass on Linux, Python 3.12. Schema version 5. Mock AI only.
+- `claude/connections-redesign` is a separate People/Quick log implementation built in parallel; it is
+  not merged. `claude/less-friction` is included in this build.
+- `graphify-out/` was rebuilt from code on 2026-11-13.
+- Still unverified: a real provider call, billing reconciliation, macOS, Safari, Keychain.
+- Entries below are a dated log; their test counts were correct when written.
+
 ## How to resume
 
 ```
