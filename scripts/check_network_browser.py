@@ -3,6 +3,7 @@
 Synthetic temporary data and mock AI only. Requires Playwright and Linux Chromium.
 """
 import argparse
+import os
 import sys
 import tempfile
 import threading
@@ -35,7 +36,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
     errors=[]
     try:
         with sync_playwright() as p:
-            browser=p.chromium.launch(executable_path='/usr/bin/chromium',headless=True,args=['--no-sandbox'])
+            browser=p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH','/usr/bin/chromium'),headless=True,args=['--no-sandbox'])
             page=browser.new_page(viewport={'width':1470,'height':956},reduced_motion='reduce')
             page.on('pageerror',lambda e:errors.append(str(e)))
             page.on('dialog',lambda dialog:(print('Browser dialog:',dialog.message),dialog.dismiss()))
@@ -45,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             page.screenshot(path=str(args.output/'today.png'))
             page.get_by_role('link',name='People',exact=True).first.click()
             page.get_by_role('button',name='Import connections',exact=True).click()
-            page.get_by_role('heading',name='People. Moments. Possibilities.',exact=True).wait_for()
+            page.get_by_role('heading',name='You choose what stays.',exact=True).wait_for()
             assert page.get_by_role('tab').count()==3
             assert page.locator('.network-art').count()==3
             for img in page.locator('.network-art').all():
@@ -109,7 +110,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             assert page.get_by_role('tab').filter(has_text='Your conversations').get_attribute('aria-selected')=='true'
             page.evaluate("localStorage.setItem('cc.theme',JSON.stringify('dark'))")
             page.reload()
-            page.get_by_role('heading',name='People. Moments. Possibilities.',exact=True).wait_for()
+            page.get_by_role('heading',name='You choose what stays.',exact=True).wait_for()
             page.screenshot(path=str(args.output/'sources-dark.png'))
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             assert not errors,errors

@@ -637,7 +637,8 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
             need("items", body.item_id)
         fields = body.model_dump()
         fields["where_left_off"] = fields["where_left_off"] or "Not started."
-        return store.insert(db, "actions", **fields)
+        twin = store.recent_twin(db, "actions", title=fields["title"], kind=fields["kind"], item_id=fields["item_id"])
+        return twin or store.insert(db, "actions", **fields)
 
     @app.put("/api/actions/{aid}")
     def action_edit(aid: int, body: ActionIn) -> dict:

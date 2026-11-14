@@ -216,3 +216,11 @@ Replaced the hard-to-discover entry flow with illustrated Today capabilities and
 
 ## Daily home / Import separation
 Today now resumes actual work, with compact shortcuts and useful empty states. Import alone owns the illustrated source catalogue and review flows. No backend/schema changes. Latest source folder: link-daily-home. Updated first-click browser checks assert the pages differ while remaining easy to navigate.
+
+## Field notebook redesign — 2026-11-13 (decision D38)
+Left wayfinding rail, meta strip and room pager; Today with Recent context; shorter copy across Today, People,
+Quick log, Import, onboarding and the Link panel; typed headlines and Link replies with Pause motion and
+reduced-motion support; bundled Source Serif 4 and IBM Plex Mono. New stylesheet `static/rail.css`, loaded after
+`studio.css`. New browser check `scripts/check_rail_browser.py`; all browser scripts now read `CHROMIUM_PATH`.
+199 Python tests and all eight browser checks pass on Linux. Not yet seen on macOS or Safari. The map,
+storyboard and annotated-message ideas exist only in Figma.

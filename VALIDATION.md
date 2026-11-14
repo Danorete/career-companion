@@ -52,3 +52,31 @@ corrected. Syntax and whitespace checks passed. No real-provider calls were made
 
 ### Today / Import differentiation
 199 Python tests pass. Updated `check_first_clicks_browser.py` verifies a real recommended action and compact shortcuts on Today at 1470×956 and 1280×800, absence of the import catalogue on Today, all three source tabs on Import, direct import/logging/preparation links, onboarding bypass and a guided no-contacts empty state. Today/Import screenshots visually inspected. Existing quality-of-life and Studio browser scripts pass with temporary synthetic records and mock AI, no JS errors. No macOS/Safari or real-provider calls in this update. Syntax and whitespace checks pass. Graphify update attempted but executable is unavailable.
+
+### Field notebook redesign (2026-11-13)
+199 Python tests pass. All eight browser scripts pass in Chromium with temporary synthetic data and mock AI, no
+JavaScript errors: rail, first clicks, network sources, studio, people, guided connection, quality of life and
+avatar. The new `check_rail_browser.py` covers the numbered rail and its accessible names, career tools and local
+status, a typed headline whose accessible name is complete while it types, typing only on a room's first visit,
+Pause motion (pressed state, persists across reload, keeps keyboard focus), the system reduced-motion setting,
+the meta strip and room pager, Recent context date chips, opening the Link panel from the avatar, and no sideways
+scrolling at 1280 px. Updated expectations: Today's headline is "One thing today.", Import's is "You choose what
+stays.", the empty Today headline is "Start with one person.", and the dark-mode room background matches the new
+ground colour. Screenshots were inspected at 1440 and 1280 px in light and dark, and at 390 px for regressions.
+
+### Motion and usability follow-up (2026-11-14)
+199 Python tests and all eight browser scripts pass with no JavaScript errors. `check_rail_browser.py` now also
+checks that a headline does not type again after a reload, that Link's greeting finishes typing within 500 ms of
+load, that the pager and "All logs" links have targets at least 44 px tall, and that marking the next action done
+replaces it on Today.
+
+### Polish pass (2026-11-14)
+203 Python tests pass, including four new ones in `tests/test_double_submit.py` (they failed before the fix: a repeated
+quick log, person or to-do was saved twice). All eight browser scripts pass with no JavaScript errors. The rail check
+now also double-clicks Save quick log and confirms one log is stored, and checks that Option/Alt + 2 opens People and
+that the rail link declares the shortcut. Screenshots of Today and People were inspected after the change.
+
+### Accent and first-run preview (2026-11-14)
+203 Python tests and all eight browser scripts pass with no JavaScript errors. `check_first_clicks_browser.py` now
+checks that the first-run preview image is present by its accessible name and actually loads. First-run and Today
+screenshots were inspected.

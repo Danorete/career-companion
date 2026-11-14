@@ -135,7 +135,8 @@ def save_person(db: Database, item_id: int | None, fields: dict) -> dict:
     data = {"title": fields["name"], "org": fields["org"], "profile_link": fields["profile_link"],
             "shareable_context": fields["context"], "private_notes": fields["notes"], "category": fields["category"]}
     if item_id is None:
-        item = store.insert(db, "items", kind="relationship", **data)
+        twin = store.recent_twin(db, "items", kind="relationship", title=data["title"], org=data["org"])
+        item = twin or store.insert(db, "items", kind="relationship", **data)
     else:
         get_person(db, item_id)
         item = store.update(db, "items", item_id, **data)
@@ -212,8 +213,11 @@ def create_log(db: Database, *, note: str, item_id: int | None, when: dict, exch
     keep = bool(exchange) and keep_exchange
     if not note and exchange and not keep:
         raise store.RuleError("Add a recap, or explicitly choose to retain the exchange.")
-    row = store.insert(db, "interactions", item_id=item_id, source="pasted_exchange" if exchange else "user_recap",
-                       note=note, exchange=exchange[:MAX_EXCHANGE_CHARS] if keep else "", **resolve_when(when, today))
+    source, kept = ("pasted_exchange" if exchange else "user_recap"), (exchange[:MAX_EXCHANGE_CHARS] if keep else "")
+    twin = store.recent_twin(db, "interactions", item_id=item_id, source=source, note=note, exchange=kept)
+    if twin:  # the same save arrived twice (double-click or retry)
+        return _entry(twin)
+    row = store.insert(db, "interactions", item_id=item_id, source=source, note=note, exchange=kept, **resolve_when(when, today))
     db.log("log_saved", f"id={row['id']} assigned={item_id is not None} when={row['when_kind']} kept_exchange={keep}")
     return _entry(row)
 

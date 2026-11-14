@@ -49,7 +49,7 @@ def ensure_session(db: Database) -> dict:
 def _option(o: Option, db: Database) -> dict:
     item = store.get(db, "items", o.action["item_id"]) if o.action["item_id"] else None
     return {"action": o.action, "reasons": o.reasons,
-            "item": {"id": item["id"], "title": item["title"], "org": item["org"]} if item else None}
+            "item": {"id": item["id"], "title": item["title"], "org": item["org"], "kind": item["kind"]} if item else None}
 
 
 def today_view(db: Database, settings: Settings, minutes: int) -> dict:
