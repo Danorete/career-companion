@@ -44,7 +44,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             page.get_by_role('button',name='I’m stuck — help me choose',exact=True).wait_for()
             page.locator('#main').evaluate('(el)=>el.scrollTop=0')
             page.screenshot(path=str(args.output/'today.png'))
-            page.get_by_role('heading',name='One thing today.',exact=True).wait_for()
+            page.locator('.daily-intro h1').wait_for()
             assert page.locator('.source-tabs').count()==0
             assert page.locator('.home-path-art').count()==0
             for name in ('Log a conversation','Prepare for a conversation','Import connections','Work on this'):
@@ -62,7 +62,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             page.get_by_role('link',name='Import',exact=True).first.click()
             page.get_by_role('heading',name='You choose what stays.',exact=True).wait_for()
             assert page.locator('.source-tabs [role=tab]').count()==3
-            assert page.get_by_role('heading',name='One thing today.',exact=True).count()==0
+            assert page.locator('.daily-intro h1').count()==0
             page.locator('#main').evaluate('(el)=>el.scrollTop=0')
             page.screenshot(path=str(args.output/'import.png'))
             page.get_by_role('tab').filter(has_text='Your conversations').click()

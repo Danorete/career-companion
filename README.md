@@ -349,3 +349,13 @@ No database or API changes. Phone layout is unchanged and still deferred.
 Small motion and usability rules, from a review against common UI animation principles and the Laws of UX:
 finishing the next action folds its card away and the next one rises into place (under 300 ms), and small text
 links such as "Assign" and the previous/next links have 44 px tall click targets.
+
+**Polish pass (2026-11-14).**
+- A double-click or retried request no longer saves the same quick log, person or to-do twice. Forms block a
+  second submit while saving, and the server returns the existing record if an identical one was created in the
+  last few seconds.
+- **Option + 1–4** (Alt on Windows) opens Today, People, Quick log or Import. The key shows when you hover over
+  or tab to a room, and in the ⌘K menu.
+- Headlines say something specific ("One thing for Jordan today.", "Your 4 people.").
+- Repeated and filler labels are gone. Monospace is used only for numbers, dates and status.
+- Icons share one line weight, headlines wrap evenly, numbers use same-width digits, and small grey text is darker.

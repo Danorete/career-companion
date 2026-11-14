@@ -69,3 +69,9 @@ ground colour. Screenshots were inspected at 1440 and 1280 px in light and dark,
 checks that a headline does not type again after a reload, that Link's greeting finishes typing within 500 ms of
 load, that the pager and "All logs" links have targets at least 44 px tall, and that marking the next action done
 replaces it on Today.
+
+### Polish pass (2026-11-14)
+203 Python tests pass, including four new ones in `tests/test_double_submit.py` (they failed before the fix: a repeated
+quick log, person or to-do was saved twice). All eight browser scripts pass with no JavaScript errors. The rail check
+now also double-clicks Save quick log and confirms one log is stored, and checks that Option/Alt + 2 opens People and
+that the rail link declares the shortcut. Screenshots of Today and People were inspected after the change.

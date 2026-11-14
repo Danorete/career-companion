@@ -21,14 +21,16 @@ body.connection-studio { font:15px/1.55 var(--body); background:var(--ground); }
 .connection-studio h1,.connection-studio h2 { font-family:var(--display); font-weight:400; letter-spacing:-.02em; color:var(--ink); }
 .connection-studio h1 { font-size:clamp(40px,4vw,56px); line-height:1.04; }
 .connection-studio h2 { font-size:clamp(28px,2.6vw,40px); line-height:1.1; }
-.connection-studio .eyebrow,.connection-studio .workspace-label,.mono { font:400 12px/1.4 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+.mono { font:400 12px/1.4 var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+/* Monospace only where it earns it: numbers, dates and status. Other small labels use the body face. */
+.connection-studio .eyebrow,.connection-studio .workspace-label { font:600 12px/1.4 var(--body); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
 .connection-studio .muted.small,.connection-studio .small { font-size:13px; }
 .connection-studio .btn { min-height:44px; font-size:14px; border-radius:0; border-color:var(--ink); }
 .connection-studio .btn.primary,.connection-studio .btn.dark { background:var(--ink); border-color:var(--ink); color:var(--sheet); }
 .connection-studio .btn.primary:hover,.connection-studio .btn.dark:hover { background:var(--accent-strong); border-color:var(--accent-strong); }
 .connection-studio .btn.quiet { border-color:transparent; color:var(--accent); }
 .connection-studio input,.connection-studio textarea,.connection-studio select { border-radius:0; font-size:15px; }
-.connection-studio .chip { border-radius:0; font:400 12px/1.4 var(--mono); letter-spacing:.06em; text-transform:uppercase; }
+.connection-studio .chip { border-radius:0; font:600 12px/1.4 var(--body); letter-spacing:.04em; text-transform:uppercase; }
 .connection-studio .chip.marker { background:var(--marker); color:#1f2a24; border-color:transparent; }
 .connection-studio .panel { border-radius:0; background:var(--sheet); }
 .connection-studio .notice { border-radius:0; font-size:13px; }
@@ -60,8 +62,8 @@ body.connection-studio { font:15px/1.55 var(--body); background:var(--ground); }
 .rail-brand strong { font:400 28px/1 var(--display); letter-spacing:-.02em; }
 .rail-group { display:flex; flex-direction:column; gap:2px; }
 .rail-group + .rail-group { border-top:1px solid var(--line); padding-top:14px; }
-.rail-caption { font:400 11px/1.4 var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--muted); padding:0 10px 6px; }
-.connection-studio .room-link { display:grid; grid-template-columns:24px 20px minmax(0,1fr); align-items:center; gap:10px; min-height:52px; padding:6px 10px; color:var(--ink); text-decoration:none; }
+.rail-caption { font:600 12px/1.4 var(--body); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); padding:0 10px 6px; }
+.connection-studio .room-link { position:relative; display:grid; grid-template-columns:24px 20px minmax(0,1fr); align-items:center; gap:10px; min-height:52px; padding:6px 10px; color:var(--ink); text-decoration:none; }
 .room-link:hover { background:var(--well); }
 .room-link[aria-current="page"] { background:var(--sheet); }
 .room-num { font:400 12px var(--mono); color:var(--muted); }
@@ -102,7 +104,8 @@ body.connection-studio { font:15px/1.55 var(--body); background:var(--ground); }
 .today-recent .section-title { padding-bottom:10px; border-bottom:1px solid var(--ink); }
 .today-recent .section-title h2 { font-size:28px; }
 .recent-list { list-style:none; margin:0; padding:0; }
-.recent-list li { display:flex; flex-direction:column; gap:6px; padding:14px 0; border-bottom:1px solid var(--line); }
+.recent-list { display:flex; flex-direction:column; gap:18px; padding-top:6px; }
+.recent-list li { display:flex; flex-direction:column; gap:6px; }
 .recent-list .recent-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .recent-list p { margin:0; color:var(--ink-2); font-size:14px; }
 .today-people .section-title h2 { font-size:28px; }
@@ -116,7 +119,6 @@ body.connection-studio { font:15px/1.55 var(--body); background:var(--ground); }
 .connection-studio .person-heading h2 { font-size:clamp(40px,4vw,52px); }
 @media (min-width:1001px) { .people-studio { grid-template-columns:290px minmax(0,1fr); } }
 .people-directory .person-row-main strong { font-size:15px; }
-.people-directory .person-row-main .small { font:400 12px/1.4 var(--mono); letter-spacing:.04em; text-transform:uppercase; }
 .person-tab { font-size:15px; }
 
 /* ---- Quick log: one notebook page ------------------------------------------------------------ */
@@ -150,3 +152,14 @@ body.connection-studio { font:15px/1.55 var(--body); background:var(--ground); }
 
 /* Fitts's law: small text links keep their look but get a 44 px tall target. */
 .recent-list a,.today-recent .section-title a,.room-pager a,.today-people .section-title a { display:inline-flex; align-items:center; min-height:44px; margin-block:-10px; padding-inline:6px; margin-inline:-6px; }
+
+/* Unslop pass (D38 addendum 2). */
+.connection-studio h1,.connection-studio h2,.connection-studio h3 { text-wrap:balance; }
+.rail-status,.when-chip,.meta-strip,.ring-label,.side-session,.connection-studio td,.connection-studio .chip,.room-num { font-variant-numeric:tabular-nums; }
+.room-key { position:absolute; right:8px; top:50%; transform:translateY(-50%); font:400 11px var(--mono); color:var(--muted); border:1px solid var(--line); padding:1px 4px; background:var(--sheet); opacity:0; }
+.room-link:hover .room-key,.room-link:focus-visible .room-key { opacity:1; }
+.room-link[aria-current="page"] .room-key { color:var(--ink-2); }
+.connection-studio .demo-label { font-size:13px; color:var(--ink-2); }
+.connection-studio details.disc > summary .hint { font-size:13px; color:var(--ink-2); }
+.connection-studio .people-directory .person-row-main .small { color:var(--ink-2); }
+.connection-studio .person-tab-panel .btn,.connection-studio .person-primary-actions .btn,.connection-studio .person-tab-panel > .row .btn { font-size:14px; }

@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "src/companion/app.py": {
-    "mtime": 1794587396.0,
-    "ast_hash": "7f34d9b42b6f2cc525fa73d709516cd2",
+    "mtime": 1794678390.288989,
+    "ast_hash": "919b9524598c66a4b0edd88a063c2ef9",
     "semantic_hash": ""
   },
   "src/companion/budget.py": {
@@ -65,13 +65,13 @@
     "semantic_hash": ""
   },
   "src/companion/services.py": {
-    "mtime": 1794510800.0,
-    "ast_hash": "a5f79bb0e1330522b5461322231e3029",
+    "mtime": 1794678514.9810529,
+    "ast_hash": "750016377911be523d7386213537c7c6",
     "semantic_hash": ""
   },
   "src/companion/static/app.js": {
-    "mtime": 1794678000.1519208,
-    "ast_hash": "d619097d690ae21783131e9dc2f76ddb",
+    "mtime": 1794678589.152712,
+    "ast_hash": "603ae4d2fde94586e5e041f9a74e41e7",
     "semantic_hash": ""
   },
   "src/companion/static/login.js": {
@@ -80,8 +80,8 @@
     "semantic_hash": ""
   },
   "src/companion/store.py": {
-    "mtime": 1794503278.0,
-    "ast_hash": "b75ae131286957a6d7670b0dd53bb10d",
+    "mtime": 1794678390.288394,
+    "ast_hash": "da288d74cfc3e86772c7b82f3796f119",
     "semantic_hash": ""
   },
   "src/companion/validate.py": {
@@ -140,8 +140,8 @@
     "semantic_hash": ""
   },
   "DECISIONS.md": {
-    "mtime": 1794678111.0070074,
-    "ast_hash": "b7174008d71c6dfdfcd32e9e968359be",
+    "mtime": 1794678689.4009888,
+    "ast_hash": "f3b5cfcc4ccc2a670cd7f3950bba42ff",
     "semantic_hash": ""
   },
   "PROGRESS.md": {
@@ -150,8 +150,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794678111.0059087,
-    "ast_hash": "640e7f4f4dee5425d2bdba195712c785",
+    "mtime": 1794678689.4006662,
+    "ast_hash": "3f3865cc187ec702dda1d97390a34096",
     "semantic_hash": ""
   },
   "src/companion/static/fonts/LICENSE-Inter.txt": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "scripts/check_first_clicks_browser.py": {
-    "mtime": 1794606458.9792733,
-    "ast_hash": "08f956acbee5f7d52522d34c14e89474",
+    "mtime": 1794678494.5387657,
+    "ast_hash": "021eca60d8764ff9999809fce413d52a",
     "semantic_hash": ""
   },
   "scripts/check_network_browser.py": {
@@ -230,13 +230,13 @@
     "semantic_hash": ""
   },
   "src/companion/people.py": {
-    "mtime": 1794535098.0,
-    "ast_hash": "f8a80f09f1292934ac55a1b02f8be70f",
+    "mtime": 1794678390.2887185,
+    "ast_hash": "f2dc24c0fed1eaaeeb9b761d20225dd6",
     "semantic_hash": ""
   },
   "src/companion/static/connection-workflows.js": {
-    "mtime": 1794606918.2957215,
-    "ast_hash": "8c8c4b10bddb5cc7f3f3b281ba9eaeac",
+    "mtime": 1794678463.9342256,
+    "ast_hash": "076403fea5e7a2d26849c6a56ffe605b",
     "semantic_hash": ""
   },
   "src/companion/static/link-guide.js": {
@@ -345,8 +345,8 @@
     "semantic_hash": ""
   },
   "VALIDATION.md": {
-    "mtime": 1794678111.007605,
-    "ast_hash": "3cc4689b3df49f50a4515f3de298c625",
+    "mtime": 1794678689.40119,
+    "ast_hash": "debc16d7c108664f2d3ad7aed35d0ba2",
     "semantic_hash": ""
   },
   "src/companion/static/GUIDANCE-LICENSE.md": {
@@ -380,8 +380,8 @@
     "semantic_hash": ""
   },
   "scripts/check_rail_browser.py": {
-    "mtime": 1794678037.5752966,
-    "ast_hash": "6a1b02212c70f7200ce107c2e2ced7bb",
+    "mtime": 1794678543.6532216,
+    "ast_hash": "6da5014f4cc68ce7c73372a732ef1ce2",
     "semantic_hash": ""
   },
   "src/companion/static/fonts/LICENSE-IBMPlexMono.txt": {
@@ -392,6 +392,11 @@
   "src/companion/static/fonts/LICENSE-SourceSerif4.txt": {
     "mtime": 1794606202.9340682,
     "ast_hash": "6cef6faabbb0e804e2de61a07720c4ca",
+    "semantic_hash": ""
+  },
+  "tests/test_double_submit.py": {
+    "mtime": 1794678375.242867,
+    "ast_hash": "271643b40cb3e4f0613ef1b9640c22d8",
     "semantic_hash": ""
   }
 }

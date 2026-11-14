@@ -90,6 +90,24 @@ def insert(db: Database, table: str, **fields: Any) -> dict:
     return get(db, table, row_id)  # type: ignore[return-value]
 
 
+def recent_twin(db: Database, table: str, seconds: int = 5, **match: Any) -> dict | None:
+    """The newest row created in the last few seconds with exactly these values, if any.
+
+    Guards against a double-click or a retried request saving the same thing twice. Only identical
+    values within the window count, so two genuinely separate entries are never merged."""
+    from datetime import datetime, timedelta, timezone
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=seconds)).isoformat(timespec="seconds")
+    clauses, args = ["created_at >= ?"], [cutoff]
+    for col, value in match.items():
+        if value is None:
+            clauses.append(f"{col} IS NULL")
+        else:
+            clauses.append(f"{col} = ?")
+            args.append(value)
+    found = rows(db, table, " AND ".join(clauses), tuple(args), order="id DESC")
+    return found[0] if found else None
+
+
 def update(db: Database, table: str, row_id: int, **fields: Any) -> dict | None:
     f = _encode(table, fields)
     if table in STAMPED:

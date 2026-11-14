@@ -48,11 +48,11 @@ with tempfile.TemporaryDirectory(prefix='link-rail-') as folder:
             page = browser.new_page(viewport={'width': 1440, 'height': 900})
             page.on('pageerror', lambda e: errors.append(str(e)))
             page.goto(url)
-            heading = page.get_by_role('heading', name='One thing today.', exact=True)
+            heading = page.locator('.daily-intro h1')
             heading.wait_for()
             assert page.locator('#main .typed-visual').count() == 1, 'headline should be typing on first visit'
             page.wait_for_function("() => !document.querySelector('#main .typed-visual')", timeout=4000)
-            assert heading.inner_text() == 'One thing today.'
+            assert heading.inner_text() == 'One thing for Jordan today.'
 
             # Rail: four numbered rooms, career tools, status, Pause motion.
             rail = page.locator('#side')
@@ -83,13 +83,13 @@ with tempfile.TemporaryDirectory(prefix='link-rail-') as folder:
 
             # Frequency of use: a headline types only the first time it is ever shown, even after a reload.
             pager.get_by_role('link', name='People →').click()
-            page.get_by_role('heading', name='Your people.', exact=True).wait_for()
+            page.locator('.people-page .page-head h2').wait_for()
             assert rail.get_by_role('link', name='People', exact=True).get_attribute('aria-current') == 'page'
             rail.get_by_role('link', name='Today', exact=True).click()
-            page.get_by_role('heading', name='One thing today.', exact=True).wait_for()
+            page.locator('.daily-intro h1').wait_for()
             assert page.locator('#main .typed-visual').count() == 0
             page.reload()
-            page.get_by_role('heading', name='One thing today.', exact=True).wait_for()
+            page.locator('.daily-intro h1').wait_for()
             assert page.locator('#main .typed-visual').count() == 0
 
             # Finishing the next action: the card folds away, the next one arrives, and nothing breaks.
@@ -107,13 +107,27 @@ with tempfile.TemporaryDirectory(prefix='link-rail-') as folder:
             assert page.evaluate("document.documentElement.dataset.motion") == 'paused'
             assert page.evaluate("document.activeElement.classList.contains('pause-motion')")
             page.reload()
-            page.get_by_role('heading', name='One thing today.', exact=True).wait_for()
+            page.locator('.daily-intro h1').wait_for()
             assert page.locator('#main .typed-visual').count() == 0
             rail.get_by_role('link', name='Quick log', exact=True).click()
             page.get_by_role('heading', name='What do you remember?', exact=True).wait_for()
             assert page.locator('#main .typed-visual').count() == 0
             rail.get_by_role('button', name='Pause motion').click()
             assert page.evaluate("document.documentElement.dataset.motion") == 'auto'
+
+            # Double-click protection: two fast clicks on Save create one quick log.
+            count = lambda: page.evaluate("fetch('/api/logs').then(r => r.json()).then(l => l.filter(e => e.note === 'Double click test.').length)")
+            page.get_by_role('textbox', name='What do you remember?').fill('Double click test.')
+            page.get_by_role('button', name='Save quick log').dblclick()
+            page.wait_for_timeout(800)
+            assert count() == 1, count()
+
+            # Keyboard: Option/Alt + 2 opens People, and the rail says so.
+            assert rail.get_by_role('link', name='People', exact=True).get_attribute('aria-keyshortcuts') == 'Alt+2'
+            page.keyboard.press('Alt+2')
+            page.locator('.people-page .page-head h2').wait_for()
+            rail.get_by_role('link', name='Quick log', exact=True).click()
+            page.get_by_role('heading', name='What do you remember?', exact=True).wait_for()
 
             # The Link avatar opens the companion panel on demand.
             page.get_by_role('button', name='Open Link, your companion').click()
@@ -144,5 +158,5 @@ with tempfile.TemporaryDirectory(prefix='link-rail-') as folder:
     assert not errors, errors
     print('Rail checks passed: numbered rooms, career tools, local status, typed headline with full accessible name, '
           'typing only on first ever view (survives reload), replies typed within 300 ms, 44 px link targets, '
-          'next action folds away on done, Pause motion (persists, keeps focus), reduced motion, pager, recent context, '
+          'next action folds away on done, double-click saves once, Option+number shortcuts, Pause motion (persists, keeps focus), reduced motion, pager, recent context, '
           'Link panel on demand, no overflow at 1280; no JS errors.')
