@@ -147,3 +147,6 @@ body.connection-studio { font:15px/1.55 var(--body); background:var(--ground); }
 [data-theme="dark"] body.connection-studio .sheet,[data-theme="dark"] body.connection-studio.dock-closed .sheet { background-color:var(--ground); }
 @media (min-width:1001px) { body.connection-studio:not(.dock-closed) .guide-launcher { right:calc(var(--dock-w) + 40px); } }
 @media (max-width:1000px) { .rail { min-height:0; } .rail .rail-group,.rail .rail-foot,.rail .side-session { display:none; } }
+
+/* Fitts's law: small text links keep their look but get a 44 px tall target. */
+.recent-list a,.today-recent .section-title a,.room-pager a,.today-people .section-title a { display:inline-flex; align-items:center; min-height:44px; margin-block:-10px; padding-inline:6px; margin-inline:-6px; }

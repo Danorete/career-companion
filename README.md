@@ -338,10 +338,14 @@ The layout follows the proposal in Figma (decision D38):
 - **Fewer words.** Headlines, labels and the Link panel's notes are shorter. Where a visible label was
   shortened, its accessible name keeps the full wording (for example "Log" is announced as "Log a
   conversation").
-- **Typed headlines.** A page's headline, and Link's short replies, type themselves out on the first visit in
-  a session. The full text is in the page from the start for screen readers. With macOS "Reduce motion" on,
+- **Typed headlines.** A page's headline types itself out the first time you ever open that page; after that
+  it simply appears, because you see these pages every day. Link's short replies type within 300 ms. The full text is in the page from the start for screen readers. With macOS "Reduce motion" on,
   or Pause motion pressed, text appears at once and animations stop.
 - **Type.** Source Serif 4 for headings and IBM Plex Mono for labels, both bundled locally under the SIL
   Open Font License (`static/fonts/LICENSE-*.txt`). Inter stays for body text.
 
 No database or API changes. Phone layout is unchanged and still deferred.
+
+Small motion and usability rules, from a review against common UI animation principles and the Laws of UX:
+finishing the next action folds its card away and the next one rises into place (under 300 ms), and small text
+links such as "Assign" and the previous/next links have 44 px tall click targets.

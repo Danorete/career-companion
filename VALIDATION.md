@@ -63,3 +63,9 @@ the meta strip and room pager, Recent context date chips, opening the Link panel
 scrolling at 1280 px. Updated expectations: Today's headline is "One thing today.", Import's is "You choose what
 stays.", the empty Today headline is "Start with one person.", and the dark-mode room background matches the new
 ground colour. Screenshots were inspected at 1440 and 1280 px in light and dark, and at 390 px for regressions.
+
+### Motion and usability follow-up (2026-11-14)
+199 Python tests and all eight browser scripts pass with no JavaScript errors. `check_rail_browser.py` now also
+checks that a headline does not type again after a reload, that Link's greeting finishes typing within 500 ms of
+load, that the pager and "All logs" links have targets at least 44 px tall, and that marking the next action done
+replaces it on Today.

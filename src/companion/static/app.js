@@ -165,25 +165,37 @@
   applyMotion();
   // Typed text: short headlines and Link's replies appear letter by letter. The full text is in the DOM
   // from the start (screen readers and find-in-page see it), and motion off means it simply appears.
-  const typedOnce = new Set();
-  function typeInto(el, key) {
+  // Frequency of use: a room's headline types only the first time it is ever shown, so daily pages stay calm.
+  const typedSeen = new Set(store.get("typedSeen", []));
+  function typeInto(el, key, maxMs = 900) {
     const full = el.textContent;
-    if (!full || motionOff() || (key && typedOnce.has(key))) return;
-    if (key) typedOnce.add(key);
+    if (!full || motionOff() || (key && typedSeen.has(key))) return;
+    if (key) { typedSeen.add(key); store.set("typedSeen", [...typedSeen]); }
     const done = h("span", {}), rest = h("span", { class: "rest", text: full });
     const visual = h("span", { class: "typed-visual", "aria-hidden": "true" }, done, h("span", { class: "typed-caret" }), rest);
     el.classList.add("typed");
     el.replaceChildren(h("span", { class: "sr", text: full }), visual);
-    const step = Math.max(10, Math.min(30, 900 / full.length));
+    // At most ~30 ms per letter and never longer than maxMs overall; long text advances several letters per frame.
+    const perChar = Math.min(30, maxMs / full.length), step = Math.max(16, perChar), chunk = Math.max(1, Math.round(step / perChar));
     let i = 0;
     const tick = () => {
       if (!visual.isConnected) return;
-      if (motionOff()) i = full.length; else i += 1;
+      if (motionOff()) i = full.length; else i = Math.min(full.length, i + chunk);
       done.textContent = full.slice(0, i); rest.textContent = full.slice(i);
       if (i < full.length) setTimeout(tick, step);
       else { el.replaceChildren(full); el.classList.remove("typed"); }
     };
     setTimeout(tick, 120);
+  }
+  async function settle(el) {
+    if (!el || motionOff()) return;
+    await el.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(-10px) scale(.98)" }],
+      { duration: 200, easing: "cubic-bezier(.4,0,1,1)" }).finished.catch(() => {});
+  }
+  function arrive(el) {
+    if (!el || motionOff()) return;
+    el.animate([{ opacity: 0, transform: "translateY(14px)" }, { opacity: 1, transform: "none" }],
+      { duration: 260, easing: "cubic-bezier(.22,1,.36,1)" });
   }
   const libs = {};
   const lib = (name) => libs[name] || (libs[name] = import("/static/vendor/" + name + ".js").catch(() => null));
@@ -403,7 +415,7 @@
   function say(role, text) {
     const el = h("div", { class: "msg " + role, text });
     $("chat-log").append(el);
-    if (role === "companion" && String(text).length <= 240) typeInto(el);
+    if (role === "companion" && String(text).length <= 240) typeInto(el, null, 300);  // Doherty: a reply is readable within 300 ms
     el.scrollIntoView({ block: "end" });
     fx("motion", ({ animate }) => animate(el, { opacity: [0, 1], transform: ["translateY(6px)", "translateY(0)"] }, { duration: 0.18 }));
     return el;
@@ -532,6 +544,7 @@
     const out = await act(() => api("POST", "/api/actions/" + action.id + "/state", { state }));
     if (!out) return;
     if (state === "done") say("companion", "Marked done: " + action.title + ". When you hear back, record it under People & roles.");
+    if (state === "done" || state === "dropped") { await settle(document.querySelector(".today-grid .hero")); S.arrive = true; }
     render();
   }
   async function openFor(action) {
@@ -1014,7 +1027,7 @@
     const exactField=field("Date",h("input",{type:"date",value:exact,oninput:e=>exact=e.target.value})); exactField.hidden=kind!=="date";
     const roughField=field("Roughly when, in your own words",h("input",{maxlength:80,value:rough,placeholder:"Last week, sometime in October…",oninput:e=>rough=e.target.value}));roughField.hidden=kind!=="approx";
     const remember=()=>{quickWorkspace={note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:keep?exchange.value:'',keep_exchange:keep};quickDirty=true;draftStatus.textContent='Saving draft…';clearTimeout(quickTimer);quickTimer=setTimeout(writeQuickWorkspace,280);};
-    const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),"Saved. No tasks were created.");if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();}}},
+    const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),"Saved. No tasks were created.");if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});await settle(e.target);S.arrive=true;render();}}},
       field("Memory",note),draftStatus,workflows.quickPrompts(note),h("div",{class:"grid2"},field("Person (optional)",select([["","Not sure / choose later"],...people.map(p=>[p.id,p.name])],person,v=>person=v)),
       field("When (optional)",select([["unknown","Not sure"],["today","Today"],["yesterday","Yesterday"],["approx","Approximately"],["date","Exact date"]],kind,v=>{kind=v;exactField.hidden=v!=="date";roughField.hidden=v!=="approx";}))),exactField,roughField,
       disc("paste-log","Paste an exchange instead","Optional",exchange,h("label",{class:"check"},h("input",{type:"checkbox",checked:keep,onchange:e=>keep=e.target.checked}),"Keep the original exchange on this Mac"),h("p",{class:"muted small",text:"Unchecked: only your written recap is saved. To retain an exchange without a recap, explicitly check this box."})),
@@ -1621,7 +1634,8 @@
     if (seq === renderSeq) {
       main.replaceChildren(...fresh.childNodes);
       const headline = main.querySelector(".page h1, .page .page-head h2, .person-heading h2");
-      if (headline) typeInto(headline, S.tab + ":" + headline.textContent);
+      if (headline) typeInto(headline, S.tab);
+      if (S.arrive) { S.arrive = false; arrive(main.querySelector(".today-grid .hero, .quicklog-page form")); }
       if(!motionOff()){
         const page=main.querySelector('.page');if(page)page.animate([{opacity:.35,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:220,easing:'cubic-bezier(.22,1,.36,1)'});
       }

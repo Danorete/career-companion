@@ -73,13 +73,32 @@ with tempfile.TemporaryDirectory(prefix='link-rail-') as folder:
             assert pager.get_by_role('link', name='People →').count() == 1
             page.screenshot(path=str(args.output / 'today.png'))
 
-            # A heading types only on the first visit of a session.
+            # Doherty threshold: Link's greeting finishes typing within ~300 ms.
+            page.wait_for_timeout(500)
+            assert page.locator('#chat-log .typed-visual').count() == 0
+
+            # Fitts's law: small text links still have a 44 px tall target.
+            for link in (pager.get_by_role('link', name='People →'), page.locator('.today-recent .section-title a')):
+                assert link.bounding_box()['height'] >= 44, link.bounding_box()
+
+            # Frequency of use: a headline types only the first time it is ever shown, even after a reload.
             pager.get_by_role('link', name='People →').click()
             page.get_by_role('heading', name='Your people.', exact=True).wait_for()
             assert rail.get_by_role('link', name='People', exact=True).get_attribute('aria-current') == 'page'
             rail.get_by_role('link', name='Today', exact=True).click()
             page.get_by_role('heading', name='One thing today.', exact=True).wait_for()
             assert page.locator('#main .typed-visual').count() == 0
+            page.reload()
+            page.get_by_role('heading', name='One thing today.', exact=True).wait_for()
+            assert page.locator('#main .typed-visual').count() == 0
+
+            # Finishing the next action: the card folds away, the next one arrives, and nothing breaks.
+            first = page.locator('.today-grid .hero h2').inner_text()
+            page.once('dialog', lambda d: d.accept())
+            page.get_by_role('button', name='Already dealt with it?').click()
+            page.get_by_role('button', name='I did this').click()
+            page.wait_for_function("t => { const h = document.querySelector('.today-grid .hero h2'); return !h || h.textContent !== t; }", arg=first, timeout=5000)
+            page.screenshot(path=str(args.output / 'today-after-done.png'))
 
             # Pause motion: pressed state, document flag, survives reload, and headlines appear at once.
             pause = rail.get_by_role('button', name='Pause motion')
@@ -124,5 +143,6 @@ with tempfile.TemporaryDirectory(prefix='link-rail-') as folder:
         server.should_exit = True
     assert not errors, errors
     print('Rail checks passed: numbered rooms, career tools, local status, typed headline with full accessible name, '
-          'first-visit-only typing, Pause motion (persists, keeps focus), reduced motion, pager, recent context, '
+          'typing only on first ever view (survives reload), replies typed within 300 ms, 44 px link targets, '
+          'next action folds away on done, Pause motion (persists, keeps focus), reduced motion, pager, recent context, '
           'Link panel on demand, no overflow at 1280; no JS errors.')
