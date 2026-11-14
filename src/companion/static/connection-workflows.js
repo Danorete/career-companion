@@ -29,7 +29,7 @@
         const page=h('section',{class:(onboarding?'onb connection-onboarding':'page connection-page')+' studio-welcome'},
           h('div',{class:'welcome-cover'},h('div',{class:'cover-brand'},h('span',{class:'orb is-ready'},orbSvg(35)),h('span',{text:'Link'})),
             h('h1',{text:'Good people. Real possibilities.'}),
-            h('p',{class:'cover-caption',text:'Start, prepare, keep in touch.'}),connectionMotif()),
+            h('p',{class:'cover-caption',text:'Start, prepare, keep in touch.'}),h('figure',{class:'product-preview'},h('figcaption',{text:'This is Today'}),h('img',{src:'/static/today-preview.webp',width:1120,height:700,alt:'Link’s Today page: one next action, “Send Jordan the article”, beside recent conversations with honest dates.'}))),
           h('div',{class:'welcome-choices'},h('span',{class:'eyebrow',text:'01 / A place to begin'}),h('h2',{text:'Where shall we begin?'}),
             h('div',{class:'connection-paths'},['starting','reconnect','met'].map(mode=>h('button',{type:'button',class:'path-choice','aria-label':modes[mode][0],onclick:()=>{flow={inputs:{mode},plan:null};render();}},
               h('span',{},h('strong',{text:modes[mode][0]}),h('small',{text:descriptions[mode]})),h('span',{class:'path-arrow','aria-hidden':'true',text:'→'})))),

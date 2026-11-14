@@ -140,8 +140,8 @@
     "semantic_hash": ""
   },
   "DECISIONS.md": {
-    "mtime": 1794678689.4009888,
-    "ast_hash": "f3b5cfcc4ccc2a670cd7f3950bba42ff",
+    "mtime": 1794680940.5918076,
+    "ast_hash": "9b175b39ea5ce91628e32b8380672439",
     "semantic_hash": ""
   },
   "PROGRESS.md": {
@@ -150,8 +150,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794678689.4006662,
-    "ast_hash": "3f3865cc187ec702dda1d97390a34096",
+    "mtime": 1794680940.5907521,
+    "ast_hash": "f8baed9f5cb58c5281d6f60d9433e443",
     "semantic_hash": ""
   },
   "src/companion/static/fonts/LICENSE-Inter.txt": {
@@ -195,8 +195,8 @@
     "semantic_hash": ""
   },
   "scripts/check_first_clicks_browser.py": {
-    "mtime": 1794678494.5387657,
-    "ast_hash": "021eca60d8764ff9999809fce413d52a",
+    "mtime": 1794680854.9451218,
+    "ast_hash": "b221db896a8550bc9172425738506fdd",
     "semantic_hash": ""
   },
   "scripts/check_network_browser.py": {
@@ -235,8 +235,8 @@
     "semantic_hash": ""
   },
   "src/companion/static/connection-workflows.js": {
-    "mtime": 1794678463.9342256,
-    "ast_hash": "076403fea5e7a2d26849c6a56ffe605b",
+    "mtime": 1794680787.311772,
+    "ast_hash": "ae5b33c3472a5815ca1938feee620bcf",
     "semantic_hash": ""
   },
   "src/companion/static/link-guide.js": {
@@ -345,8 +345,8 @@
     "semantic_hash": ""
   },
   "VALIDATION.md": {
-    "mtime": 1794678689.40119,
-    "ast_hash": "debc16d7c108664f2d3ad7aed35d0ba2",
+    "mtime": 1794680940.5922327,
+    "ast_hash": "f9863ee3922a31811a83c6a0081aba22",
     "semantic_hash": ""
   },
   "src/companion/static/GUIDANCE-LICENSE.md": {
@@ -397,6 +397,21 @@
   "tests/test_double_submit.py": {
     "mtime": 1794678375.242867,
     "ast_hash": "271643b40cb3e4f0613ef1b9640c22d8",
+    "semantic_hash": ""
+  },
+  "scripts/make_today_preview.py": {
+    "mtime": 1794680925.2994854,
+    "ast_hash": "f8f4df29ee40a7d0e8a7856a3b03e61c",
+    "semantic_hash": ""
+  },
+  "docs/persona-test-prompt.md": {
+    "mtime": 1794680843.307923,
+    "ast_hash": "3829de3a15b9a20b7d2adb8df52450d4",
+    "semantic_hash": ""
+  },
+  "src/companion/static/today-preview.webp": {
+    "mtime": 1794680928.179928,
+    "ast_hash": "387024a6eb03a5c10a5e9e4cc707ace2",
     "semantic_hash": ""
   }
 }

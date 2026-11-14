@@ -359,3 +359,17 @@ links such as "Assign" and the previous/next links have 44 px tall click targets
 - Headlines say something specific ("One thing for Jordan today.", "Your 4 people.").
 - Repeated and filler labels are gone. Monospace is used only for numbers, dates and status.
 - Icons share one line weight, headlines wrap evenly, numbers use same-width digits, and small grey text is darker.
+
+**Accent and first-run preview (2026-11-14).** The main action on a page (the `primary` button, such as "Work on
+this") uses the forest accent, so the next thing to do is the one coloured button. First run shows a real
+screenshot of Today, labelled "This is Today", in place of the abstract illustration. The image is made from the
+fictional demo data. After changing Today's design, regenerate it:
+
+```bash
+CHROMIUM_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" .venv/bin/python scripts/make_today_preview.py
+```
+
+(It needs Playwright and ImageMagick's `convert`.)
+
+`docs/persona-test-prompt.md` is a prompt for rehearsing Link's pitch on 100 simulated students, graduates and
+career-services staff. It is practice for real conversations, not evidence.

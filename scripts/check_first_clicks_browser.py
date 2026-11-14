@@ -3,6 +3,7 @@
 Synthetic temporary data and mock AI only. Requires Playwright and Linux Chromium.
 """
 import argparse
+import re
 import os
 import sys
 import tempfile
@@ -83,6 +84,10 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             page.goto('http://127.0.0.1:8883/#today')
             page.reload()
             page.get_by_role('heading',name='Good people. Real possibilities.',exact=True).wait_for()
+            preview=page.get_by_role('img',name=re.compile('^Link’s Today page'))
+            preview.wait_for()
+            assert preview.evaluate('(img)=>img.complete && img.naturalWidth > 0'), 'first-run product preview did not load'
+            page.screenshot(path=str(args.output/'first-run.png'))
             page.get_by_role('button',name='Import my connections',exact=True).click()
             page.get_by_label('Choose Connections.csv',exact=True).wait_for()
             assert page.get_by_role('link',name='Import',exact=True).first.is_visible()

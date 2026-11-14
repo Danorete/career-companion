@@ -51,5 +51,7 @@
   "49": "test_live_readiness.py",
   "50": "test_passage_suggestions.py",
   "51": "extraction-spec.md",
-  "52": "test_record_context.py"
+  "52": "test_record_context.py",
+  "53": "attach_posting",
+  "54": "setup_progress"
 }

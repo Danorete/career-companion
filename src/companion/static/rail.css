@@ -26,8 +26,10 @@ body.connection-studio { font:15px/1.55 var(--body); background:var(--ground); }
 .connection-studio .eyebrow,.connection-studio .workspace-label { font:600 12px/1.4 var(--body); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
 .connection-studio .muted.small,.connection-studio .small { font-size:13px; }
 .connection-studio .btn { min-height:44px; font-size:14px; border-radius:0; border-color:var(--ink); }
-.connection-studio .btn.primary,.connection-studio .btn.dark { background:var(--ink); border-color:var(--ink); color:var(--sheet); }
-.connection-studio .btn.primary:hover,.connection-studio .btn.dark:hover { background:var(--accent-strong); border-color:var(--accent-strong); }
+/* Idea 4: the main action carries the accent, so the one thing to do next is the one coloured button. */
+.connection-studio .btn.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
+.connection-studio .btn.dark { background:var(--ink); border-color:var(--ink); color:var(--sheet); }
+.connection-studio .btn.primary:hover,.connection-studio .btn.dark:hover { background:var(--accent-strong); border-color:var(--accent-strong); color:var(--on-accent); }
 .connection-studio .btn.quiet { border-color:transparent; color:var(--accent); }
 .connection-studio input,.connection-studio textarea,.connection-studio select { border-radius:0; font-size:15px; }
 .connection-studio .chip { border-radius:0; font:600 12px/1.4 var(--body); letter-spacing:.04em; text-transform:uppercase; }
@@ -163,3 +165,7 @@ body.connection-studio { font:15px/1.55 var(--body); background:var(--ground); }
 .connection-studio details.disc > summary .hint { font-size:13px; color:var(--ink-2); }
 .connection-studio .people-directory .person-row-main .small { color:var(--ink-2); }
 .connection-studio .person-tab-panel .btn,.connection-studio .person-primary-actions .btn,.connection-studio .person-tab-panel > .row .btn { font-size:14px; }
+/* Idea 5: first run shows the real product instead of an abstract illustration. */
+.product-preview { margin:8px 0 0; display:flex; flex-direction:column; gap:8px; }
+.product-preview img { width:100%; max-width:560px; height:auto; border:1px solid var(--ink); box-shadow:0 10px 28px #1f2a2420; background:var(--sheet); }
+.product-preview figcaption { font:600 12px/1.4 var(--body); letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }

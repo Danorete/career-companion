@@ -75,3 +75,8 @@ replaces it on Today.
 quick log, person or to-do was saved twice). All eight browser scripts pass with no JavaScript errors. The rail check
 now also double-clicks Save quick log and confirms one log is stored, and checks that Option/Alt + 2 opens People and
 that the rail link declares the shortcut. Screenshots of Today and People were inspected after the change.
+
+### Accent and first-run preview (2026-11-14)
+203 Python tests and all eight browser scripts pass with no JavaScript errors. `check_first_clicks_browser.py` now
+checks that the first-run preview image is present by its accessible name and actually loads. First-run and Today
+screenshots were inspected.
