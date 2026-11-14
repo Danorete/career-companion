@@ -70,8 +70,8 @@
     "semantic_hash": ""
   },
   "src/companion/static/app.js": {
-    "mtime": 1794606755.013737,
-    "ast_hash": "b73b454b3f4d86449893eea2d6885367",
+    "mtime": 1794678000.1519208,
+    "ast_hash": "d619097d690ae21783131e9dc2f76ddb",
     "semantic_hash": ""
   },
   "src/companion/static/login.js": {
@@ -140,8 +140,8 @@
     "semantic_hash": ""
   },
   "DECISIONS.md": {
-    "mtime": 1794606899.9377265,
-    "ast_hash": "e408619c3cb20286184417f800366586",
+    "mtime": 1794678111.0070074,
+    "ast_hash": "b7174008d71c6dfdfcd32e9e968359be",
     "semantic_hash": ""
   },
   "PROGRESS.md": {
@@ -150,8 +150,8 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794606899.936905,
-    "ast_hash": "9db19176e87dd661d9f99010381554c6",
+    "mtime": 1794678111.0059087,
+    "ast_hash": "640e7f4f4dee5425d2bdba195712c785",
     "semantic_hash": ""
   },
   "src/companion/static/fonts/LICENSE-Inter.txt": {
@@ -235,8 +235,8 @@
     "semantic_hash": ""
   },
   "src/companion/static/connection-workflows.js": {
-    "mtime": 1794606795.8502293,
-    "ast_hash": "000e1dcad9decf0a22ca69994b918f55",
+    "mtime": 1794606918.2957215,
+    "ast_hash": "8c8c4b10bddb5cc7f3f3b281ba9eaeac",
     "semantic_hash": ""
   },
   "src/companion/static/link-guide.js": {
@@ -345,8 +345,8 @@
     "semantic_hash": ""
   },
   "VALIDATION.md": {
-    "mtime": 1794606899.9384024,
-    "ast_hash": "51cd6bdd5e6179b3d0ffd73c84e344a6",
+    "mtime": 1794678111.007605,
+    "ast_hash": "3cc4689b3df49f50a4515f3de298c625",
     "semantic_hash": ""
   },
   "src/companion/static/GUIDANCE-LICENSE.md": {
@@ -380,8 +380,8 @@
     "semantic_hash": ""
   },
   "scripts/check_rail_browser.py": {
-    "mtime": 1794606777.5133958,
-    "ast_hash": "a37ea6b71c50195292caa5d302f2d58d",
+    "mtime": 1794678037.5752966,
+    "ast_hash": "6a1b02212c70f7200ce107c2e2ced7bb",
     "semantic_hash": ""
   },
   "src/companion/static/fonts/LICENSE-IBMPlexMono.txt": {
