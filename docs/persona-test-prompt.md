@@ -44,6 +44,7 @@ Create 100 distinct people in these groups (keep the counts):
 For each person give: a one-line background, how comfortable they are with networking (1 to 5), the tools they
 use now (LinkedIn, Handshake, notes app, spreadsheet, nothing), their device (Mac, Windows, phone only), how
 much time they'd give a new app in a week, and one honest reason they might say no.
+Keep each person to one row of a table. If you run out of space, stop at a clean point and I'll say "continue".
 
 ## Step 2: pitch each person
 Show each person [PITCH A]. Have them react in one or two sentences in their own voice, then decide:
