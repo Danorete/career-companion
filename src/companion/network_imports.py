@@ -73,7 +73,7 @@ def _remember(db, kind: str, token: str, value: dict):
 
 def connections_preview(db, text: str) -> dict:
     rows = _csv(text, {'first name', 'last name', 'company', 'position', 'connected on'})
-    existing = people.list_people(db)
+    existing = people.identities(db)
     parsed = []
     for i, row in enumerate(rows):
         name = ' '.join(x for x in (row['first name'], row['last name']) if x)

@@ -202,3 +202,35 @@ def test_step_undo_preserves_other_open_tasks_and_reminder(client, app):
     assert client.post(f"/api/people/{stranger['id']}/next/restore",json=payload).status_code == 422
     payload['remind_on']='invalid'
     assert client.post(f"/api/people/{p['id']}/next/restore",json=payload).status_code == 422
+
+
+def test_directory_summaries_match_per_person_summary(db):
+    """The batched directory must equal the per-person summary, including legacy outcomes and open actions."""
+    a = store.insert(db, 'items', kind='relationship', title='Ada Example', org='Org A')
+    b = store.insert(db, 'items', kind='relationship', title='bo Example', org='Org B')
+    store.insert(db, 'items', kind='relationship', title='Cy Empty')
+    for day, item in (('2026-01-02', a), ('2026-03-04', a), ('2026-02-01', b)):
+        store.insert(db, 'interactions', item_id=item['id'], source='user_recap', summary='s',
+                     when_kind='exact', occurred_on=day, sort_date=day)
+    store.insert(db, 'outcomes', item_id=a['id'], type='replied', note='n', occurred_on='2026-05-06')
+    first = store.insert(db, 'actions', item_id=a['id'], kind='follow_up', title='First', commitment=1)
+    store.insert(db, 'actions', item_id=a['id'], kind='follow_up', title='Second', commitment=1)
+    store.insert(db, 'reminders', action_id=first['id'], text='First', due_on='2026-06-01')
+    done = store.insert(db, 'actions', item_id=b['id'], kind='follow_up', title='Done', commitment=1)
+    store.set_action_state(db, done['id'], 'done')
+    expected = [people._summary(db, it) for it in
+                store.rows(db, 'items', "kind='relationship'", order='title COLLATE NOCASE ASC')]
+    assert people.list_people(db) == expected
+    assert [p['name'] for p in expected] == ['Ada Example', 'bo Example', 'Cy Empty']
+    assert expected[0]['entries'] == 3 and expected[0]['next_action']['other_open'] == 1
+    assert [p['id'] for p in people.identities(db)] and {p['name'] for p in people.identities(db)} == {p['name'] for p in expected}
+
+
+def test_follow_ups_survive_eight_dismissals(db):
+    from companion import coaching
+    p = store.insert(db, 'items', kind='relationship', title='Dana Example')
+    ids = [store.insert(db, 'interactions', item_id=p['id'], source='user_recap', summary=f's{i}',
+                        commitments='May have promised a link', sort_date='2026-01-01')['id'] for i in range(10)]
+    for i in ids[-8:]:
+        db.run("INSERT INTO kv(key,value) VALUES(?,?)", (f'followup_dismissed_{i}', '1'))
+    assert [c['id'] for c in coaching.follow_up_candidates(db)] == [ids[1], ids[0]]

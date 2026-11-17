@@ -100,8 +100,9 @@ def next_action(db: Database, item_id: int) -> dict | None:
             "remind_on": reminder["due_on"] if reminder else None, "other_open": len(rows) - 1}
 
 
-def _summary(db: Database, item: dict) -> dict:
-    entries = timeline(db, item["id"])
+def _summary(db: Database, item: dict, entries: list[dict] | None = None) -> dict:
+    if entries is None:
+        entries = timeline(db, item["id"])
     last = entries[0] if entries else None
     return {
         "id": item["id"], "name": item["title"], "org": item["org"], "category": item["category"],
@@ -112,8 +113,59 @@ def _summary(db: Database, item: dict) -> dict:
     }
 
 
+_PERSON_COLS = ("id", "title", "org", "category", "profile_link", "shareable_context", "is_sample")
+
+
 def list_people(db: Database) -> list[dict]:
-    return [_summary(db, it) for it in store.rows(db, "items", "kind='relationship'", order="title COLLATE NOCASE ASC")]
+    """Directory summaries in a fixed number of queries, however many people or entries exist."""
+    items = db.q(f"SELECT {', '.join(_PERSON_COLS)} FROM items WHERE kind='relationship' "
+                 "ORDER BY title COLLATE NOCASE ASC")
+    if not items:
+        return []
+    # Latest timeline entry and entry count per person, using the same ordering as `timeline()`.
+    latest = {r["item_id"]: r for r in db.q("""
+        SELECT * FROM (
+            SELECT item_id, type, source, original_label, when_kind, occurred_on, when_text, logged_on,
+                   COUNT(*) OVER (PARTITION BY item_id) AS entries,
+                   ROW_NUMBER() OVER (PARTITION BY item_id ORDER BY sort_date DESC, logged_on DESC, id DESC) AS rn
+            FROM (
+                SELECT item_id, id, 'log' AS type, source, NULL AS original_label, when_kind, occurred_on,
+                       when_text, sort_date, substr(created_at, 1, 10) AS logged_on FROM interactions
+                UNION ALL
+                SELECT item_id, id, 'outcome', NULL, type, 'exact', occurred_on, '', occurred_on,
+                       substr(created_at, 1, 10) FROM outcomes))
+        WHERE rn = 1 AND item_id IN (SELECT id FROM items WHERE kind='relationship')""")}
+    # Oldest open action per person, its pending reminder, and how many other open actions exist.
+    opens = {r["item_id"]: r for r in db.q("""
+        SELECT a.item_id, a.id, a.title, a.state, a.open_count, (
+                   SELECT due_on FROM reminders r WHERE r.action_id=a.id AND r.state='pending'
+                   ORDER BY r.id DESC LIMIT 1) AS remind_on
+        FROM (SELECT item_id, id, title, state,
+                     COUNT(*) OVER (PARTITION BY item_id) AS open_count,
+                     ROW_NUMBER() OVER (PARTITION BY item_id ORDER BY id ASC) AS rn
+              FROM actions WHERE state NOT IN ('done','dropped')) a
+        WHERE a.rn = 1""")}
+    out = []
+    for it in items:
+        last, act = latest.get(it["id"]), opens.get(it["id"])
+        out.append({
+            "id": it["id"], "name": it["title"], "org": it["org"], "category": it["category"],
+            "profile_link": it["profile_link"], "context": it["shareable_context"], "is_sample": it["is_sample"],
+            "last_interaction": None if not last else {
+                k: last[k] for k in ("type", "source", "original_label", "when_kind", "occurred_on",
+                                     "when_text", "logged_on")},
+            "next_action": None if not act else {
+                "id": act["id"], "title": act["title"], "state": act["state"],
+                "remind_on": act["remind_on"], "other_open": act["open_count"] - 1},
+            "entries": last["entries"] if last else 0,
+        })
+    return out
+
+
+def identities(db: Database) -> list[dict]:
+    """Just enough to match an imported row to an existing person. No history is loaded."""
+    return [{"id": r["id"], "name": r["title"], "org": r["org"], "profile_link": r["profile_link"]}
+            for r in db.q("SELECT id, title, org, profile_link FROM items WHERE kind='relationship'")]
 
 
 def get_person(db: Database, item_id: int) -> dict:
@@ -125,8 +177,8 @@ def get_person(db: Database, item_id: int) -> dict:
 
 def person_detail(db: Database, item_id: int) -> dict:
     item = get_person(db, item_id)
-    return {**_summary(db, item), "notes": item["private_notes"], "timeline": timeline(db, item_id),
-            "drafts": []}
+    entries = timeline(db, item_id)
+    return {**_summary(db, item, entries), "notes": item["private_notes"], "timeline": entries, "drafts": []}
 
 
 # ---- writing people -------------------------------------------------------------------
