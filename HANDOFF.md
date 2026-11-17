@@ -60,7 +60,7 @@ In the order it was built (details in `PROGRESS.md`, reasons in `DECISIONS.md` D
 
 ## Checks and what is still unverified
 
-314 Python tests pass on Linux, Python 3.12 (2026-11-17). The browser checks in `scripts/` are
+316 Python tests pass on Linux, Python 3.12 (2026-11-17). The browser checks in `scripts/` are
 described at the end of `README.md`; history of each run is in `VALIDATION.md`.
 
 Never tested: a real call to the AI provider, provider billing against the app's own ledger, macOS,

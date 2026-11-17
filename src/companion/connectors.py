@@ -33,7 +33,7 @@ GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 MAIL_HOSTS = frozenset({"oauth2.googleapis.com", "gmail.googleapis.com"})
 MAIL_TOKEN_ACCOUNT = "google-mail-refresh-token"
 MAIL_HEADERS = ("From", "To", "Cc", "List-Id", "Precedence")  # no Subject, and no body is possible under this scope
-MESSAGES_PER_LABEL = 60
+MESSAGES_PER_LABEL = 150
 FLOW_SECONDS = 600
 MAX_PENDING_FLOWS = 5
 MAX_EVENTS = 250
@@ -207,22 +207,42 @@ class GoogleMail(_GoogleOAuth):
     def self_address(self) -> str:
         return str(self._get(GMAIL_API + "/profile", {"fields": "emailAddress"}, "Gmail").get("emailAddress", "")).lower()
 
+    def _listing(self, limit: int, label: str | None) -> list[str]:
+        """Ids of the newest messages, a page at a time. This scope refuses a search query, so it is "newest first"."""
+        ids, token = [], None
+        while len(ids) < limit:
+            params = {"maxResults": str(min(100, limit - len(ids))), "fields": "messages(id),nextPageToken"}
+            if label:
+                params["labelIds"] = label
+            if token:
+                params["pageToken"] = token
+            page = self._get(GMAIL_API + "/messages", params, "Gmail")
+            ids += [m["id"] for m in page.get("messages", [])]
+            token = page.get("nextPageToken")
+            if not token:
+                break
+        return ids[:limit]
+
+    def _headers_of(self, message_id: str) -> dict:
+        params = [("format", "metadata"), ("fields", "internalDate,labelIds,payload(headers)")] + [("metadataHeaders", h) for h in MAIL_HEADERS]
+        return self._get(f"{GMAIL_API}/messages/{message_id}", params, "Gmail")
+
     def messages(self, per_label: int = MESSAGES_PER_LABEL) -> list[dict]:
-        out = []
-        for label, direction in (("SENT", "sent"), ("INBOX", "received")):
-            # This scope refuses a search query, so Link takes the newest messages in each folder instead.
-            listing = self._get(GMAIL_API + "/messages", {"labelIds": label, "maxResults": str(per_label), "fields": "messages(id)"}, "Gmail")
-            for ref in listing.get("messages", []):
-                params = [("format", "metadata"), ("fields", "internalDate,payload(headers)")] + [("metadataHeaders", h) for h in MAIL_HEADERS]
-                out.append(normalize_message(self._get(f"{GMAIL_API}/messages/{ref['id']}", params, "Gmail"), direction))
+        """Newest sent mail, and newest mail of any folder (archived replies included) that you did not send yourself."""
+        out = [normalize_message(self._headers_of(i), "sent") for i in self._listing(per_label, "SENT")]
+        for i in self._listing(per_label, None):
+            item = self._headers_of(i)
+            if not {"SENT", "DRAFT"} & set(item.get("labelIds", [])):
+                out.append(normalize_message(item, "received"))
         return out
 
 
 def normalize_message(item: dict, direction: str) -> dict:
     """Only addresses, names, the time and whether it looks like a mailing list. Nothing else is kept."""
     headers = {h.get("name", "").lower(): h.get("value", "") for h in item.get("payload", {}).get("headers", [])}
-    people = headers.get("to", "") + "," + headers.get("cc", "") if direction == "sent" else headers.get("from", "")
-    parties = [{"name": name.strip(), "address": address.strip().lower()} for name, address in getaddresses([people]) if address]
+    # Separate fields, never joined with a comma: Python 3.13's stricter parser returns nothing for "a@b.com," (no Cc).
+    fields = [headers.get("to", ""), headers.get("cc", "")] if direction == "sent" else [headers.get("from", "")]
+    parties = [{"name": name.strip(), "address": address.strip().lower()} for name, address in getaddresses([f for f in fields if f]) if address]
     at = datetime.fromtimestamp(int(item.get("internalDate", "0")) / 1000, tz=timezone.utc).isoformat()
     bulk = "list-id" in headers or headers.get("precedence", "").lower() in ("bulk", "list", "junk")
     return {"direction": direction, "at": at, "bulk": bulk, "parties": parties}

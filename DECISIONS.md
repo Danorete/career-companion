@@ -293,7 +293,7 @@ Status: built and tested on the sample mailbox and in the browser. Not tried wit
 
 Why: people you already email are the easiest ones to forget to add. Reading who wrote to whom, and when, removes typing without reading anything private.
 
-- **What it reads.** Sender and recipient names and addresses, plus dates and a few list headers, from your newest 60 sent and 60 received messages. Never a subject, body or attachment. Scope: `gmail.metadata`, which cannot read bodies.
+- **What it reads.** Sender and recipient names and addresses, plus dates and a few list headers, from your newest 150 sent messages and newest 150 messages you did not send, in any folder (archived replies included). Never a subject, body or attachment. Scope: `gmail.metadata`, which cannot read bodies.
 - **Who becomes a suggestion.** Only someone you wrote to who wrote back. One-way mail, newsletters, no-reply addresses and mass messages (more than 5 recipients) never do. A click on **Keep** saves a person and nothing else.
 - **Not now** hides someone until newer mail arrives. **Never** stops suggesting that address.
 - **Kept people** show "You last wrote them on Nov 12" from dates only. Stored as counts and dates in `email_contacts` (schema 8) plus one key-value row per person.

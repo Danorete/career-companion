@@ -156,3 +156,35 @@ def test_a_version_seven_database_gains_the_email_table(tmp_path):
     db = Database(path)
     assert db.one("SELECT COUNT(*) AS n FROM email_contacts")["n"] == 0
     db.close()
+
+
+def test_google_mail_reads_archived_mail_and_pages_through_the_newest_messages():
+    class Fake(connectors.GoogleMail):
+        def __init__(self):
+            self.calls = []
+        def _get(self, url, params, what):
+            self.calls.append((url, params))
+            p = dict(params) if not isinstance(params, dict) else params
+            if url.endswith("/messages"):
+                if p.get("labelIds") == "SENT":
+                    return {"messages": [{"id": "s1"}]}
+                if p.get("pageToken"):
+                    return {"messages": [{"id": "r3"}]}
+                return {"messages": [{"id": "r1"}, {"id": "r2"}, {"id": "s1"}], "nextPageToken": "next"}
+            labels = {"s1": ["SENT"], "r1": ["CATEGORY_UPDATES"], "r2": [], "r3": ["INBOX"]}  # r2 is archived: no INBOX label
+            mid = url.rsplit("/", 1)[1]
+            who = {"s1": "To", "r1": "From", "r2": "From", "r3": "From"}[mid]
+            return {"internalDate": "1763380800000", "labelIds": labels[mid], "payload": {"headers": [{"name": who, "value": f"{mid}@example.com"}]}}
+
+    mail = Fake()
+    got = mail.messages(per_label=10)
+    assert [(m["direction"], m["parties"][0]["address"]) for m in got] == [
+        ("sent", "s1@example.com"), ("received", "r1@example.com"), ("received", "r2@example.com"), ("received", "r3@example.com")]
+    assert not any(c[1].get("labelIds") == "INBOX" for c in mail.calls if isinstance(c[1], dict))  # not limited to the Inbox
+
+
+def test_a_sent_message_with_only_a_to_address_keeps_its_recipient():
+    item = {"internalDate": "1763380800000", "payload": {"headers": [{"name": "To", "value": "Maya Lindqvist <maya@example.com>"}]}}
+    assert connectors.normalize_message(item, "sent")["parties"] == [{"name": "Maya Lindqvist", "address": "maya@example.com"}]
+    both = {"internalDate": "1763380800000", "payload": {"headers": [{"name": "To", "value": "a@example.com"}, {"name": "Cc", "value": "b@example.com"}]}}
+    assert [p["address"] for p in connectors.normalize_message(both, "sent")["parties"]] == ["a@example.com", "b@example.com"]
