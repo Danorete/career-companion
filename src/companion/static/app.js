@@ -31,6 +31,20 @@
   };
   const NAV = [["today", "Today", "today"], ["people", "People", "me"], ["quicklog", "Quick log", "docplus"], ["sources", "Import", "pasted"]];
   const NAV_MINOR = [["roles", "Roles", "people"], ["evidence", "Evidence", "evidence"], ["drafts", "Drafts", "drafts"], ["me", "About me", "me"], ["pasted", "Pasted material", "pasted"], ["settings", "Settings & data", "settings"]];
+  // Two versions of one app. "dev" keeps the builder's controls and original wording. "user" (the default)
+  // hides spending and AI-mode controls and uses plain words. Set with COMPANION_UI_MODE or `companion run --mode`.
+  const DEV_LABELS = Object.fromEntries(NAV.concat(NAV_MINOR).map(([id, label]) => [id, label]));
+  const USER_LABELS = { quicklog: "Add a note", sources: "Add contacts", roles: "Jobs I’m looking at", evidence: "What I’ve done",
+                        drafts: "My messages", pasted: "Things I pasted", settings: "Settings" };
+  S.mode = "user";
+  const isDev = () => S.mode === "dev";
+  const pick = (dev, user) => (isDev() ? dev : user);
+  function applyMode(mode) {
+    S.mode = mode === "dev" ? "dev" : "user";
+    document.body.dataset.mode = S.mode;
+    NAV.concat(NAV_MINOR).forEach((n) => { n[1] = (isDev() ? DEV_LABELS : { ...DEV_LABELS, ...USER_LABELS })[n[0]]; });
+  }
+  const label = (id) => (NAV.concat(NAV_MINOR).find((n) => n[0] === id) || [id, id])[1];
   const PURPOSES = [["outreach", "First message"], ["follow_up", "Follow-up"], ["profile", "Profile text"],
                     ["application", "Résumé or application text"], ["post", "Post"], ["interview_prep", "Interview answer"]];
   const KIND_TO_PURPOSE = { outreach: "outreach", follow_up: "follow_up", profile_edit: "profile",
@@ -233,6 +247,7 @@
   async function refreshStatus() {
     const b = await api("GET", "/api/bootstrap");
     Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup });
+    applyMode(b.ui_mode);
     renderSide(); syncCompanion();
   }
   async function loadToday() {
@@ -257,10 +272,19 @@
         btn("End", endSession, "quiet"));
     }
     fill($("side-main"),
-      h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}), h("small", {text: "Your connection studio"}))),
-      h("div", {class: "nav-caption", text: "Workspace"}), h("div",{class:"primary-nav"},NAV.map((n) => link(n,false))), h("div", { class: "side-spacer" }), disc("career-tools", "Career tools", "Optional", NAV_MINOR.filter(n=>n[0]!=="settings"&&n[0]!=="me").map(n=>link(n,true))), link(["me","About me","me"],true), link(["settings","Settings & data","settings"],true), session);
+      h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}), h("small", {text: pick("Your connection studio", "Remember people. Follow up.")}))),
+      h("div", {class: "nav-caption", text: "Workspace"}), h("div",{class:"primary-nav"},NAV.map((n) => link(n,false))), h("div", { class: "side-spacer" }), disc("career-tools", pick("Career tools", "More tools"), "Optional", NAV_MINOR.filter(n=>n[0]!=="settings"&&n[0]!=="me").map(n=>link(n,true))), link(["me","About me","me"],true), link(["settings",pick("Settings & data","Settings"),"settings"],true), session);
     renderMobileTabs();
     updateSetupCard();
+    if (!isDev()) {
+      // User version: no spending meter or provider detail. One plain line, and only when it matters.
+      const paused = b.level === "hard_stop";
+      const note = paused ? "AI is paused until next month. Everything else still works."
+        : !S.ai.available ? "AI is off. Everything else still works."
+        : S.ai.mode === "mock" ? "Sample answers. Link’s AI isn’t switched on in this version." : "";
+      fill($("side-status"), note ? h("a", { class: "side-status", href: "#settings", title: "About the AI" }, h("span", { class: "mode" }, h("span", { class: "dot " + (paused || !S.ai.available ? "bad" : "warn") }), "About the AI"), h("span", { class: "detail muted", text: note })) : null);
+      return;
+    }
     fill($("side-status"),
       h("a", { class: "side-status", href: "#settings", title: S.ai.reason || "" },
         h("span", { class: "mode" }, h("span", { class: "dot " + mode[1] }), mode[0]),
@@ -587,7 +611,7 @@
     return h('nav',{class:'daily-shortcuts','aria-label':'Quick actions'},
       btn('Log a conversation',()=>go('quicklog'),'quiet'),
       btn('Prepare for a conversation',()=>workflows.open({mode:'prepare'}),'quiet'),
-      btn('Import connections',()=>sources.open('connections'),'quiet'));
+      btn(pick('Import connections','Add contacts'),()=>sources.open('connections'),'quiet'));
   }
   function dailyEmpty(hasPeople) {
     return h('section',{class:'daily-empty'},h('span',{class:'eyebrow',text:'ONE SMALL STEP'}),
@@ -601,7 +625,7 @@
     const all = [view.recommended].concat(view.alternatives).filter(Boolean);
     const options = all.filter((o) => !S.skipped.has(o.action.id));
     const date = new Date(view.today + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-    const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", {class: "workspace-label", text: "YOUR CONNECTION STUDIO"}), h("span", {text: date})), sampleNotice());
+    const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", {class: "workspace-label", text: pick("YOUR CONNECTION STUDIO", "TODAY")}), h("span", {text: date})), sampleNotice());
     root.append(page);
     const hasPeople=items.some(item=>item.kind==='relationship');
     page.append(todayHeader(hasPeople),dailyShortcuts());
@@ -819,7 +843,7 @@
     if(S.selectedPerson && !list.some(person=>person.id===S.selectedPerson))S.selectedPerson=null;
     const page = h('div',{class:'page people-page'},pageHead('Your people.','A little context makes the next conversation easier.'));
     root.append(page);
-    page.append(h('div',{class:'row people-source-entry'},btn('Import connections',()=>go('sources'),'quiet'),h('span',{class:'muted small',text:'Bring a LinkedIn export; choose what to keep.'})));
+    page.append(h('div',{class:'row people-source-entry'},btn(pick('Import connections','Add contacts'),()=>go('sources'),'quiet'),h('span',{class:'muted small',text:'Bring a LinkedIn export; choose what to keep.'})));
     const frame = h('div',{class:'people-studio'});
     const directory = h('aside',{class:'people-directory','aria-label':'People directory'});
     const workspace = h('section',{class:'person-workspace','aria-label':'Selected person'});
@@ -845,10 +869,10 @@
       buttons[next].focus();
     });
     directory.append(search,field('Group',select([['all','All people'],...CATEGORY],category,value=>{category=value;S.peopleCategory=value;draw();})),rows,
-      h('div',{class:'directory-footer'},btn('Capture a moment',()=>go('quicklog'),'quiet'),btn('Find a starting point',()=>workflows.open(),'quiet')));
+      h('div',{class:'directory-footer'},btn(pick('Capture a moment','Add a note'),()=>go('quicklog'),'quiet'),btn('Find a starting point',()=>workflows.open(),'quiet')));
     draw();
     if(S.addPerson){workspace.append(h('div',{class:'studio-person-form'},h('span',{class:'eyebrow',text:'One person is a beginning'}),h('h2',{text:'Who’s on your mind?'}),h('p',{class:'muted',text:'A name is enough. Add the rest as your connection develops.'}),personForm(null)));return;}
-    if(!S.selectedPerson){workspace.append(h('div',{class:'people-welcome'},connectionMotif(),h('span',{class:'eyebrow',text:'Your connection studio'}),h('h2',{text:list.length?'Pick up a conversation.':'Good connections start somewhere.'}),h('p',{text:list.length?'Choose someone to see what you remember, what you’ve learned, and what might come next.':'Link can help you find a starting point, even before you know who to approach.'}),h('div',{class:'row'},btn('Help me get started',()=>workflows.open(),'primary'),btn('Log someone you met',()=>go('quicklog')))));return;}
+    if(!S.selectedPerson){workspace.append(h('div',{class:'people-welcome'},connectionMotif(),h('span',{class:'eyebrow',text:pick('Your connection studio','Your people')}),h('h2',{text:list.length?'Pick up a conversation.':'Good connections start somewhere.'}),h('p',{text:list.length?'Choose someone to see what you remember, what you’ve learned, and what might come next.':'Link can help you find a starting point, even before you know who to approach.'}),h('div',{class:'row'},btn('Help me get started',()=>workflows.open(),'primary'),btn('Log someone you met',()=>go('quicklog')))));return;}
     const person=await api('GET','/api/people/'+S.selectedPerson);scopePerson(person);
     const importedSource=await api('GET','/api/network/people/'+person.id+'/source');
     workspace.append(h('div',{class:'person-heading'},h('div',{class:'person-avatar',text:person.name.slice(0,1).toUpperCase()}),h('div',{class:'grow'},h('span',{class:'eyebrow',text:'A connection, in context'}),h('h2',{text:person.name}),person.org?h('p',{class:'muted',text:person.org}):null),btn('← All people',()=>{S.selectedPerson=null;S.contextItem=null;document.getElementById('chat-log').replaceChildren();render();},'quiet')));
@@ -884,7 +908,7 @@
     }else{
       panel.append(personNextStep(person));
       if(S.undoAction?.personId===person.id)panel.append(btn('Undo task completion',async()=>{if(await act(()=>restoreNext(person.id,S.undoAction.previous))){S.undoAction=null;render();}},'quiet'));
-      if(person.next_action?.other_open)panel.append(h('p',{class:'muted small',text:person.next_action.other_open+' other open steps are preserved in Career tools.'}));
+      if(person.next_action?.other_open)panel.append(h('p',{class:'muted small',text:person.next_action.other_open+' other open steps are saved under '+pick('Career tools','More tools')+'.'}));
     }
     workspace.append(disc('edit-person','Person details','Edit as context grows',personForm(person),btn(person.category==='paused'?'Resume connection':'Pause connection',async()=>{if(await act(()=>api('PUT','/api/people/'+person.id,{...personFields(person),category:person.category==='paused'?'': 'paused'}))){offerUndo('Connection group changed. History is kept.',()=>api('PUT','/api/people/'+person.id,personFields(person)));render();}},'quiet'),btn('Permanently delete person',async()=>{if(!confirm('Delete this person? Quick logs remain unassigned; historical outcomes are deleted.'))return;await act(()=>api('DELETE','/api/items/'+person.id));$('undo-bar')?.remove();S.selectedPerson=null;S.contextItem=null;render();},'quiet danger')));
     if(section==='overview')workspace.append(disc('quick-message-'+person.id,'Quick message editor','Optional',messageComposer(person)));
@@ -1343,9 +1367,9 @@
   async function renderSettings(root) {
     const [b, activity] = await Promise.all([api("GET", "/api/budget"), api("GET", "/api/activity")]);
     const s = b.status, level = s.level === "hard_stop" ? "bad" : s.level === "warn" ? "warn" : "";
-    const page = h("div", { class: "page" }, pageHead("Settings & data", "Setup, AI mode, spending, and everything stored on this Mac."));
+    const page = h("div", { class: "page" }, pageHead(pick("Settings & data", "Settings"), pick("Setup, AI mode, spending, and everything stored on this Mac.", "Your data, and how the AI works.")));
     root.append(page);
-    page.append(h("section",{class:"section"},h("h3",{text:"Your networking sources"}),h("p",{text:"Import a LinkedIn snapshot, choose conversation excerpts or prepare from a calendar file."}),btn("Open Sources & imports",()=>go("sources"),"quiet")));
+    page.append(h("section",{class:"section"},h("h3",{text:pick("Your networking sources","Add contacts")}),h("p",{text:pick("Import a LinkedIn snapshot, choose conversation excerpts or prepare from a calendar file.","Bring in your LinkedIn contacts file, messages you choose, or a calendar file.")}),btn(pick("Open Sources & imports","Add contacts"),()=>go("sources"),"quiet")));
     page.append(h("section", {class:"section"}, h("h3",{text:"Meet Link"}), btn("Take the guided walkthrough",()=>window.LinkGuide.start(),"quiet")));
     page.append(h("section", {class: "section"}, h("h3", {text: "Appearance"}),
       field("Color theme", select([["system","Follow system"],["light","Light"],["dark","Dark"]], store.get("theme", "light"), value => { store.set("theme", value); applyTheme(); })),
@@ -1353,15 +1377,22 @@
     page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Setup" }), setupPanel(),
       S.setup.complete ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: store.get("setupPinned", false),
         onchange: (e) => { store.set("setupPinned", e.target.checked); renderSide(); } }), "Keep the setup card in the sidebar") : null));
+    if (!isDev()) {
+      const aiText = s.level === "hard_stop" ? "AI is paused until next month. Everything else still works."
+        : !b.ai.available ? "AI is off. Everything else works: people, notes, reminders and your data."
+        : b.ai.mode === "mock" ? "In this version Link shows sample answers. They are examples, not advice written for you. Nothing you type leaves this computer."
+        : "Link sends what you type in chat, and the details you choose for a draft, to the AI provider. It never sends messages for you.";
+      page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "About the AI" }), h("p", { text: aiText })));
+    }
     const meter = h("div", { class: "meter " + level }, h("span", {}));
     meter.firstChild.style.width = Math.min(100, 100 * s.committed_usd / s.hard_stop_usd) + "%";
-    page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "AI" }),
+    if (isDev()) page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "AI" }),
       h("div", { class: "row" }, h("h3", { text: !b.ai.available ? "AI is off" : b.ai.mode === "mock" ? "Mock AI" : "Live AI" }), chip(b.ai.mode === "mock" ? "Canned replies" : b.ai.available ? "Real replies" : "Unavailable", b.ai.available ? (b.ai.mode === "mock" ? "warn" : "ok") : "bad")),
       h("p", { text: b.ai.reason }),
       help("What leaves this Mac?", "In mock mode, nothing.", "In live mode, chat sends your planning context and recent conversation to the AI provider. Drafting and comparison send only the evidence you tick, your voice notes, and what you type in the form.",
         "To switch modes, set COMPANION_AI_MODE when starting the app. The README has the steps for a first live call.")));
     const amount = h("input", { type: "number", step: "0.01", min: 0, placeholder: "e.g. 3.42", "aria-label": "Month-to-date total from the provider Console" });
-    page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Spending this month" }),
+    if (isDev()) page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Spending this month" }),
       h("h3", { text: money(s.committed_usd) + " of " + money(s.hard_stop_usd) }), meter,
       h("p", { class: level ? "notice " + level : "", text: s.level === "hard_stop" ? "The limit is reached. New AI calls are paused until next month. Your saved work is unaffected."
         : money(s.remaining_before_stop_usd) + " left before new AI calls pause. Your monthly budget is " + money(s.monthly_budget_usd) + "." }),
@@ -1453,7 +1484,7 @@
     today: ["A little progress, every day.", "Choose one action worth your attention. Link can help you work through it."],
     people: ["Build context, one moment at a time.", "Open a person to review your history or prepare a thoughtful next step."],
     quicklog: ["Fragments are enough.", "Save what you remember. Uncertain details stay uncertain; suggestions never become tasks on their own."],
-    roles: ["Career tools.", "Your saved opportunities remain available here."],
+    get roles() { return pick(["Career tools.", "Your saved opportunities remain available here."], ["Jobs I’m looking at.", "The roles you saved are here."]); },
     evidence: ["Good stories start with proof.", "Record your claims and sources here. Verification stays in your hands."],
     drafts: ["Sound like yourself.", "Choose the evidence and context you approve before asking Link to draft. Private planning notes stay out."],
     me: ["A working portrait of you.", "Your goals guide planning. Your voice notes guide writing. You control both."],
@@ -1479,7 +1510,7 @@
     if(S.demo) page.prepend(h("div",{class:"demo-label",text:"Demo workspace · fictional people · mock AI"}));
     page.prepend(h("div", {class: "workspace-toolbar"},
       h("span", {class: "toolbar-breadcrumb"}, "Link", h("span", {"aria-hidden": "true", text: "/"}), h("strong", {text: sectionName})),
-      h("span", {class: "row"}, btn("Quick log",()=>go("quicklog"),"quiet"), h("button", {class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)", text: "Search ⌘K"}), h("span", {class: "local-indicator"}, h("span", {class: "dot"}), "Local workspace"))));
+      h("span", {class: "row"}, btn(label("quicklog"),()=>go("quicklog"),"quiet"), h("button", {class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)", text: "Search ⌘K"}), h("span", {class: "local-indicator"}, h("span", {class: "dot"}), "Local workspace"))));
 
     updateContextNote();
     if (S.tab === "drafts") {

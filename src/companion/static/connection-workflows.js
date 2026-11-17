@@ -14,6 +14,11 @@
         follow_up: ['Continue a connection', 'What has changed since your conversation?', 'Did you try their advice, finish something you discussed, or find a resource they might appreciate?'],
         opportunity: ['Ask for help', 'What help would make a difference, and why this person?', 'Choose a clear request. An introduction or referral is never assumed.']
       };
+      // User version uses everyday words. Developer version keeps the original labels.
+      const pick = (dev, user) => (S.mode === 'dev' ? dev : user);
+      const PLAIN = {starting:"I don't know where to start", reconnect:'Reach out to someone', met:'I just met someone',
+        prepare:'Prepare for a conversation', follow_up:'Follow up with someone', opportunity:'Ask for help'};
+      const title = mode => (S.mode === 'dev' ? modes[mode][0] : PLAIN[mode]);
       const asks = [['perspective','Career perspective'],['feedback','Feedback on my work'],['team','A team or role'],['introduction','An introduction'],['referral','Discuss a referral']];
       const input = (label, key, values, max=1000, rows=2) => field(label, h('textarea', {
         'aria-label':label, rows, maxlength:max, value:values[key]||'', oninput:e=>values[key]=e.target.value
@@ -25,16 +30,16 @@
         }
       }
       function choose(root, onboarding) {
-        const descriptions={starting:'Explore a direction, even with no contacts.',reconnect:'Find a genuine reason to start a conversation.',met:'Keep the fragments and decide what comes next.'};
+        const descriptions=pick({starting:'Explore a direction, even with no contacts.',reconnect:'Find a genuine reason to start a conversation.',met:'Keep the fragments and decide what comes next.'},{starting:'That’s fine. We’ll start with people you already know a little.',reconnect:'Not sure what to say? Start here.',met:'Write down what you remember and decide what to do next.'});
         const page=h('section',{class:(onboarding?'onb connection-onboarding':'page connection-page')+' studio-welcome'},
           h('div',{class:'welcome-cover'},h('div',{class:'cover-brand'},h('span',{class:'orb is-ready'},orbSvg(35)),h('span',{text:'Link'})),
-            h('span',{class:'eyebrow',text:'Your connection studio'}),h('h1',{text:'Good people. Real possibilities.'}),
-            h('p',{class:'cover-caption',text:'A little confidence. A thoughtful conversation. Your next opportunity can start here.'}),connectionMotif()),
-          h('div',{class:'welcome-choices'},h('span',{class:'eyebrow',text:'01 / A place to begin'}),h('h2',{text:'Where shall we begin?'}),
-            h('p',{text:'Tell Link what’s on your mind. We’ll build the context together.'}),
-            h('div',{class:'connection-paths'},['starting','reconnect','met'].map(mode=>h('button',{type:'button',class:'path-choice','aria-label':modes[mode][0],onclick:()=>{flow={inputs:{mode},plan:null};render();}},
-              h('span',{},h('strong',{text:modes[mode][0]}),h('small',{text:descriptions[mode]})),h('span',{class:'path-arrow','aria-hidden':'true',text:'→'})))),
-            h('div',{class:'welcome-import-path'},h('strong',{text:'Already have a network?'}),h('p',{class:'muted small',text:'Bring LinkedIn contacts, select conversation excerpts, or prepare from a calendar file. You choose what stays.'}),btn('Import my connections',async()=>{
+            h('span',{class:'eyebrow',text:pick('Your connection studio','Welcome to Link')}),h('h1',{text:pick('Good people. Real possibilities.','Remember the people you meet. Follow up without the awkwardness.')}),
+            h('p',{class:'cover-caption',text:pick('A little confidence. A thoughtful conversation. Your next opportunity can start here.','Link helps you get ready for a conversation, write the message, and keep your promises.')}),connectionMotif()),
+          h('div',{class:'welcome-choices'},h('span',{class:'eyebrow',text:pick('01 / A place to begin','Start here')}),h('h2',{text:pick('Where shall we begin?','What do you need help with?')}),
+            h('p',{text:pick('Tell Link what’s on your mind. We’ll build the context together.','Pick one. You can change your mind later.')}),
+            h('div',{class:'connection-paths'},['starting','reconnect','met'].map(mode=>h('button',{type:'button',class:'path-choice','aria-label':title(mode),onclick:()=>{flow={inputs:{mode},plan:null};render();}},
+              h('span',{},h('strong',{text:title(mode)}),h('small',{text:descriptions[mode]})),h('span',{class:'path-arrow','aria-hidden':'true',text:'→'})))),
+            h('div',{class:'welcome-import-path'},h('strong',{text:'Already have a network?'}),h('p',{class:'muted small',text:'Bring LinkedIn contacts, select conversation excerpts, or prepare from a calendar file. You choose what stays.'}),btn(pick('Import my connections','Add my contacts'),async()=>{
               if(onboarding){if(!await act(()=>api('POST','/api/onboarding/skip')))return;S.onboarding.done=true;document.body.classList.remove('onboarding');}
               openSource('connections');
             },'quiet')),
@@ -52,7 +57,7 @@
         const values=flow.inputs;
         const page=h('section',{class:onboarding?'onb connection-onboarding':'page connection-page'});
         root.append(page);
-        page.append(h('div',{class:'row spread'},h('strong',{text:'Link · '+modes[values.mode][0]}),btn('Choose another path',()=>{flow=null;render();},'quiet')));
+        page.append(h('div',{class:'row spread'},h('strong',{text:'Link · '+title(values.mode)}),btn('Choose another path',()=>{flow=null;render();},'quiet')));
         if(flow.plan) { review(page,flow.plan,onboarding); return; }
         let person=null;
         if(values.item_id) {
@@ -164,7 +169,7 @@
         const plans=await api('GET','/api/connections/plans');
         if(!plans.length)return;
         root.append(h('section',{class:'page stack'},h('h3',{text:'Your saved preparation'}),plans.slice(0,5).map(plan=>h('div',{class:'row spread'},
-          h('span',{text:modes[plan.mode][0]+' · '+(plan.status==='confirmed'?'saved':'awaiting review')}),
+          h('span',{text:title(plan.mode)+' · '+(plan.status==='confirmed'?'saved':'awaiting review')}),
           h('div',{class:'row'},btn('Resume plan',()=>{flow={inputs:plan.inputs,plan};render();}),btn('Delete plan',async()=>{if(confirm('Delete this plan? People and actions you already confirmed remain.')){await act(()=>api('DELETE','/api/connections/plans/'+plan.id));render();}},'quiet'))))));
       }
       async function personTools(root,person) {
@@ -172,14 +177,14 @@
           btn('Find a reason to follow up',()=>open({mode:'follow_up',item_id:person.id})),
           btn('Ask for help or an opportunity',()=>open({mode:'opportunity',item_id:person.id}))));
         const plans=await api('GET','/api/connections/plans?item_id='+person.id);
-        if(plans.length)root.append(disc('person-plans','Saved preparation','Resume without another AI call',plans.slice(0,4).map(plan=>btn(modes[plan.mode][0],()=>{flow={inputs:plan.inputs,plan};go('connect');},'quiet'))));
+        if(plans.length)root.append(disc('person-plans','Saved preparation','Resume without another AI call',plans.slice(0,4).map(plan=>btn(title(plan.mode),()=>{flow={inputs:plan.inputs,plan};go('connect');},'quiet'))));
       }
       async function todayTools(page,compact=false) {
         if(!compact)page.append(h('div',{class:'row'},btn('I’m stuck — help me choose',()=>{flow=null;go('connect');}),btn('Something happened',()=>go('quicklog'),'quiet')));
         if(!compact)page.append(h('div',{class:'starting-prompts row'},btn('I don’t know anyone yet',()=>open({mode:'starting'}),'quiet'),btn('I just met someone',()=>open({mode:'met'}),'quiet'),btn('Help me reconnect',()=>open({mode:'reconnect'}),'quiet')));
         const [plans,candidates]=await Promise.all([api('GET','/api/connections/plans'),api('GET','/api/connections/follow-ups')]);
         const last=plans[0];
-        if(last)page.append(disc('resume-connection-plan','Resume your connection plan',modes[last.mode][0],
+        if(last)page.append(disc('resume-connection-plan','Resume your connection plan',title(last.mode),
           h('p',{text:last.payload.next_step}),btn('Continue',()=>{flow={inputs:last.inputs,plan:last};go('connect');})));
         if(candidates.length)page.append(disc('substantive-followup','A possible conversation to revisit',candidates[0].name,
           candidates.slice(0,3).map(c=>h('div',{class:'stack'},h('strong',{text:c.name}),h('p',{text:c.reason}),

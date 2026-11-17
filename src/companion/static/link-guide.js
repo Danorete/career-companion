@@ -8,7 +8,7 @@
     {title:'A colleague, one click away.',text:'I’m Link. Click my avatar to open our conversation. You can tuck me away whenever you want more room.',selector:'#dock-pill',event:'dock'},
     {title:'Start with a person.',text:'Click People. This is where a brief encounter can grow into an ongoing connection.',selector:'#side a[href="#people"]',route:'people'},
     {title:'Context grows over time.',text:'You don’t need a complete profile. A name and where you met are enough. Open someone to revisit your conversations or choose a next step.',selector:'#main .page',manual:true},
-    {title:'Keep the moment, while it’s fresh.',text:'Click Quick log. Capture a few fragments after a conversation, even when you don’t remember every detail.',selector:'#side a[href="#quicklog"]',route:'quicklog'},
+    {title:'Keep the moment, while it’s fresh.',text:(document.body.dataset.mode==='dev'?'Click Quick log.':'Click Add a note.')+' Capture a few fragments after a conversation, even when you don’t remember every detail.',selector:'#side a[href="#quicklog"]',route:'quicklog'},
     {title:'Try a rough recollection.',text:'Type a few words into the log. Your unfinished draft stays on this Mac. Only Save quick log adds it to your history; Link can help organize it afterward.',selector:'#main textarea',event:'input'},
     {title:'Your pace. Your connections.',text:'That’s the loop: capture a moment, revisit a person, choose one thoughtful next step. Your note is still here to finish or discard. Find this walkthrough again in Settings & data.',selector:'#main .page',manual:true}
   ];

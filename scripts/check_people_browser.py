@@ -15,7 +15,7 @@ parser.add_argument('--output', type=Path, default=Path('/tmp/link-browser-check
 args=parser.parse_args()
 args.output.mkdir(parents=True, exist_ok=True)
 folder=tempfile.TemporaryDirectory(prefix='link-browser-')
-settings=Settings(data_dir=Path(folder.name),port=8876,ai_mode='mock')
+settings=Settings(data_dir=Path(folder.name),port=8876,ai_mode='mock',ui_mode='dev')
 app=create_app(settings,MockAI())
 server=uvicorn.Server(uvicorn.Config(app,host='127.0.0.1',port=8876,log_level='error',access_log=False))
 thread=threading.Thread(target=server.run,daemon=True);thread.start()

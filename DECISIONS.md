@@ -190,3 +190,16 @@ Status: decided.
 - Deletion works. Disconnect removes a source's tokens and, on request, its data. Delete everything removes all.
 - Any future hosted part (for example phone push) holds schedule times and a device token only, and never contacts or message text.
 - The Gemini coaching prototype in `gemini-skill/` is a separate test, not part of the product. Text typed into it goes to Google, so it never carries the "stays on your computer" promise.
+
+## D42 — Two versions: user and developer (2026-11-17)
+Status: built.
+
+One codebase, one switch. `Settings.ui_mode` is `user` (the default) or `dev`, set by `COMPANION_UI_MODE` or `companion run --mode`. The server reports it in `/api/bootstrap`, and the page applies it once at start.
+
+- **User version:** plain words, no spending meter, no AI-mode or budget controls. One line says when the AI is off, paused for the month, or showing sample answers, so mock output is never presented as real advice.
+- **Developer version:** the original wording, the AI budget and the mock/live switch.
+- **Words changed in the user version:** Quick log is "Add a note", Import is "Add contacts", Evidence is "What I've done", Roles is "Jobs I'm looking at", Drafts is "My messages", Pasted material is "Things I pasted", Career tools is "More tools". The three first-run choices read "I don't know where to start", "Reach out to someone" and "I just met someone".
+- **Not changed:** the API, the schema, the server-side onboarding questions and what the AI is allowed to see. Only labels and which controls show.
+- **Why not two copies of the app:** parallel copies already diverged once (`connections-redesign`).
+- **Still to do:** most longer sentences inside the workflows are unchanged, the demo banner still says "mock AI", and the Setup list in Settings still says "Unlocks". These belong to a second plain-language pass after testers read it.
+

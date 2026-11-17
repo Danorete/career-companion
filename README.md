@@ -37,9 +37,17 @@ Your data lives in `~/Library/Application Support/CareerCompanion/`, outside thi
 | Setting | Environment variable | Default |
 |---|---|---|
 | AI mode | `COMPANION_AI_MODE` (`mock`, `live`, `off`) | `mock` |
+| Version | `COMPANION_UI_MODE` or `companion run --mode` (`user`, `dev`) | `user` |
 | Port | `COMPANION_PORT` | `8765` |
 | Data folder | `COMPANION_DATA_DIR` | see above |
 | Time zone for the daily cap | `COMPANION_TIMEZONE` | `America/New_York` |
+
+## Two versions
+
+`companion run` opens the **user version**: everyday words ("Add a note", "Add contacts"), no spending meter or AI
+settings, and one plain line when the AI is off or showing sample answers. `companion run --mode dev` opens the
+**developer version**: the original wording, the AI budget, the mock/live switch and spending details. The browser
+checks in `scripts/` run the developer version, except `check_user_mode_browser.py`, which checks both. See D42.
 
 ## Loading your information in one step
 
@@ -110,7 +118,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`199 passed` on Linux, Python 3.12, 2026-11-13. Not yet run on macOS. Coverage by acceptance criterion:
+`205 passed` on Linux, Python 3.12, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -312,6 +320,7 @@ it in headless Chromium, and writes screenshots to the `--output` folder:
 | `check_studio_browser.py` | People directory and tabs by keyboard, next-step undo, Link panel, both themes |
 | `check_people_browser.py` | People, Quick log, approximate dates, review, search, narrow layout |
 | `check_connection_browser.py` | Guided onboarding, preparation, rehearsal, drafting, resume after reload |
+| `check_user_mode_browser.py` | User version uses plain words and hides spending and AI-mode controls; developer version keeps them |
 | `check_qol_browser.py` | Quick log recovery, undo, duplicate-name suggestions, reminders, reduced motion |
 | `check_avatar_browser.py` | Link character and the Meet Link walkthrough |
 

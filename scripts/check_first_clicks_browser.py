@@ -22,7 +22,7 @@ parser=argparse.ArgumentParser()
 parser.add_argument('--output',type=Path,default=Path('/tmp/link-studio-check'))
 args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
-    settings=Settings(data_dir=Path(folder),port=8883,ai_mode='mock')
+    settings=Settings(data_dir=Path(folder),port=8883,ai_mode='mock',ui_mode='dev')
     app=create_app(settings,MockAI());db=app.state.db
     load_demo(db,local_today(settings))
     db.run("INSERT OR REPLACE INTO kv(key,value) VALUES('onboarding_step','2')")

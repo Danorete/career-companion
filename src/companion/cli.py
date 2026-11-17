@@ -18,6 +18,9 @@ def _run(args: argparse.Namespace) -> int:
 
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     settings = Settings.from_env()
+    if args.mode:
+        from dataclasses import replace as _replace
+        settings = _replace(settings, ui_mode=args.mode)
     demo_dir = None
     if args.demo:
         import tempfile
@@ -36,6 +39,7 @@ def _run(args: argparse.Namespace) -> int:
     print("Link — Connection Studio" + (" [FICTIONAL DEMO]" if args.demo else ""))
     print(f"  Data folder : {settings.data_dir}")
     print(f"  AI          : {ai['mode']} ({ai['reason']})")
+    print(f"  Version     : {'developer' if settings.ui_mode == 'dev' else 'user'} ({settings.ui_mode})")
     print(f"  Open        : {url}")
     print("  The link works once. Restart the app to get a new one. Press Ctrl+C to stop.")
     if not args.no_browser:
@@ -88,6 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command")
     run = sub.add_parser("run", help="start the app and open the browser")
     run.add_argument("--no-browser", action="store_true")
+    run.add_argument("--mode", choices=("user", "dev"), help="user: plain wording for testers (default). dev: developer controls and original wording")
     run.add_argument("--demo", action="store_true", help="use temporary fictional data and mock AI; never opens your personal database")
     run.set_defaults(func=_run)
     sub.add_parser("set-key", help="store the API key in the system keychain").set_defaults(func=_set_key)

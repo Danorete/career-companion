@@ -345,7 +345,8 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
 
     @app.get("/api/bootstrap")
     def bootstrap(request: Request) -> dict:
-        return {"demo": bool(db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'")), "csrf": security.csrf_for(request.cookies.get(COOKIE_NAME)), "ai": gateway.availability(),
+        return {"demo": bool(db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'")), "ui_mode": settings.ui_mode,
+                "csrf": security.csrf_for(request.cookies.get(COOKIE_NAME)), "ai": gateway.availability(),
                 "budget": budget.status(), "onboarding": services.onboarding_state(db),
                 "setup": services.setup_progress(db),
                 "has_sample": bool(db.one("SELECT 1 FROM evidence WHERE is_sample=1 UNION SELECT 1 FROM actions WHERE is_sample=1")),

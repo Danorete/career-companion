@@ -21,7 +21,7 @@ parser.add_argument('--output',type=Path,default=Path('/tmp/link-guided-check'))
 args=parser.parse_args()
 args.output.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='link-guided-') as folder:
-    app=create_app(Settings(data_dir=Path(folder),port=8877,ai_mode='mock'),MockAI())
+    app=create_app(Settings(data_dir=Path(folder),port=8877,ai_mode='mock',ui_mode='dev'),MockAI())
     server=uvicorn.Server(uvicorn.Config(app,host='127.0.0.1',port=8877,access_log=False,log_level='error'))
     thread=threading.Thread(target=server.run,daemon=True)
     thread.start()
