@@ -210,6 +210,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("quit", help="stop a running Link").set_defaults(func=_quit)
     one_click = sub.add_parser("launcher", help="install or remove Link.app, a one-click way to open Link (Mac)")
     one_click_group = one_click.add_mutually_exclusive_group()
+    one_click_group.add_argument("--install", action="store_true", help="install Link.app (the default, same as no option)")
     one_click_group.add_argument("--uninstall", action="store_true", help="remove Link.app")
     one_click_group.add_argument("--status", action="store_true", help="say whether Link.app is installed")
     one_click.set_defaults(func=_launcher)

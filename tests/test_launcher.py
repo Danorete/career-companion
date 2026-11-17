@@ -196,6 +196,16 @@ def test_the_launch_quit_and_launcher_commands(tmp_path, monkeypatch, capsys):
     assert "Opened Link" in out and "Link has stopped." in out and "Link.app installed: no" in out
 
 
+def test_launcher_accepts_install_like_the_nudge_command(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("COMPANION_DATA_DIR", str(tmp_path)); monkeypatch.setenv("HOME", str(tmp_path))
+    calls = []
+    monkeypatch.setattr(launcher, "install", lambda home, data_dir: calls.append(home) or "Installed Link.app.")
+    assert main(["launcher", "--install"]) == 0 and main(["launcher"]) == 0
+    assert len(calls) == 2 and capsys.readouterr().out.count("Installed Link.app.") == 2
+    with pytest.raises(SystemExit):
+        main(["launcher", "--install", "--uninstall"])
+
+
 # ---- the Mac app ----------------------------------------------------------------------------------------
 
 def test_the_app_script_runs_launch_with_the_same_settings_and_never_copies_a_secret(tmp_path):
