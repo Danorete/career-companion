@@ -300,3 +300,13 @@ Why: people you already email are the easiest ones to forget to add. Reading who
 - **Disconnect** can also remove what came from email; people you kept stay.
 - **Launch blocker.** `gmail.metadata` is a restricted Google scope. It works for test users now, but a public release needs Google's security assessment.
 - **Deferred.** Detecting promises or parsing LinkedIn notification emails needs subjects or bodies. That would break the headers-only promise, so it is not built.
+
+## D49 — Each data folder keeps its own Google sign-ins (2026-11-17)
+Status: built and tested with a stand-in keychain. Not yet run against the real macOS keychain.
+
+Why: first-time-user tests happen on the builder's Mac, each tester in a fresh data folder. The keychain is shared by everything running as one Mac user, and sign-ins were saved under fixed names. A tester connecting Google would have replaced the builder's sign-in, and the tester's own sign-in would have stayed on the builder's Mac.
+
+- **Names.** Google sign-ins are saved as `<account>:<folder id>`, where the id is the first 16 hex characters of a SHA-256 of the data folder's full path. A different folder cannot read, replace or delete another folder's entries.
+- **No reconnecting.** The usual data folder (the default location) adopts a sign-in saved before this change the first time it reads it, and the old entry is removed. Other folders never adopt it.
+- **Ending a test.** Delete everything in the tester's folder cancels that folder's Google sign-ins only.
+- **Not covered.** The AI provider key is still one per Mac user. With live AI on, a tester's folder would spend on the owner's key, and each folder has its own monthly cap. Run tests with mock AI.

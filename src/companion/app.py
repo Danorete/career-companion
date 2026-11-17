@@ -17,10 +17,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import services, store, people, coaching, network_imports, encounters, connectors, nudges, nudge_agent, launcher, mailbook
 from .ai import AIClient, AIUnavailable, CompanionTurn, Gateway, build_client
 from .budget import Budget
-from .config import Settings
+from .config import Settings, default_data_dir
 from .db import Database, now
 from .validate import validate_draft
-from .keys import KeyringSecrets
+from .keys import FolderSecrets, KeyringSecrets
 from .security import COOKIE_NAME, OAUTH_CALLBACK_PATH, Security, make_guard
 
 STATIC = Path(__file__).parent / "static"
@@ -343,7 +343,9 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     app = FastAPI(title="Career Companion", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.db, app.state.security, app.state.budget, app.state.gateway = db, security, budget, gateway
     app.state.settings = settings
-    secrets_store = secret_store or KeyringSecrets()
+    # Each data folder has its own keychain entries (D49); your usual folder adopts a sign-in saved before that.
+    secrets_store = secret_store or FolderSecrets(KeyringSecrets(), settings.data_dir,
+                                                  adopt_legacy=Path(settings.data_dir).expanduser().resolve() == default_data_dir().expanduser().resolve())
     launcher_key = launcher.ensure_key(settings.data_dir)
     app.state.request_shutdown = lambda: None  # `companion run` replaces this with a real stop
     desktop = notifier or nudges.build_notifier()
