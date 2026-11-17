@@ -188,3 +188,23 @@ def test_a_sent_message_with_only_a_to_address_keeps_its_recipient():
     assert connectors.normalize_message(item, "sent")["parties"] == [{"name": "Maya Lindqvist", "address": "maya@example.com"}]
     both = {"internalDate": "1763380800000", "payload": {"headers": [{"name": "To", "value": "a@example.com"}, {"name": "Cc", "value": "b@example.com"}]}}
     assert [p["address"] for p in connectors.normalize_message(both, "sent")["parties"]] == ["a@example.com", "b@example.com"]
+
+
+def test_a_refused_all_folders_list_falls_back_to_the_inbox_and_a_403_says_why():
+    class Fake(connectors.GoogleMail):
+        def __init__(self): self.labels = []
+        def _get(self, url, params, what):
+            p = params if isinstance(params, dict) else dict(params)
+            if url.endswith("/messages"):
+                self.labels.append(p.get("labelIds"))
+                if p.get("labelIds") is None:
+                    raise connectors.ConnectorError("refused", status=403)
+                return {"messages": [{"id": "m1"}]}
+            return {"internalDate": "1763380800000", "labelIds": ["INBOX"], "payload": {"headers": [{"name": "From", "value": "a@example.com"}]}}
+    mail = Fake()
+    assert len(mail.messages(per_label=5)) == 2 and mail.labels == ["SENT", None, "INBOX"]
+
+    class Resp:
+        status_code = 403
+        def json(self): return {"error": {"message": "Gmail API has not been used in project 1 before or it is disabled."}}
+    assert "has not been used" in connectors._google_reason(Resp())

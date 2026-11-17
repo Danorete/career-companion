@@ -40,7 +40,11 @@ MAX_EVENTS = 250
 
 
 class ConnectorError(Exception):
-    """The message is safe to show the user. It never contains a token or a raw response."""
+    """The message is safe to show the user. It never contains a token or a raw response (only Google's short reason)."""
+
+    def __init__(self, message: str = "", status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 class NeverSent(Exception):
@@ -62,6 +66,16 @@ class ConnectorTransport(httpx.BaseTransport):
 
 def _b64(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+
+def _google_reason(resp) -> str:
+    """Google's own one-line reason for a refusal (never any of your data), so a 403 says why."""
+    try:
+        err = resp.json().get("error", {})
+        reason = (err.get("message") if isinstance(err, dict) else str(err)) or ""
+    except (ValueError, AttributeError):
+        return ""
+    return ": " + " ".join(str(reason).split())[:200] if reason else ""
 
 
 class OAuthFlows:
@@ -170,7 +184,7 @@ class _GoogleOAuth:
             self._access = None
             raise ConnectorError("Google asked Link to sign in again. Try once more.")
         if resp.status_code != 200:
-            raise ConnectorError(f"{what} didn't share what Link asked for (status {resp.status_code}).")
+            raise ConnectorError(f"{what} didn't share what Link asked for (status {resp.status_code}){_google_reason(resp)}.", status=resp.status_code)
         return resp.json()
 
     def disconnect(self) -> None:
@@ -230,7 +244,13 @@ class GoogleMail(_GoogleOAuth):
     def messages(self, per_label: int = MESSAGES_PER_LABEL) -> list[dict]:
         """Newest sent mail, and newest mail of any folder (archived replies included) that you did not send yourself."""
         out = [normalize_message(self._headers_of(i), "sent") for i in self._listing(per_label, "SENT")]
-        for i in self._listing(per_label, None):
+        try:
+            received = self._listing(per_label, None)
+        except ConnectorError as exc:
+            if getattr(exc, "status", None) != 403:
+                raise
+            received = self._listing(per_label, "INBOX")  # Google refused the all-folders list: fall back to the Inbox
+        for i in received:
             item = self._headers_of(i)
             if not {"SENT", "DRAFT"} & set(item.get("labelIds", [])):
                 out.append(normalize_message(item, "received"))
