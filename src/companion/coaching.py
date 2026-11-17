@@ -219,7 +219,9 @@ def follow_up_candidates(db: Database) -> list[dict]:
     rows = db.q("""SELECT i.id,i.item_id,i.summary,i.commitments,i.next_steps,p.title AS name
         FROM interactions i JOIN items p ON p.id=i.item_id
         WHERE p.kind='relationship' AND p.category!='paused'
-          AND (i.commitments!='' OR i.next_steps!='') ORDER BY i.id DESC LIMIT 8""")
+          AND (i.commitments!='' OR i.next_steps!='')
+          AND NOT EXISTS (SELECT 1 FROM kv WHERE key='followup_dismissed_' || i.id)
+        ORDER BY i.id DESC LIMIT 8""")
     return [{'id':r['id'],'item_id':r['item_id'],'name':r['name'],
              'reason':'Your note contains a possible commitment. Confirm what happened before deciding.' if r['commitments'] else 'Your recorded conversation includes a possible next step to review.',
-             'summary':r['summary'],'possible_commitments':r['commitments'],'suggestions':r['next_steps']} for r in rows if not db.one("SELECT 1 FROM kv WHERE key=?", (f"followup_dismissed_{r['id']}",))]
+             'summary':r['summary'],'possible_commitments':r['commitments'],'suggestions':r['next_steps']} for r in rows]
