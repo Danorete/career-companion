@@ -302,7 +302,7 @@ Why: people you already email are the easiest ones to forget to add. Reading who
 - **Deferred.** Detecting promises or parsing LinkedIn notification emails needs subjects or bodies. That would break the headers-only promise, so it is not built.
 
 ## D49 — Each data folder keeps its own Google sign-ins (2026-11-17)
-Status: built and tested with a stand-in keychain. Not yet run against the real macOS keychain.
+Status: built and tested with a stand-in keychain. On the builder's Mac (2026-11-17), the existing sign-in moved over by itself and calendar and email stayed connected. A second folder on a real Mac has not been tried yet.
 
 Why: first-time-user tests happen on the builder's Mac, each tester in a fresh data folder. The keychain is shared by everything running as one Mac user, and sign-ins were saved under fixed names. A tester connecting Google would have replaced the builder's sign-in, and the tester's own sign-in would have stayed on the builder's Mac.
 
