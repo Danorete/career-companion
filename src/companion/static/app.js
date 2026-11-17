@@ -1000,6 +1000,7 @@
         h('div',{class:'row person-primary-actions'},btn('Log interaction',()=>{S.logPerson=person.id;go('quicklog');},'primary'),btn('Prepare a message',()=>workflows.open({mode:'prepare',item_id:person.id})),btn('Think with Link',()=>{scopePerson(person);setDock(true);},'quiet')),
         h('section',{class:'person-next-summary'},h('span',{class:'eyebrow',text:'Next, when you’re ready'}),h('p',{text:person.next_action?.title||'No step chosen. There’s no need to invent one.'}),btn(person.next_action?'Review next step':'Choose a next step',()=>{S.personSection='next';render();},'quiet')));
       await workflows.personTools(panel,person);
+      if(person.email){const e=person.email,d=new Date(e.last_at);panel.append(h('p',{class:'muted small email-last',text:(e.last_direction==='sent'?'You last wrote them ':'They last wrote you ')+(isNaN(d)?'':'on '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'}))+'. From your email dates only.'}));}
       panel.append(h('div',{class:'section-title'},h('h3',{text:'Recent moments'}),btn('See conversations',()=>{S.personSection='conversations';render();},'quiet')),
         h('div',{class:'recent-moments'},person.timeline.length?person.timeline.slice(0,2).map(entry=>h('article',{class:'moment-preview'},h('span',{class:'eyebrow',text:whenLabel(entry)}),h('p',{text:entry.summary||entry.note||entry.original_label||'Recorded interaction'}))):h('p',{class:'muted small',text:'Nothing recorded yet. A few fragments are enough.'})));
     }else if(section==='conversations'){

@@ -11,6 +11,7 @@ import base64
 import hashlib
 import secrets
 import time
+from email.utils import getaddresses
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
@@ -26,6 +27,13 @@ GOOGLE_FIELDS = ("items(id,summary,status,start,end,recurringEventId,"
                  "attendees(email,displayName,self,responseStatus,resource),organizer(self)),nextPageToken")
 CALENDAR_HOSTS = frozenset({"oauth2.googleapis.com", "www.googleapis.com"})
 TOKEN_ACCOUNT = "google-calendar-refresh-token"
+# Email (decision D48). Headers only: the `gmail.metadata` scope cannot read message bodies.
+GOOGLE_MAIL_SCOPE = "https://www.googleapis.com/auth/gmail.metadata"
+GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
+MAIL_HOSTS = frozenset({"oauth2.googleapis.com", "gmail.googleapis.com"})
+MAIL_TOKEN_ACCOUNT = "google-mail-refresh-token"
+MAIL_HEADERS = ("From", "To", "Cc", "List-Id", "Precedence")  # no Subject, and no body is possible under this scope
+MESSAGES_PER_LABEL = 60
 FLOW_SECONDS = 600
 MAX_PENDING_FLOWS = 5
 MAX_EVENTS = 250
@@ -61,37 +69,45 @@ class OAuthFlows:
 
     def __init__(self, clock=time.time):
         self._clock = clock
-        self._pending: dict[str, tuple[str, float]] = {}
+        self._pending: dict[str, tuple[str, float, str]] = {}
 
-    def begin(self) -> tuple[str, str]:
-        """Returns (state, code_challenge). The PKCE verifier stays here."""
+    def begin(self, kind: str = "calendar") -> tuple[str, str]:
+        """Returns (state, code_challenge). The PKCE verifier stays here, with which connector asked."""
         now = self._clock()
         self._pending = {s: v for s, v in self._pending.items() if v[1] > now}
         while len(self._pending) >= MAX_PENDING_FLOWS:
             self._pending.pop(next(iter(self._pending)))
         state, verifier = secrets.token_urlsafe(32), secrets.token_urlsafe(48)
-        self._pending[state] = (verifier, now + FLOW_SECONDS)
+        self._pending[state] = (verifier, now + FLOW_SECONDS, kind)
         return state, _b64(hashlib.sha256(verifier.encode()).digest())
 
-    def take(self, state: str) -> str | None:
-        """Returns the verifier once for a live state, otherwise None. A second use fails."""
+    def take_with_kind(self, state: str) -> tuple[str, str] | None:
+        """Returns (verifier, connector) once for a live state, otherwise None. A second use fails."""
         found = None
         for known in list(self._pending):
             if secrets.compare_digest(known.encode(), (state or "").encode()):
                 found = known
         if found is None:
             return None
-        verifier, expires = self._pending.pop(found)
-        return verifier if expires > self._clock() else None
+        verifier, expires, kind = self._pending.pop(found)
+        return (verifier, kind) if expires > self._clock() else None
+
+    def take(self, state: str) -> str | None:
+        found = self.take_with_kind(state)
+        return found[0] if found else None
 
 
-class GoogleCalendar:
-    name = "google_calendar"
+class _GoogleOAuth:
+    """The sign-in half that calendar and email share: PKCE, a keychain-only refresh token, and an outbound allowlist."""
+
+    scope = ""
+    token_account = ""
+    hosts: frozenset[str] = frozenset()
     demo = False
 
     def __init__(self, client_id: str, client_secret: str, store, transport: httpx.BaseTransport | None = None, clock=time.time):
         self.client_id, self.client_secret, self.store, self._clock = client_id, client_secret, store, clock
-        self._http = httpx.Client(transport=ConnectorTransport(transport), timeout=20.0, trust_env=False)
+        self._http = httpx.Client(transport=ConnectorTransport(transport, self.hosts), timeout=20.0, trust_env=False)
         self._access: tuple[str, float] | None = None
 
     @property
@@ -99,13 +115,13 @@ class GoogleCalendar:
         return bool(self.client_id)
 
     def has_token(self) -> bool:
-        return self.store.get(TOKEN_ACCOUNT) is not None
+        return self.store.get(self.token_account) is not None
 
     def authorize_url(self, redirect_uri: str, state: str, challenge: str) -> str:
         if not self.configured:
-            raise ConnectorError("Calendar sign-in isn't set up in this copy of Link yet.")
+            raise ConnectorError("Google sign-in isn't set up in this copy of Link yet.")
         return GOOGLE_AUTH + "?" + urlencode({
-            "client_id": self.client_id, "redirect_uri": redirect_uri, "response_type": "code", "scope": GOOGLE_SCOPE,
+            "client_id": self.client_id, "redirect_uri": redirect_uri, "response_type": "code", "scope": self.scope,
             "state": state, "code_challenge": challenge, "code_challenge_method": "S256",
             "access_type": "offline", "prompt": "consent"})
 
@@ -119,9 +135,9 @@ class GoogleCalendar:
             raise ConnectorError("Couldn't reach Google. Check your connection and try again.") from None
         if resp.status_code != 200:
             if data.get("grant_type") == "refresh_token":
-                self.store.delete(TOKEN_ACCOUNT)
+                self.store.delete(self.token_account)
                 self._access = None
-                raise ConnectorError("Google no longer accepts the saved sign-in. Connect your calendar again.")
+                raise ConnectorError("Google no longer accepts the saved sign-in. Connect again.")
             raise ConnectorError("Google didn't accept the sign-in. Try connecting again.")
         return resp.json()
 
@@ -132,42 +148,84 @@ class GoogleCalendar:
         if not refresh:
             raise ConnectorError("Google didn't return a long-lasting sign-in. Remove Link's access in your Google "
                                  "account, then connect again.")
-        self.store.set(TOKEN_ACCOUNT, refresh)
+        self.store.set(self.token_account, refresh)
         self._access = (tokens["access_token"], self._clock() + int(tokens.get("expires_in", 3600)) - 60)
 
     def _access_token(self) -> str:
         if self._access and self._access[1] > self._clock():
             return self._access[0]
-        refresh = self.store.get(TOKEN_ACCOUNT)
+        refresh = self.store.get(self.token_account)
         if not refresh:
-            raise ConnectorError("Your calendar isn't connected.")
+            raise ConnectorError("This isn't connected.")
         tokens = self._token_request({"refresh_token": refresh, "grant_type": "refresh_token"})
         self._access = (tokens["access_token"], self._clock() + int(tokens.get("expires_in", 3600)) - 60)
         return self._access[0]
 
-    def events(self, time_min: datetime, time_max: datetime) -> list[dict]:
-        params = {"timeMin": time_min.astimezone(timezone.utc).isoformat(), "timeMax": time_max.astimezone(timezone.utc).isoformat(),
-                  "singleEvents": "true", "orderBy": "startTime", "maxResults": str(MAX_EVENTS), "fields": GOOGLE_FIELDS}
+    def _get(self, url: str, params, what: str) -> dict:
         try:
-            resp = self._http.get(GOOGLE_EVENTS, params=params, headers={"Authorization": "Bearer " + self._access_token()})
+            resp = self._http.get(url, params=params, headers={"Authorization": "Bearer " + self._access_token()})
         except (httpx.HTTPError, NeverSent):
-            raise ConnectorError("Couldn't reach Google Calendar. Try again in a moment.") from None
+            raise ConnectorError(f"Couldn't reach {what}. Try again in a moment.") from None
         if resp.status_code == 401:
             self._access = None
-            raise ConnectorError("Google asked Link to sign in again. Try checking your calendar once more.")
+            raise ConnectorError("Google asked Link to sign in again. Try once more.")
         if resp.status_code != 200:
-            raise ConnectorError("Google Calendar didn't share your events (status " + str(resp.status_code) + ").")
-        return [normalize_google(item) for item in resp.json().get("items", [])]
+            raise ConnectorError(f"{what} didn't share what Link asked for (status {resp.status_code}).")
+        return resp.json()
 
     def disconnect(self) -> None:
-        refresh = self.store.get(TOKEN_ACCOUNT)
-        self.store.delete(TOKEN_ACCOUNT)
+        refresh = self.store.get(self.token_account)
+        self.store.delete(self.token_account)
         self._access = None
         if refresh:  # Best effort: ask Google to cancel the grant. The local sign-in is already gone either way.
             try:
                 self._http.post(GOOGLE_REVOKE, data={"token": refresh})
             except (httpx.HTTPError, NeverSent):
                 pass
+
+
+class GoogleCalendar(_GoogleOAuth):
+    name = "google_calendar"
+    scope = GOOGLE_SCOPE
+    token_account = TOKEN_ACCOUNT
+    hosts = CALENDAR_HOSTS
+
+    def events(self, time_min: datetime, time_max: datetime) -> list[dict]:
+        params = {"timeMin": time_min.astimezone(timezone.utc).isoformat(), "timeMax": time_max.astimezone(timezone.utc).isoformat(),
+                  "singleEvents": "true", "orderBy": "startTime", "maxResults": str(MAX_EVENTS), "fields": GOOGLE_FIELDS}
+        return [normalize_google(item) for item in self._get(GOOGLE_EVENTS, params, "Google Calendar").get("items", [])]
+
+
+class GoogleMail(_GoogleOAuth):
+    """Reads who you wrote to and who wrote to you, and when. Never a subject, never a message body."""
+
+    name = "google_mail"
+    scope = GOOGLE_MAIL_SCOPE
+    token_account = MAIL_TOKEN_ACCOUNT
+    hosts = MAIL_HOSTS
+
+    def self_address(self) -> str:
+        return str(self._get(GMAIL_API + "/profile", {"fields": "emailAddress"}, "Gmail").get("emailAddress", "")).lower()
+
+    def messages(self, per_label: int = MESSAGES_PER_LABEL) -> list[dict]:
+        out = []
+        for label, direction in (("SENT", "sent"), ("INBOX", "received")):
+            # This scope refuses a search query, so Link takes the newest messages in each folder instead.
+            listing = self._get(GMAIL_API + "/messages", {"labelIds": label, "maxResults": str(per_label), "fields": "messages(id)"}, "Gmail")
+            for ref in listing.get("messages", []):
+                params = [("format", "metadata"), ("fields", "internalDate,payload(headers)")] + [("metadataHeaders", h) for h in MAIL_HEADERS]
+                out.append(normalize_message(self._get(f"{GMAIL_API}/messages/{ref['id']}", params, "Gmail"), direction))
+        return out
+
+
+def normalize_message(item: dict, direction: str) -> dict:
+    """Only addresses, names, the time and whether it looks like a mailing list. Nothing else is kept."""
+    headers = {h.get("name", "").lower(): h.get("value", "") for h in item.get("payload", {}).get("headers", [])}
+    people = headers.get("to", "") + "," + headers.get("cc", "") if direction == "sent" else headers.get("from", "")
+    parties = [{"name": name.strip(), "address": address.strip().lower()} for name, address in getaddresses([people]) if address]
+    at = datetime.fromtimestamp(int(item.get("internalDate", "0")) / 1000, tz=timezone.utc).isoformat()
+    bulk = "list-id" in headers or headers.get("precedence", "").lower() in ("bulk", "list", "junk")
+    return {"direction": direction, "at": at, "bulk": bulk, "parties": parties}
 
 
 def _when(value: dict) -> tuple[str, bool]:
@@ -231,3 +289,45 @@ class SampleCalendar:
             event("declined", "Call with a recruiter", 3, [{**me, "response": "declined"}, person("Recruiter", "recruiter@example.com")]),
             {**event("allday", "Career week", 4, [me, person("Ada Mensah", "ada.mensah@example.com")]), "all_day": True},
         ]
+
+
+class SampleMail:
+    """Fictional messages for the demo, so email can be tried without a Google account or network."""
+
+    name = "google_mail"
+    demo = True
+    configured = True
+
+    def __init__(self, clock=lambda: datetime.now(timezone.utc)):
+        self._clock = clock
+
+    def has_token(self) -> bool:
+        return True
+
+    def authorize_url(self, redirect_uri: str, state: str, challenge: str) -> str:
+        raise ConnectorError("The sample mailbox needs no sign-in.")
+
+    def complete(self, code: str, verifier: str, redirect_uri: str) -> None:
+        raise ConnectorError("The sample mailbox needs no sign-in.")
+
+    def disconnect(self) -> None:
+        return None
+
+    def self_address(self) -> str:
+        return "you@example.com"
+
+    def messages(self, per_label: int = MESSAGES_PER_LABEL) -> list[dict]:
+        base = self._clock()
+
+        def msg(direction, days, *parties, bulk=False):
+            return {"direction": direction, "at": (base - timedelta(days=days)).isoformat(), "bulk": bulk,
+                    "parties": [{"name": n, "address": a} for n, a in parties]}
+
+        maya, priya, sam = ("Maya Lindqvist", "maya.lindqvist@example.com"), ("Priya Venkataraman", "priya.v@example.com"), ("", "sam.ortega@example.com")
+        crowd = [("", f"member{i}@example.com") for i in range(8)]
+        return [msg("sent", 2, maya), msg("received", 3, maya), msg("sent", 9, maya),
+                msg("received", 5, priya), msg("received", 8, priya), msg("sent", 6, priya),
+                msg("sent", 4, sam),                                          # one-way: you wrote, no reply yet
+                msg("received", 1, ("The Data Digest", "digest@example.com"), bulk=True),
+                msg("sent", 7, *crowd)]                                       # a mass message: not a conversation
+

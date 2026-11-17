@@ -65,9 +65,10 @@ In `--demo` mode this works with a fictional sample calendar and needs no Google
 
 To connect your own calendar you need your own Google sign-in settings. This is the part to do once:
 
-1. In the Google Cloud Console, create a project and turn on the **Google Calendar API**.
+1. In the Google Cloud Console, create a project and turn on the **Google Calendar API**. For email, also turn on the **Gmail API**.
 2. Under the OAuth consent screen, choose **External**, keep it in **Testing**, add your own Google address as a test
-   user, and add the read-only calendar scope (`.../auth/calendar.readonly`).
+   user, and add the read-only calendar scope (`.../auth/calendar.readonly`). For email, also add `.../auth/gmail.metadata`
+   (names, addresses and dates only; Link never reads a subject or body).
 3. Create an **OAuth client ID** of type **Desktop app**. Copy the client ID and secret.
 4. Download the client's JSON file, move it somewhere outside this repository, and make it private:
 
@@ -205,7 +206,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`305 passed` on Linux, Python 3.12, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
+`314 passed` on Linux, Python 3.12, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|

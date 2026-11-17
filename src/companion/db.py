@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -130,6 +130,13 @@ CREATE TABLE IF NOT EXISTS encounter_candidates (
     interaction_id INTEGER REFERENCES interactions(id) ON DELETE SET NULL,
     UNIQUE(source, event_id, address));
 
+-- People you exchange email with (decision D48): addresses, names, counts and the latest date. No subject, no body.
+CREATE TABLE IF NOT EXISTS email_contacts (
+    id INTEGER PRIMARY KEY, address TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '',
+    sent INTEGER NOT NULL DEFAULT 0, received INTEGER NOT NULL DEFAULT 0, last_at TEXT NOT NULL,
+    last_direction TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending',
+    item_id INTEGER REFERENCES items(id) ON DELETE SET NULL, decided_at TEXT, updated_at TEXT NOT NULL);
+
 CREATE TABLE IF NOT EXISTS activity (
     id INTEGER PRIMARY KEY, ts TEXT NOT NULL, event TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '');
 """
@@ -137,7 +144,7 @@ CREATE TABLE IF NOT EXISTS activity (
 USER_TABLES = (
     "kv", "memory", "evidence", "items", "actions", "drafts", "outcomes", "reminders",
     "ideas", "imports", "proposals", "sessions", "messages", "ledger", "activity", "draft_versions", "interactions", "connection_plans",
-    "encounter_candidates",
+    "encounter_candidates", "email_contacts",
 )
 
 

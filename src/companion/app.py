@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import services, store, people, coaching, network_imports, encounters, connectors, nudges, nudge_agent, launcher
+from . import services, store, people, coaching, network_imports, encounters, connectors, nudges, nudge_agent, launcher, mailbook
 from .ai import AIClient, AIUnavailable, CompanionTurn, Gateway, build_client
 from .budget import Budget
 from .config import Settings
@@ -315,6 +315,10 @@ class CheckinIn(In):
     promise: str = Field(default="", max_length=200)
 
 
+class MailDismissIn(In):
+    scope: Literal["later", "never"] = "later"
+
+
 class DismissIn(In):
     scope: Literal["event", "person"] = "event"
 
@@ -323,7 +327,7 @@ class WipeIn(In):
     confirm: Literal["DELETE EVERYTHING"]
 
 
-def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=None, secret_store=None, notifier=None) -> FastAPI:
+def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=None, secret_store=None, notifier=None, mail=None) -> FastAPI:
     db = Database(settings.db_path)
     store.purge_old_messages(db, settings.transcript_days)
     security = Security(settings.port)
@@ -356,6 +360,18 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
             if not hasattr(app.state, "google"):
                 app.state.google = connectors.GoogleCalendar(settings.google_client_id, settings.google_client_secret, secrets_store)
             return app.state.google
+        return None
+
+    def mail_provider():
+        """The injected provider (tests), the sample mailbox (demo), Google when configured, otherwise nothing."""
+        if mail is not None:
+            return mail
+        if db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'"):
+            return connectors.SampleMail()
+        if settings.google_client_id:
+            if not hasattr(app.state, "google_mail"):
+                app.state.google_mail = connectors.GoogleMail(settings.google_client_id, settings.google_client_secret, secrets_store)
+            return app.state.google_mail
         return None
 
     def redirect_uri() -> str:
@@ -400,7 +416,7 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
         return {"available": provider is not None, "demo": bool(provider and provider.demo), "connected": connected,
                 "last_sync": state.get("last_sync") if state else None,
                 "waiting": db.one("SELECT COUNT(*) AS n FROM encounter_candidates WHERE state='pending'")["n"] if connected else 0,
-                "checkins": len(encounters.due_checkins(db))}
+                "checkins": len(encounters.due_checkins(db)), "email": mail_status()}
 
     @app.get("/api/bootstrap")
     def bootstrap(request: Request) -> dict:
@@ -631,7 +647,7 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
 
     @app.get("/api/people/{pid}")
     def person_get(pid: int) -> dict:
-        return people.person_detail(db, pid)
+        return {**people.person_detail(db, pid), "email": mailbook.person_summary(db, pid)}
 
     @app.put("/api/people/{pid}")
     def person_edit(pid: int, body: PersonIn) -> dict:
@@ -914,17 +930,19 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     def calendar_callback(code: str = "", state: str = "", error: str = "") -> HTMLResponse:
         # Cross-site by design, so it trusts only a live single-use `state`. It serves a page rather than a redirect,
         # because the browser withholds the session cookie from a redirect that began on another site.
-        provider = calendar_provider()
-        verifier = flows.take(state)
-        message = "Your calendar is connected. Taking you back to Link."
+        found = flows.take_with_kind(state)
+        verifier, kind = found if found else (None, "calendar")
+        provider = mail_provider() if kind == "mail" else calendar_provider()
+        label = "email" if kind == "mail" else "calendar"
+        message = f"Your {label} is connected. Taking you back to Link."
         if provider is None or verifier is None:
             message = "That sign-in link was already used or has expired. Go back to Link and try again."
         elif error or not code:
-            message = "Google didn't connect your calendar. Go back to Link and try again."
+            message = f"Google didn't connect your {label}. Go back to Link and try again."
         else:
             try:
                 provider.complete(code, verifier, redirect_uri())
-                encounters.mark_connected(db)
+                (mailbook if kind == "mail" else encounters).mark_connected(db)
             except connectors.ConnectorError as exc:
                 message = str(exc)
         return HTMLResponse('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Link</title>'
@@ -1004,6 +1022,62 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
         stop_soon()
         return {"stopping": True}
 
+    # ---- email connection (decision D48) ------------------------------------------------
+    def mail_status() -> dict:
+        provider = mail_provider()
+        state = mailbook.status(db)
+        connected = bool(state) and (provider is not None and provider.has_token())
+        return {"available": provider is not None, "demo": bool(provider and provider.demo), "connected": connected,
+                "last_sync": state.get("last_sync") if state else None,
+                "waiting": db.one("SELECT COUNT(*) AS n FROM email_contacts WHERE state='pending'")["n"] if connected else 0}
+
+    @app.get("/api/connectors/email")
+    def email_info() -> dict:
+        return mail_status()
+
+    @app.post("/api/connectors/email/start")
+    def email_start() -> dict:
+        provider = mail_provider()
+        if provider is None:
+            raise store.RuleError("Email sign-in isn't set up in this copy of Link yet.")
+        if provider.demo:
+            mailbook.mark_connected(db, demo=True)
+            return {"connected": True, "demo": True}
+        state, challenge = flows.begin("mail")
+        try:
+            return {"connected": False, "url": provider.authorize_url(redirect_uri(), state, challenge)}
+        except connectors.ConnectorError as exc:
+            raise store.RuleError(str(exc))
+
+    @app.post("/api/connectors/email/sync")
+    def email_sync() -> dict:
+        provider = mail_provider()
+        if provider is None or not mailbook.status(db):
+            raise store.RuleError("Connect your email first.")
+        try:
+            return mailbook.sync(db, provider)
+        except connectors.ConnectorError as exc:
+            raise store.RuleError(str(exc))
+
+    @app.get("/api/email-contacts")
+    def email_contacts_pending() -> list[dict]:
+        return mailbook.pending(db)
+
+    @app.post("/api/email-contacts/{cid}/keep")
+    def email_contact_keep(cid: int, body: KeepIn) -> dict:
+        return mailbook.keep(db, cid, body.name, body.person_id)
+
+    @app.post("/api/email-contacts/{cid}/dismiss")
+    def email_contact_dismiss(cid: int, body: MailDismissIn) -> dict:
+        return mailbook.dismiss(db, cid, body.scope)
+
+    @app.delete("/api/connectors/email")
+    def email_disconnect(remove_data: bool = False) -> dict:
+        provider = mail_provider()
+        if provider is None:
+            return {"disconnected": True, "removed_data": False}
+        return mailbook.disconnect(db, provider, remove_data)
+
     @app.get("/api/checkins")
     def checkins_due() -> list[dict]:
         return encounters.due_checkins(db)
@@ -1024,6 +1098,9 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
         provider = calendar_provider()
         if provider is not None:
             provider.disconnect()  # the sign-in lives in the keychain, outside the database files
+        mail_to_cancel = mail_provider()
+        if mail_to_cancel is not None:
+            mail_to_cancel.disconnect()
         # Spend already committed this month survives the wipe, so deleting data can't reset the cap.
         carried = budget.month_committed()
         db.wipe()

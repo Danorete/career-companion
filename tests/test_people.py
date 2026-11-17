@@ -84,7 +84,7 @@ def test_validation_and_legacy_preservation(client,app):
     path=db.path
     reopened=Database(path)
     assert store.get(reopened,'items',p['id'])['title'] == p['name']
-    assert reopened.one('PRAGMA user_version')['user_version'] == 7
+    assert reopened.one('PRAGMA user_version')['user_version'] == 8
     reopened.close()
 
 

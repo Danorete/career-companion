@@ -52,21 +52,21 @@ with tempfile.TemporaryDirectory(prefix='link-calendar-') as folder:
             page.get_by_role('heading', name='Connect your calendar').wait_for()
             page.get_by_role('button', name='Try with a sample calendar').wait_for()
             for promise in ('event titles', 'never reads', 'never: '):
-                assert promise in page.locator('.connect-card').inner_text().lower(), promise
+                assert promise in page.locator('.connect-card[aria-label="Calendar connection"]').inner_text().lower(), promise
             page.get_by_role('button', name='Try with a sample calendar').click()
             page.get_by_role('button', name='Check my calendar').wait_for()
             assert 'No accounts connected' not in page.locator('#source-connection-state').inner_text()
             assert 'connected' in page.locator('#source-connection-state').inner_text().lower()
             page.get_by_role('button', name='Check my calendar').click()
             page.get_by_text('Found 3 new people').wait_for()
-            assert page.locator('.connect-card article').count() == 3
+            assert page.locator('.connect-card[aria-label="Calendar connection"] article').count() == 3
             assert db.q('SELECT COUNT(*) AS n FROM interactions WHERE source != "demo"') is not None
             before = len(db.q("SELECT id FROM items WHERE kind='relationship'"))
-            maya = page.locator('.connect-card article', has_text='Maya Lindqvist')
+            maya = page.locator('.connect-card[aria-label="Calendar connection"] article', has_text='Maya Lindqvist')
             maya.get_by_role('button', name='Keep', exact=True).click()
             page.get_by_text('Saved Maya Lindqvist.').wait_for()
             assert len(db.q("SELECT id FROM items WHERE kind='relationship'")) == before + 1
-            assert page.locator('.connect-card article').count() == 2
+            assert page.locator('.connect-card[aria-label="Calendar connection"] article').count() == 2
             # The meeting with Maya ended days ago, so Today asks how it went (decision D44). Priya's is still ahead.
             page.get_by_role('link', name='Today', exact=True).first.click()
             page.get_by_role('heading', name='How did it go with Maya Lindqvist?').wait_for()
@@ -82,8 +82,8 @@ with tempfile.TemporaryDirectory(prefix='link-calendar-') as folder:
             open_add_contacts(page)
             page.locator('#source-tab-calendar').click()
             page.get_by_role('button', name='Check my calendar').wait_for()
-            page.locator('.connect-card article', has_text='Priya').get_by_role('button', name='Never suggest this person', exact=True).click()
-            expect(page.locator('.connect-card article')).to_have_count(1)
+            page.locator('.connect-card[aria-label="Calendar connection"] article', has_text='Priya').get_by_role('button', name='Never suggest this person', exact=True).click()
+            expect(page.locator('.connect-card[aria-label="Calendar connection"] article')).to_have_count(1)
             page.get_by_role('button', name='Disconnect…').click()
             page.get_by_role('button', name='Disconnect and remove what came from my calendar').click()
             page.get_by_text('Disconnected.').wait_for()

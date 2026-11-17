@@ -287,3 +287,16 @@ Why: a reminder (D46) cannot open Link, and Link started only from Terminal with
 - **Cost of this convenience.** Link keeps running in the background until you quit it, listening only on 127.0.0.1. Anything that can run as your user can read the key file, as it can already read the database (D2).
 - **Not done.** A reminder still cannot open Link by itself: clicking a notification shown through `osascript` opens Script Editor, not Link. A possible later experiment is posting the reminder from `Link.app` itself, which is untested. There is no custom icon. On Windows the launcher, the reminders helper and the signal-based quit would each need their own version.
 
+
+## D48 — Email connection, headers only (2026-11-17)
+Status: built and tested on the sample mailbox and in the browser. Not tried with a real Google account.
+
+Why: people you already email are the easiest ones to forget to add. Reading who wrote to whom, and when, removes typing without reading anything private.
+
+- **What it reads.** Sender and recipient names and addresses, plus dates and a few list headers, from your newest 60 sent and 60 received messages. Never a subject, body or attachment. Scope: `gmail.metadata`, which cannot read bodies.
+- **Who becomes a suggestion.** Only someone you wrote to who wrote back. One-way mail, newsletters, no-reply addresses and mass messages (more than 5 recipients) never do. A click on **Keep** saves a person and nothing else.
+- **Not now** hides someone until newer mail arrives. **Never** stops suggesting that address.
+- **Kept people** show "You last wrote them on Nov 12" from dates only. Stored as counts and dates in `email_contacts` (schema 8) plus one key-value row per person.
+- **Disconnect** can also remove what came from email; people you kept stay.
+- **Launch blocker.** `gmail.metadata` is a restricted Google scope. It works for test users now, but a public release needs Google's security assessment.
+- **Deferred.** Detecting promises or parsing LinkedIn notification emails needs subjects or bodies. That would break the headers-only promise, so it is not built.

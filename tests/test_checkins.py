@@ -144,5 +144,5 @@ def test_a_version_six_database_gains_the_check_in_columns_and_keeps_its_rows(tm
     db = Database(path)
     row = db.one("SELECT * FROM encounter_candidates")
     assert (row["name"], row["checkin_state"], row["checkin_at"], row["interaction_id"]) == ("Old Row", "open", None, None)
-    assert db.one("PRAGMA user_version")["user_version"] == 7
+    assert db.one("PRAGMA user_version")["user_version"] == 8
     db.close()
