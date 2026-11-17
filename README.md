@@ -93,6 +93,24 @@ Not yet verified: this has been tested against stand-ins only. No real Google si
 an app in Testing mode is limited to listed test users and Google may expire its sign-in after about a week; school
 Google accounts may need an administrator's approval. Check Google's current rules before you rely on it.
 
+## Open Link with one click (Mac)
+
+Run this once in Terminal, from the same settings you normally start Link with (the same `COMPANION_DATA_DIR`, and
+a `COMPANION_GOOGLE_CLIENT_FILE` if you use one):
+
+```
+.venv/bin/companion launcher --install
+```
+
+It builds `~/Applications/Link.app`. Open it from Spotlight (Cmd+Space, then "Link") or drag it to your Dock. If Link is
+already running, it opens a fresh one-time sign-in link in your browser. If not, it starts Link quietly in the background
+first. **Quit Link** in the Menu (or `companion quit`) stops it. `companion launch` does the same thing from Terminal,
+and `companion launcher --uninstall` removes the app. Link stays running in the background until you quit it, listening only
+on this computer. Its log is `link.log` in your data folder. Decision D47 has the details.
+
+Not yet verified: `Link.app` has been built only with a stand-in, never on a real Mac. The launcher itself was run end to
+end against a real background server on Linux.
+
 ## Reminders outside Link (optional, Mac)
 
 Link can show one desktop reminder a day when a follow-up is due: a meeting you kept that needs a "How did it go?",
@@ -187,7 +205,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`285 passed` on Linux, Python 3.12, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
+`305 passed` on Linux, Python 3.12, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -390,6 +408,7 @@ it in headless Chromium, and writes screenshots to the `--output` folder:
 | `check_people_browser.py` | People, Quick log, approximate dates, review, search, narrow layout |
 | `check_connection_browser.py` | Guided onboarding, preparation, rehearsal, drafting, resume after reload |
 | `check_calendar_browser.py` | Sample calendar: connect, find people, keep, never suggest, disconnect; the page's connection label stays true |
+| `check_launcher_end_to_end.py` | Not a browser check: starts a real background Link, signs in with a minted link, checks no link reaches the log, and quits it |
 | `check_nudges_browser.py` | Settings: turn reminders on, quiet hours, test reminder, pause and resume, and the message on a computer that cannot show one |
 | `check_user_mode_browser.py` | User version uses plain words and hides spending and AI-mode controls; developer version keeps them |
 | `check_qol_browser.py` | Quick log recovery, undo, duplicate-name suggestions, reminders, reduced motion |

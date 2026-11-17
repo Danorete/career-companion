@@ -42,7 +42,7 @@ def check(mode, page, app, port, finished):
         assert page.locator('.menu[open]').count() == 0
         page.locator('#more-menu > summary').click()
         menu = page.locator('#more-menu').inner_text()
-        for word in ('About me', 'Jobs I’m looking at', 'Settings', 'Take the tour', 'answers are samples', 'stays on this computer'):
+        for word in ('About me', 'Jobs I’m looking at', 'Settings', 'Take the tour', 'Quit Link', 'answers are samples', 'stays on this computer'):
             assert word in menu, (word, menu)
         for word in ('Quick log', 'Career tools', 'AI budget', 'Mock AI', '$'):
             assert word not in menu + side, (word, menu)
@@ -87,6 +87,9 @@ def first_time_screen():
                 assert page.locator('.guide-launcher').is_hidden() and page.locator('.workspace-toolbar').is_hidden()
                 page.get_by_role('button', name='Connect your calendar').click()
                 page.get_by_role('heading', name='Connect your calendar').wait_for()
+                page.locator('#more-menu > summary').click()
+                page.get_by_role('button', name='Quit Link').click()
+                page.get_by_role('heading', name='Link has stopped.').wait_for()
                 browser.close()
         finally:
             server.should_exit = True

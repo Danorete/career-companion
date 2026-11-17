@@ -387,4 +387,5 @@ body.connection-studio { background:var(--ground); font:14px/1.65 var(--body); c
 .connection-studio .more-today > summary { cursor:pointer; color:var(--accent); font-weight:600; padding:8px 0; }
 .connection-studio[data-mode="user"] .sheet > .page { padding-top:20px; }
 @media(max-width:1000px) { .connection-studio .start-card { margin-top:24px; padding-bottom:170px; } }
+.connection-studio .stopped { max-width:520px; margin:20vh auto 0; padding:0 24px; }
 

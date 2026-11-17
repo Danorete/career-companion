@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
+import threading
 from pathlib import Path
 from typing import Literal
 
@@ -12,7 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import services, store, people, coaching, network_imports, encounters, connectors, nudges, nudge_agent
+from . import services, store, people, coaching, network_imports, encounters, connectors, nudges, nudge_agent, launcher
 from .ai import AIClient, AIUnavailable, CompanionTurn, Gateway, build_client
 from .budget import Budget
 from .config import Settings
@@ -338,6 +340,8 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     app.state.db, app.state.security, app.state.budget, app.state.gateway = db, security, budget, gateway
     app.state.settings = settings
     secrets_store = secret_store or KeyringSecrets()
+    launcher_key = launcher.ensure_key(settings.data_dir)
+    app.state.request_shutdown = lambda: None  # `companion run` replaces this with a real stop
     desktop = notifier or nudges.build_notifier()
     flows = connectors.OAuthFlows()
     app.state.secrets, app.state.flows = secrets_store, flows
@@ -974,6 +978,31 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     def nudges_test() -> dict:
         sent = desktop.send("Link", "This is a test reminder. Nothing is due.")
         return {"sent": sent, "reason": "" if sent else (desktop.reason or "macOS did not show the notification. Check Notifications in System Settings.")}
+
+    # ---- one-click start and quit (decision D47) --------------------------------------------
+    def stop_soon() -> None:
+        threading.Timer(0.4, lambda: app.state.request_shutdown()).start()
+
+    def launcher_key_ok(request: Request) -> bool:
+        return secrets.compare_digest(request.headers.get("x-launcher-key", "").encode(), launcher_key.encode())
+
+    @app.get("/launcher/token")
+    def launcher_token(request: Request) -> JSONResponse:
+        if not launcher_key_ok(request):
+            return JSONResponse({"error": "launcher key required"}, status_code=401)
+        return JSONResponse({"token": security.mint_launch_token()})
+
+    @app.post("/launcher/quit")
+    def launcher_quit(request: Request) -> JSONResponse:
+        if not launcher_key_ok(request):
+            return JSONResponse({"error": "launcher key required"}, status_code=401)
+        stop_soon()
+        return JSONResponse({"stopping": True})
+
+    @app.post("/api/quit")
+    def quit_link() -> dict:
+        stop_soon()
+        return {"stopping": True}
 
     @app.get("/api/checkins")
     def checkins_due() -> list[dict]:

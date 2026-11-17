@@ -302,6 +302,12 @@
   }
   document.addEventListener("click", (event) => { if (!event.target.closest(".menu")) closeMenus(); });
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && document.querySelector(".menu[open]")) closeMenus(true); });
+  // Stops Link (decision D47). The page is replaced so nothing looks alive after the server is gone.
+  async function quitLink() {
+    if (!(await act(() => api("POST", "/api/quit", {})))) return;
+    document.body.replaceChildren(h("main", { class: "stopped" }, h("h1", { text: "Link has stopped." }),
+      h("p", { text: "You can close this tab. To open Link again, open Link from Spotlight (Cmd+Space), or run companion launch in Terminal." })));
+  }
   function topMenus(aiNote) {
     const go2 = (fn) => () => { closeMenus(); fn(); };
     const page = (id) => h("a", { class: "menu-item", href: "#" + id, onclick: () => closeMenus(), text: label(id) });
@@ -312,6 +318,7 @@
     const more = h("details", { class: "menu", id: "more-menu" }, h("summary", {}, "Menu"),
       h("div", { class: "menu-panel" }, page("me"), page("roles"), page("evidence"), page("drafts"), page("pasted"), page("settings"),
         h("button", { type: "button", class: "menu-item", onclick: go2(() => window.LinkGuide.start()), text: "Take the tour" }),
+        h("button", { type: "button", class: "menu-item", onclick: go2(quitLink), text: "Quit Link" }),
         aiNote ? h("p", { class: "menu-note", text: aiNote }) : null,
         h("p", { class: "menu-note", text: "Everything you add stays on this computer." })));
     return h("div", { class: "top-menus row" }, add, more);
@@ -1499,6 +1506,9 @@
     root.append(page);
     page.append(h("section",{class:"section"},h("h3",{text:pick("Your networking sources","Add contacts")}),h("p",{text:pick("Import a LinkedIn snapshot, choose conversation excerpts or prepare from a calendar file.","Bring in your LinkedIn contacts file, messages you choose, or a calendar file.")}),btn(pick("Open Sources & imports","Add contacts"),()=>go("sources"),"quiet")));
     page.append(h("section", {class:"section"}, h("h3",{text:"Meet Link"}), btn("Take the guided walkthrough",()=>window.LinkGuide.start(),"quiet")));
+    page.append(h("section", { class: "section" }, h("h3", { text: "Starting and stopping Link" }),
+      h("p", { text: "To open Link with one click on a Mac, run this once in Terminal. After that, open Link from Spotlight (Cmd+Space) or drag it to your Dock." }),
+      h("p", {}, h("code", { text: "companion launcher --install" })), h("div", { class: "row" }, btn("Quit Link", quitLink, "quiet"))));
     page.append(await nudgeSection());
     page.append(h("section", {class: "section"}, h("h3", {text: "Appearance"}),
       field("Color theme", select([["system","Follow system"],["light","Light"],["dark","Dark"]], store.get("theme", "light"), value => { store.set("theme", value); applyTheme(); })),

@@ -51,23 +51,79 @@ def _run(args: argparse.Namespace) -> int:
         from .services import local_today
         load_demo(app.state.db, local_today(settings))
         app.state.db.run("INSERT OR REPLACE INTO kv(key,value) VALUES('demo_mode','1')")
-    url = f"http://{settings.host}:{settings.port}/#t={app.state.security.launch_token}"
     ai = app.state.gateway.availability()
-    print("Link — Connection Studio" + (" [FICTIONAL DEMO]" if args.demo else ""))
-    print(f"  Data folder : {settings.data_dir}")
-    print(f"  AI          : {ai['mode']} ({ai['reason']})")
-    print(f"  Version     : {'developer' if settings.ui_mode == 'dev' else 'user'} ({settings.ui_mode})")
-    print(f"  Open        : {url}")
-    print("  The link works once. Restart the app to get a new one. Press Ctrl+C to stop.")
-    if not args.no_browser:
-        webbrowser.open(url)
+    if args.background:
+        # Started by `companion launch`: no printed link (so none lands in a log) and the first link is closed.
+        app.state.security.revoke_initial_token()
+        print(f"Link is running in the background on port {settings.port}. Data folder: {settings.data_dir}", flush=True)
+    else:
+        url = f"http://{settings.host}:{settings.port}/#t={app.state.security.launch_token}"
+        print("Link — Connection Studio" + (" [FICTIONAL DEMO]" if args.demo else ""))
+        print(f"  Data folder : {settings.data_dir}")
+        print(f"  AI          : {ai['mode']} ({ai['reason']})")
+        print(f"  Version     : {'developer' if settings.ui_mode == 'dev' else 'user'} ({settings.ui_mode})")
+        print(f"  Open        : {url}")
+        print("  The link works once. Restart the app to get a new one. Press Ctrl+C to stop, or use Quit Link in the Menu.")
+        if not args.no_browser:
+            webbrowser.open(url)
     # Access logging is off: request lines are not needed and logs stay free of personal data.
+    import os
+    import signal
+
+    app.state.request_shutdown = lambda: os.kill(os.getpid(), signal.SIGINT)  # the same clean stop as pressing Ctrl+C
     try:
         uvicorn.run(app, host=settings.host, port=settings.port, access_log=False, log_level="warning")
     finally:
         app.state.db.close()
         if demo_dir is not None:
             demo_dir.cleanup()
+    return 0
+
+
+def _launch(_: argparse.Namespace) -> int:
+    from . import launcher
+
+    try:
+        settings = Settings.from_env()
+    except ValueError as exc:
+        print(f"Can't start: {exc}")
+        return 2
+    code, message = launcher.launch(settings)
+    print(message)
+    return code
+
+
+def _quit(_: argparse.Namespace) -> int:
+    from . import launcher
+
+    try:
+        settings = Settings.from_env()
+    except ValueError as exc:
+        print(f"Settings problem: {exc}")
+        return 2
+    code, message = launcher.quit_running(settings)
+    print(message)
+    return code
+
+
+def _launcher(args: argparse.Namespace) -> int:
+    """Install or remove the one-click Mac app."""
+    from pathlib import Path
+
+    from . import launcher
+
+    try:
+        settings = Settings.from_env()
+    except ValueError as exc:
+        print(f"Can't start: {exc}")
+        return 2
+    home = Path.home()
+    if args.uninstall:
+        print(launcher.uninstall(home))
+    elif args.status:
+        print(f"Link.app installed: {'yes' if launcher.is_installed(home) else 'no'}")
+    else:
+        print(launcher.install(home, settings.data_dir))
     return 0
 
 
@@ -146,9 +202,17 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command")
     run = sub.add_parser("run", help="start the app and open the browser")
     run.add_argument("--no-browser", action="store_true")
+    run.add_argument("--background", action="store_true", help="used by the launcher: no browser, no printed link")
     run.add_argument("--mode", choices=("user", "dev"), help="user: plain wording for testers (default). dev: developer controls and original wording")
     run.add_argument("--demo", action="store_true", help="use temporary fictional data and mock AI; never opens your personal database")
     run.set_defaults(func=_run)
+    sub.add_parser("launch", help="open Link in your browser, starting it quietly first if it isn't running").set_defaults(func=_launch)
+    sub.add_parser("quit", help="stop a running Link").set_defaults(func=_quit)
+    one_click = sub.add_parser("launcher", help="install or remove Link.app, a one-click way to open Link (Mac)")
+    one_click_group = one_click.add_mutually_exclusive_group()
+    one_click_group.add_argument("--uninstall", action="store_true", help="remove Link.app")
+    one_click_group.add_argument("--status", action="store_true", help="say whether Link.app is installed")
+    one_click.set_defaults(func=_launcher)
     nudge = sub.add_parser("nudge", help="show today's reminder if one is due, or install or remove the helper that does it")
     nudge.add_argument("--dry-run", action="store_true", help="say what would happen without showing anything")
     group = nudge.add_mutually_exclusive_group()

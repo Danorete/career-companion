@@ -274,3 +274,16 @@ Status: built and tested with a stand-in notifier. The builder confirmed the tes
   - Reminders fire only while the computer is awake and logged in.
   - macOS may need Notifications allowed for Script Editor, which is what `osascript` shows as.
 
+## D47 — One-click start and quit (2026-11-17)
+Status: built. `Link.app` has not been built or opened on a real Mac. The launcher ran end to end against a real background server on Linux.
+
+Why: a reminder (D46) cannot open Link, and Link started only from Terminal with a link that works once. The reminder said "Open Link" but opening it took a command.
+
+- **`companion launch`.** If Link is running, it asks for a fresh one-time sign-in link and opens it. If not, it starts Link quietly in the background, waits up to 15 seconds, then opens it. If something else is on the port, it says so and starts nothing.
+- **How it asks.** A random key is created in the data folder on first start (`launcher.key`, readable by your user only, like the database). `GET /launcher/token` with that key in a header returns a new single-use link that expires after five minutes. Web pages cannot use it: a cross-site request is refused before the route runs, a custom header would need a preflight (refused), and they don't have the key. The page-facing guard (D2) is otherwise unchanged. The first printed link and these minted links are separate, each works once, and wrong guesses count toward the same lockout.
+- **Background start.** `companion run --background` prints no link, so no sign-in link ever lands in a log, and it closes the first link. Its output goes to `link.log`, which holds warnings and nothing personal.
+- **Quit.** **Quit Link** in the Menu and Settings (`POST /api/quit`, needs a signed-in page) and `companion quit` (`POST /launcher/quit`, needs the key and Link's own origin). Both stop Link the same way as Ctrl+C. The page then says "Link has stopped."
+- **`Link.app`.** `companion launcher --install` compiles a small AppleScript app with `osacompile` into `~/Applications/Link.app`. It runs `companion launch` with the same data folder, client-file path, timezone, AI mode, version and port as when it was installed, and shows a dialog pointing to `link.log` if Link can't start. It never copies a Google client ID or secret into the app. Paths with quotes are escaped so they cannot end the script early.
+- **Cost of this convenience.** Link keeps running in the background until you quit it, listening only on 127.0.0.1. Anything that can run as your user can read the key file, as it can already read the database (D2).
+- **Not done.** A reminder still cannot open Link by itself: clicking a notification shown through `osascript` opens Script Editor, not Link. A possible later experiment is posting the reminder from `Link.app` itself, which is untested. There is no custom icon. On Windows the launcher, the reminders helper and the signal-based quit would each need their own version.
+

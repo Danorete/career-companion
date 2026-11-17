@@ -10,12 +10,13 @@ This project moved here from a folder in `Danorete/spotify-listening-bi` on 2026
   2026-11-13 were only delivered as ZIP archives, because pushes from those sessions were refused.
   Notes below that say "no GitHub push performed" or "GitHub writes returned 403" describe those
   sessions; they no longer apply.
-- 285 Python tests pass on Linux, Python 3.12. Schema version 7. Mock AI only. The Google Calendar sign-in has been tried once for real by the builder; the check-in has not.
+- 305 Python tests pass on Linux, Python 3.12. Schema version 7. Mock AI only. The Google Calendar sign-in has been tried once for real by the builder; the check-in has not.
 - `claude/connections-redesign` is a separate People/Quick log implementation built in parallel; it is
   not merged. `claude/less-friction` is included in this build.
 - `graphify-out/` was rebuilt from code on 2026-11-13.
 - Still unverified: a real provider call, billing reconciliation, macOS, Safari, Keychain.
 - Entries below are a dated log; their test counts were correct when written.
+- 2026-11-17 (one-click launcher): `companion launch` opens Link, starting it quietly in the background if needed, and `companion launcher --install` builds a Mac `Link.app` (D47). Quit Link added to the Menu and Settings. 20 new tests, plus `scripts/check_launcher_end_to_end.py`, which ran a real background server on Linux. 305 tests and all 10 browser checks pass. `Link.app` has not been built or opened on a real Mac.
 - 2026-11-17 (step 5): reminders outside Link (D46). One generic desktop reminder a day from a small local helper (`companion nudge`, installable as a Mac login agent), a Settings section, 28 new tests and `scripts/check_nudges_browser.py`. 285 tests and all 10 browser checks pass. On a real Mac the builder saw the test reminder appear; the login agent has not been installed yet and no real due-follow-up reminder has been shown. The calendar-event channel is deliberately not built (it needs write access).
 - 2026-11-17 (calmer first screen): the user version now has Today, People, Add and Menu in the top bar, a three-step first screen, and "More for today" (D45). The developer version is unchanged. 257 tests and all 9 browser checks pass; the user-mode check now also covers the first-time screen.
 - 2026-11-17 (step 4): post-event check-in (D44). Today asks "How did it go with …?" about a kept meeting an hour after it ends: Great, Fine or Skip, plus an optional line and an optional promise. 12 new tests and an extended `check_calendar_browser.py`; 257 tests and all 9 browser checks pass.
