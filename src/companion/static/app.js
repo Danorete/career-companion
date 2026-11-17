@@ -622,6 +622,36 @@
       h('div',{class:'row'},hasPeople?btn('Choose a person',()=>go('people'),'primary'):btn('I don’t know anyone yet',()=>workflows.open({mode:'starting'}),'primary'),
         btn('Add someone I know',()=>{S.addPerson=true;go('people');},'quiet')));
   }
+  // After a meeting with someone you kept (decision D44): one tap says how it went. No typing needed.
+  async function checkinCard(page) {
+    const due = await api("GET", "/api/checkins");
+    S.calendar = Object.assign({}, S.calendar, { checkins: due.length });
+    if (!due.length) return;
+    const c = due[0];
+    let note = "", promise = "";
+    const day = new Date(c.starts_at);
+    const when = isNaN(day) ? c.starts_at : day.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    const answer = async (choice) => {
+      const out = await act(() => api("POST", "/api/checkins/" + c.id + "/answer", { answer: choice, note, promise }));
+      if (!out) return;
+      toast(choice === "skip" ? "Skipped. Nothing was saved." : out.next_step ? "Saved a note and a reminder for " + c.name + "." : "Saved a note for " + c.name + ".");
+      render();
+    };
+    const noteInput = h("textarea", { rows: 2, maxlength: 1000, "aria-label": "A line about how it went (optional)",
+      placeholder: "One line is plenty. For example: we talked about analytics internships.", oninput: (e) => { note = e.target.value; } });
+    const promiseInput = h("input", { type: "text", maxlength: 200, "aria-label": "Something you promised (optional)",
+      placeholder: "For example: send her the article", oninput: (e) => { promise = e.target.value; } });
+    page.append(h("section", { class: "checkin-card stack", "aria-label": "After your meeting" },
+      h("span", { class: "eyebrow", text: "AFTER YOUR MEETING" }),
+      h("h2", { text: "How did it go with " + c.name + "?" }),
+      h("p", { class: "muted", text: (c.title || "Meeting") + " · " + when }),
+      h("div", { class: "row" }, btn("Great", () => answer("great"), "primary"), btn("Fine", () => answer("fine")), btn("Skip", () => answer("skip"), "quiet")),
+      h("details", {}, h("summary", { text: "Add a line or a promise" }), field("A line about it (optional)", noteInput),
+        field("Did you promise something? (optional)", promiseInput),
+        h("p", { class: "muted small", text: "A promise becomes your next step for this person, with a reminder in 3 days. If they already have a next step, it stays and the promise goes in the note." })),
+      due.length > 1 ? h("p", { class: "muted small", text: (due.length - 1) + " more after this one." }) : null,
+      h("p", { class: "muted small", text: "Great or Fine saves a short note dated to the meeting. Skip saves nothing." })));
+  }
   async function renderToday(root) {
     const [view, ideas, items] = await Promise.all([loadToday(), api("GET", "/api/ideas"), api("GET", "/api/items")]);
     const all = [view.recommended].concat(view.alternatives).filter(Boolean);
@@ -631,6 +661,7 @@
     root.append(page);
     const hasPeople=items.some(item=>item.kind==='relationship');
     page.append(todayHeader(hasPeople),dailyShortcuts());
+    await checkinCard(page);
     if (options.length) page.append(hero(options[0], view.today));
     else if (all.length) page.append(h("section", { class: "state" }, h("h2", { text: "That's everything set aside for today." }),
       h("p", { class: "hero-meta", text: "Nothing was changed. Your to-dos are still there." }), h("div", {}, btn("Show them again", () => { S.skipped.clear(); render(); }))));

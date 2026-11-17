@@ -222,3 +222,18 @@ Status: built and tested against stand-ins. No real Google sign-in has been trie
 - **Finding it (added after the first real try).** The connection card sits in the calendar tab of Add contacts, which was labelled "Your next meeting" and was easy to miss. In the user version that tab is now "Your calendar" (eyebrow "Connect"), Today shows "Connect your calendar" until a calendar is connected, and the card shows "Loading…" or a plain error instead of staying blank. The developer version keeps the original tab wording (D42).
 - **Meet Link button.** The tour launcher was a small pill 12px from the bottom edge, partly under the Link chat bubble. It is now a larger button with a play icon above the bubble, beside the chat panel when it is open, and clear of the welcome screen.
 
+## D44 — Post-event check-in (2026-11-17)
+Status: built and tested with frozen time. Not yet tried against a real meeting. Step 4 of D39's plan.
+
+- **Who is asked about.** Only people you kept from a calendar suggestion (D43). A suggestion you never kept is never asked about.
+- **When.** One hour after the event ends. A question unanswered for seven days is dropped quietly. Nothing reminds you about it, and nothing in this step runs in the background: the check happens when Today loads.
+- **The question.** Today shows one meeting at a time: "How did it go with Maya?" with Great, Fine and Skip. A count says how many more are waiting.
+- **What an answer saves.**
+  - Great or Fine saves a short note dated to the meeting: the event title, "Went well." or "Went fine.", and any line you added. Answering is how you tell Link the meeting happened, so this is the only path where an invitation turns into a conversation.
+  - Skip saves nothing. There is no separate "it didn't happen"; Skip covers it.
+  - The note is built only from the event title, your answer and what you typed. No AI is involved and nothing is inferred.
+- **Promises.** An optional box ("Did you promise something?") saves the promise in the note and sets it as the person's next step, with a reminder three days later. If the person already has a next step, it is never replaced; the promise stays in the note and the page says so.
+- **Records.** The note is an ordinary log (source `calendar_checkin`) and appears in the person's timeline. Removing calendar data later keeps the notes you saved. Schema version 7 adds `checkin_state`, `checkin_at` and `interaction_id` to `encounter_candidates`; version 6 databases gain them without touching rows.
+- **Why one tap.** The survey and the builder both found typing a note after every meeting is the bottleneck. This turns it into a tap, with typing optional.
+- **Not built.** Dictation, outside-the-app nudges (step 5), a "how did it go?" prompt for meetings you didn't keep, and learning from answers.
+

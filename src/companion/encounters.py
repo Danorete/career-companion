@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from . import people, store
 from .db import Database, now
@@ -17,6 +17,10 @@ SOURCE = "google_calendar"
 PAST_DAYS, FUTURE_DAYS = 21, 14
 MAX_SMALL_MEETING = 6
 MAX_IGNORED = 500
+CHECKIN_DELAY = timedelta(hours=1)    # asked about an hour after the event ends
+CHECKIN_EXPIRES = timedelta(days=7)   # then quietly dropped; no reminders about reminders
+PROMISE_REMINDER_DAYS = 3
+ANSWERS = ("great", "fine", "skip")
 CONNECTOR_KEY = "connector:google_calendar"
 IGNORE_KEY = "calendar_ignore"
 
@@ -192,3 +196,73 @@ def disconnect(db: Database, provider, remove_data: bool) -> dict:
                 db.run("DELETE FROM kv WHERE key=?", (f"person_address:{item_id}",))
     db.log("calendar_disconnected", "removed_data" if remove_data else "kept_data")
     return {"disconnected": True, "removed_data": remove_data}
+
+
+# ---- post-event check-in (decision D44) -----------------------------------------------------
+
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _parse(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _ended(row: dict) -> datetime:
+    return _parse(row["ends_at"] or row["starts_at"])
+
+
+def due_checkins(db: Database, current: datetime | None = None) -> list[dict]:
+    """Meetings with people you kept that ended at least an hour ago and have not been answered. Old ones expire quietly."""
+    current = current or _now()
+    due = []
+    rows = db.q("SELECT * FROM encounter_candidates WHERE state='kept' AND item_id IS NOT NULL AND checkin_state='open' ORDER BY ends_at, starts_at, id")
+    for row in rows:
+        ended = _ended(row)
+        if current > ended + CHECKIN_EXPIRES:
+            db.run("UPDATE encounter_candidates SET checkin_state='expired', checkin_at=? WHERE id=?", (now(), row["id"]))
+        elif current >= ended + CHECKIN_DELAY:
+            person = store.get(db, "items", row["item_id"])
+            if person:
+                due.append({"id": row["id"], "item_id": row["item_id"], "name": person["title"], "title": row["title"],
+                            "starts_at": row["starts_at"], "ends_at": row["ends_at"]})
+    return due
+
+
+def answer_checkin(db: Database, candidate_id: int, answer: str, note: str = "", promise: str = "", current: datetime | None = None) -> dict:
+    """Great or Fine saves a short note dated to the meeting, because answering is how you say it happened. Skip saves nothing."""
+    if answer not in ANSWERS:
+        raise store.RuleError("Choose Great, Fine or Skip.")
+    row = db.one("SELECT * FROM encounter_candidates WHERE id=?", (candidate_id,))
+    if not row or row["state"] != "kept" or row["item_id"] is None:
+        raise store.RuleError("That check-in isn't there any more.")
+    if row["checkin_state"] != "open":
+        raise store.RuleError("You've already answered this one.")
+    note, promise = " ".join(note.split()), " ".join(promise.split())
+    result = {"logged": False, "interaction_id": None, "next_step": False, "promise_in_note": False}
+    with db.tx():
+        if answer == "skip":
+            db.run("UPDATE encounter_candidates SET checkin_state='skipped', checkin_at=? WHERE id=?", (now(), candidate_id))
+        else:
+            current = current or _now()
+            parts = [f"{row['title'] or 'Meeting'}. {'Went well.' if answer == 'great' else 'Went fine.'}"]
+            if note:
+                parts.append(note)
+            if promise:
+                parts.append(f"I said I would: {promise}")
+            when = people.resolve_when({"kind": "date", "date": row["starts_at"][:10]}, current.date())
+            log = store.insert(db, "interactions", item_id=row["item_id"], source="calendar_checkin", note=" ".join(parts),
+                               commitments=promise, **when)
+            result.update(logged=True, interaction_id=log["id"])
+            db.run("UPDATE encounter_candidates SET checkin_state='done', checkin_at=?, interaction_id=? WHERE id=?",
+                   (now(), log["id"], candidate_id))
+    if result["logged"] and promise:  # after the note is saved: setting a next step opens its own transaction
+        if people.next_action(db, row["item_id"]):
+            result["promise_in_note"] = True  # never replace a step the person already has
+        else:
+            people.set_next_action(db, row["item_id"], promise, (current.date() + timedelta(days=PROMISE_REMINDER_DAYS)).isoformat())
+            result["next_step"] = True
+    db.log("checkin_answered", f"candidate={candidate_id} answer={answer} promise={bool(promise)}")
+    return result
+

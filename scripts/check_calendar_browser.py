@@ -60,6 +60,21 @@ with tempfile.TemporaryDirectory(prefix='link-calendar-') as folder:
             page.get_by_text('Saved Maya Lindqvist.').wait_for()
             assert len(db.q("SELECT id FROM items WHERE kind='relationship'")) == before + 1
             assert page.locator('.connect-card article').count() == 2
+            # The meeting with Maya ended days ago, so Today asks how it went (decision D44). Priya's is still ahead.
+            page.get_by_role('link', name='Today', exact=True).first.click()
+            page.get_by_role('heading', name='How did it go with Maya Lindqvist?').wait_for()
+            assert page.locator('.checkin-card h2').count() == 1
+            page.get_by_text('Add a line or a promise').click()
+            page.get_by_label('Something you promised (optional)').fill('send her the article')
+            page.get_by_role('button', name='Great', exact=True).click()
+            page.get_by_text('Saved a note and a reminder for Maya Lindqvist.').wait_for()
+            expect(page.locator('.checkin-card')).to_have_count(0)
+            [log] = db.q("SELECT * FROM interactions WHERE source='calendar_checkin'")
+            assert 'Went well.' in log['note'] and 'send her the article' in log['note']
+            assert db.one('SELECT COUNT(*) AS n FROM actions WHERE title=?', ('send her the article',))['n'] == 1
+            page.get_by_role('link', name='Add contacts', exact=True).first.click()
+            page.locator('#source-tab-calendar').click()
+            page.get_by_role('button', name='Check my calendar').wait_for()
             page.locator('.connect-card article', has_text='Priya').get_by_role('button', name='Never suggest this person', exact=True).click()
             expect(page.locator('.connect-card article')).to_have_count(1)
             page.get_by_role('button', name='Disconnect…').click()

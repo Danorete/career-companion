@@ -56,6 +56,11 @@ Link can read your Google Calendar to find people you have met or are about to m
 changes or deletes an event, and it never reads event descriptions, places or notes. Nothing is saved as a person
 until you click Keep, and an invitation is never treated as a conversation. Decision D43 has the details.
 
+After a meeting with someone you kept, Today asks "How did it go with ...?" about an hour after it ends. Great or
+Fine saves a short note dated to the meeting, an optional line adds to it, and an optional promise becomes your
+next step with a reminder in three days. Skip saves nothing, and an unanswered question quietly goes away after a
+week (decision D44).
+
 In `--demo` mode this works with a fictional sample calendar and needs no Google account.
 
 To connect your own calendar you need your own Google sign-in settings. This is the part to do once:
@@ -157,7 +162,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`237 passed` on Linux, Python 3.12, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
+`257 passed` on Linux, Python 3.12, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|

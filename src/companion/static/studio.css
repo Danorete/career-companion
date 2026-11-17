@@ -350,3 +350,8 @@ body.connection-studio { background:var(--ground); font:14px/1.65 var(--body); c
 .welcome-import-path p { margin:8px 0 12px; }
 .source-panel { scroll-margin-top:18px; }
 @media(max-width:1000px) { .daily-intro { flex-direction:column; gap:12px; } }
+.connection-studio .checkin-card { background:var(--tint); border:1px solid var(--line-strong); border-radius:8px; padding:24px; margin-bottom:24px; }
+.connection-studio .checkin-card h2 { margin:0; }
+.connection-studio .checkin-card summary { cursor:pointer; color:var(--accent); font-weight:600; }
+.connection-studio .checkin-card details[open] summary { margin-bottom:12px; }
+

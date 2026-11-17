@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -125,7 +125,10 @@ CREATE TABLE IF NOT EXISTS encounter_candidates (
     name TEXT NOT NULL, name_guessed INTEGER NOT NULL DEFAULT 0, title TEXT NOT NULL DEFAULT '',
     starts_at TEXT NOT NULL, ends_at TEXT NOT NULL DEFAULT '', reason TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'pending', item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
-    created_at TEXT NOT NULL, decided_at TEXT, UNIQUE(source, event_id, address));
+    created_at TEXT NOT NULL, decided_at TEXT,
+    checkin_state TEXT NOT NULL DEFAULT 'open', checkin_at TEXT,
+    interaction_id INTEGER REFERENCES interactions(id) ON DELETE SET NULL,
+    UNIQUE(source, event_id, address));
 
 CREATE TABLE IF NOT EXISTS activity (
     id INTEGER PRIMARY KEY, ts TEXT NOT NULL, event TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '');
@@ -166,6 +169,12 @@ class Database:
         # Additive migrations for databases created by earlier versions. Existing rows are untouched.
         if "item_id" not in {r["name"] for r in self.conn.execute("PRAGMA table_info(imports)")}:
             self.conn.execute("ALTER TABLE imports ADD COLUMN item_id INTEGER REFERENCES items(id) ON DELETE SET NULL")
+        # Version 7: the post-event check-in (D44). Databases made at version 6 gain the columns; rows are untouched.
+        have = {r["name"] for r in self.conn.execute("PRAGMA table_info(encounter_candidates)")}
+        for column, ddl in (("checkin_state", "TEXT NOT NULL DEFAULT 'open'"), ("checkin_at", "TEXT"),
+                            ("interaction_id", "INTEGER REFERENCES interactions(id) ON DELETE SET NULL")):
+            if column not in have:
+                self.conn.execute(f"ALTER TABLE encounter_candidates ADD COLUMN {column} {ddl}")
         self.conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         try:
             os.chmod(self.path, 0o600)

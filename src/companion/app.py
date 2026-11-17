@@ -296,6 +296,12 @@ class KeepIn(In):
     person_id: int | None = None
 
 
+class CheckinIn(In):
+    answer: Literal["great", "fine", "skip"]
+    note: str = Field(default="", max_length=1000)
+    promise: str = Field(default="", max_length=200)
+
+
 class DismissIn(In):
     scope: Literal["event", "person"] = "event"
 
@@ -377,7 +383,8 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
         connected = bool(state) and (provider is not None and provider.has_token())
         return {"available": provider is not None, "demo": bool(provider and provider.demo), "connected": connected,
                 "last_sync": state.get("last_sync") if state else None,
-                "waiting": db.one("SELECT COUNT(*) AS n FROM encounter_candidates WHERE state='pending'")["n"] if connected else 0}
+                "waiting": db.one("SELECT COUNT(*) AS n FROM encounter_candidates WHERE state='pending'")["n"] if connected else 0,
+                "checkins": len(encounters.due_checkins(db))}
 
     @app.get("/api/bootstrap")
     def bootstrap(request: Request) -> dict:
@@ -929,6 +936,14 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     @app.post("/api/encounters/{cid}/dismiss")
     def encounter_dismiss(cid: int, body: DismissIn) -> dict:
         return encounters.dismiss(db, cid, body.scope)
+
+    @app.get("/api/checkins")
+    def checkins_due() -> list[dict]:
+        return encounters.due_checkins(db)
+
+    @app.post("/api/checkins/{cid}/answer")
+    def checkin_answer(cid: int, body: CheckinIn) -> dict:
+        return encounters.answer_checkin(db, cid, body.answer, body.note, body.promise)
 
     @app.delete("/api/connectors/calendar")
     def calendar_disconnect(remove_data: bool = False) -> dict:

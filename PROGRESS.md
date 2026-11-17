@@ -10,12 +10,13 @@ This project moved here from a folder in `Danorete/spotify-listening-bi` on 2026
   2026-11-13 were only delivered as ZIP archives, because pushes from those sessions were refused.
   Notes below that say "no GitHub push performed" or "GitHub writes returned 403" describe those
   sessions; they no longer apply.
-- 237 Python tests pass on Linux, Python 3.12. Schema version 6. Mock AI only. No real Google sign-in has been tried.
+- 257 Python tests pass on Linux, Python 3.12. Schema version 7. Mock AI only. The Google Calendar sign-in has been tried once for real by the builder; the check-in has not.
 - `claude/connections-redesign` is a separate People/Quick log implementation built in parallel; it is
   not merged. `claude/less-friction` is included in this build.
 - `graphify-out/` was rebuilt from code on 2026-11-13.
 - Still unverified: a real provider call, billing reconciliation, macOS, Safari, Keychain.
 - Entries below are a dated log; their test counts were correct when written.
+- 2026-11-17 (step 4): post-event check-in (D44). Today asks "How did it go with …?" about a kept meeting an hour after it ends: Great, Fine or Skip, plus an optional line and an optional promise. 12 new tests and an extended `check_calendar_browser.py`; 257 tests and all 9 browser checks pass.
 - 2026-11-17 (step 3): calendar connect (D43). Google Calendar, read-only, with a fictional sample calendar for the demo. 32 new tests and `scripts/check_calendar_browser.py`; 237 tests and all 9 browser checks pass. Verified only against stand-ins: no real Google call has been made.
 - 2026-11-17 (step 2): added the user and developer versions (D42), plain wording in the user version, `scripts/check_user_mode_browser.py`, and `tests/test_ui_mode.py`. 205 tests and all 8 browser checks pass.
 - 2026-11-17: recorded D39 (calendar and email connectors, local-first nudges), D40 (LinkedIn data sources) and D41 (per-student data). Decisions and copy only; no code changed. D38 is used on the unmerged `claude/dazzling-volta-pmv681` branch, so expect a small merge conflict at the end of `DECISIONS.md`.
