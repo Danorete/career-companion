@@ -275,7 +275,7 @@ Status: built and tested with a stand-in notifier. The builder confirmed the tes
   - macOS may need Notifications allowed for Script Editor, which is what `osascript` shows as.
 
 ## D47 — One-click start and quit (2026-11-17)
-Status: built. `Link.app` has not been built or opened on a real Mac. The launcher ran end to end against a real background server on Linux.
+Status: built. `Link.app` was installed and opened Link on the builder's Mac once (2026-11-17). The launcher ran end to end against a real background server on Linux.
 
 Why: a reminder (D46) cannot open Link, and Link started only from Terminal with a link that works once. The reminder said "Open Link" but opening it took a command.
 
