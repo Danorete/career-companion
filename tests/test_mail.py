@@ -208,3 +208,30 @@ def test_a_refused_all_folders_list_falls_back_to_the_inbox_and_a_403_says_why()
         status_code = 403
         def json(self): return {"error": {"message": "Gmail API has not been used in project 1 before or it is disabled."}}
     assert "has not been used" in connectors._google_reason(Resp())
+
+
+def test_mail_traffic_may_reach_only_google_sign_in_and_gmail():
+    import httpx
+    seen = []
+    mail = connectors.GoogleMail("id", "secret", Secrets(), transport=httpx.MockTransport(lambda r: seen.append(r) or httpx.Response(200)))
+    for url in ("https://www.googleapis.com/calendar/v3/calendars/primary/events", "https://example.com/",
+                "http://gmail.googleapis.com/gmail/v1/users/me/profile", "https://gmail.googleapis.com.evil.test/x", "https://www.linkedin.com/feed/"):
+        with pytest.raises(connectors.NeverSent):
+            mail._http.get(url)
+    assert seen == []
+    mail._http.get("https://gmail.googleapis.com/gmail/v1/users/me/profile")
+    assert len(seen) == 1
+
+
+def test_the_email_sign_in_is_kept_apart_from_the_calendar_one():
+    secrets = Secrets()
+    secrets.set(connectors.TOKEN_ACCOUNT, "CAL"); secrets.set(connectors.MAIL_TOKEN_ACCOUNT, "MAIL")
+    connectors.GoogleMail("id", "secret", secrets, transport=__import__("httpx").MockTransport(lambda r: __import__("httpx").Response(200))).disconnect()
+    assert secrets.get(connectors.TOKEN_ACCOUNT) == "CAL" and secrets.get(connectors.MAIL_TOKEN_ACCOUNT) is None
+
+
+def test_delete_everything_also_cancels_the_email_sign_in(tmp_path):
+    provider = Mail([])
+    app, c = make(tmp_path, provider)
+    assert c.post("/api/wipe", json={"confirm": "DELETE EVERYTHING"}).status_code == 200
+    assert provider.disconnected == 1
