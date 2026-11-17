@@ -277,12 +277,16 @@
     renderMobileTabs();
     updateSetupCard();
     if (!isDev()) {
-      // User version: no spending meter or provider detail. One plain line, and only when it matters.
+      // User version: two places to look. Today and People, then Add and Menu. No spending meter or provider detail.
       const paused = b.level === "hard_stop";
       const note = paused ? "AI is paused until next month. Everything else still works."
         : !S.ai.available ? "AI is off. Everything else still works."
-        : S.ai.mode === "mock" ? "Sample answers. Link’s AI isn’t switched on in this version." : "";
-      fill($("side-status"), note ? h("a", { class: "side-status", href: "#settings", title: "About the AI" }, h("span", { class: "mode" }, h("span", { class: "dot " + (paused || !S.ai.available ? "bad" : "warn") }), "About the AI"), h("span", { class: "detail muted", text: note })) : null);
+        : S.ai.mode === "mock" ? "Link’s AI isn’t switched on in this version, so answers are samples." : "";
+      fill($("side-main"),
+        h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}))),
+        h("div", { class: "primary-nav" }, NAV.filter((n) => n[0] === "today" || n[0] === "people").map((n) => link(n, false))),
+        h("div", { class: "side-spacer" }), topMenus(note), session);
+      fill($("side-status"));
       return;
     }
     fill($("side-status"),
@@ -291,6 +295,26 @@
         h("span", { class: "detail muted", text: !S.ai.available ? "Everything else still works." : S.ai.mode === "mock" ? "Canned replies. Nothing leaves this Mac." : "Text you send goes to the AI provider." }),
         h("span", { class: "detail split" }, h("span", { text: "AI budget" }), h("span", { text: money(b.committed_usd || 0) + " / $" + Math.round(b.hard_stop_usd || 16) })),
         (function () { const m = h("span", { class: "detail meter " + level }, h("span", {})); m.firstChild.style.width = Math.min(100, 100 * (b.committed_usd || 0) / (b.hard_stop_usd || 16)) + "%"; return m; })()));
+  }
+  // The two menus of the user version. Native <details>, closed by a click elsewhere, a choice or Escape.
+  function closeMenus(restoreFocus = false) {
+    document.querySelectorAll(".menu[open]").forEach((m) => { m.removeAttribute("open"); if (restoreFocus) m.querySelector("summary").focus(); });
+  }
+  document.addEventListener("click", (event) => { if (!event.target.closest(".menu")) closeMenus(); });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && document.querySelector(".menu[open]")) closeMenus(true); });
+  function topMenus(aiNote) {
+    const go2 = (fn) => () => { closeMenus(); fn(); };
+    const page = (id) => h("a", { class: "menu-item", href: "#" + id, onclick: () => closeMenus(), text: label(id) });
+    const cal = S.calendar || {};
+    const add = h("details", { class: "menu menu-add", id: "add-menu" }, h("summary", {}, icon("docplus", 16), "Add"),
+      h("div", { class: "menu-panel" }, page("quicklog"), page("sources"),
+        cal.available ? h("button", { type: "button", class: "menu-item", onclick: go2(() => sources.open("calendar")), text: cal.connected ? "Your calendar" : "Connect your calendar" }) : null));
+    const more = h("details", { class: "menu", id: "more-menu" }, h("summary", {}, "Menu"),
+      h("div", { class: "menu-panel" }, page("me"), page("roles"), page("evidence"), page("drafts"), page("pasted"), page("settings"),
+        h("button", { type: "button", class: "menu-item", onclick: go2(() => window.LinkGuide.start()), text: "Take the tour" }),
+        aiNote ? h("p", { class: "menu-note", text: aiNote }) : null,
+        h("p", { class: "menu-note", text: "Everything you add stays on this computer." })));
+    return h("div", { class: "top-menus row" }, add, more);
   }
   // Mobile tab bar adapts the kit's five-item capsule. Utility sections live in More.
   let moreOpen = false;
@@ -607,6 +631,37 @@
       h('p',{text:'Choose one thoughtful next step. Link helps you prepare; you decide what to do.'})),
       btn('I’m stuck — help me choose',()=>workflows.begin(),'quiet'));
   }
+  // User version: at most one line about getting set up. Adding things lives in the Add menu.
+  function setupLine() {
+    const c = S.calendar || {};
+    if (c.waiting) return h('nav',{class:'daily-shortcuts','aria-label':'Getting set up'}, btn(c.waiting + (c.waiting === 1 ? ' person found in your calendar. Review' : ' people found in your calendar. Review'),()=>sources.open('calendar'),'primary'));
+    if (c.available && !c.connected) return h('nav',{class:'daily-shortcuts','aria-label':'Getting set up'}, btn('Connect your calendar',()=>sources.open('calendar'),'quiet'));
+    return null;
+  }
+  // The first screen for someone with nobody in Link yet: three steps, one button for the one that is next.
+  function startCard() {
+    const c = S.calendar || {};
+    const steps = [
+      c.available ? { title: 'Connect your calendar', text: 'Link looks for people you have met or are about to meet. It only reads, and you choose who to keep.',
+                      done: !!c.connected, button: ['Connect your calendar', () => sources.open('calendar')] }
+                  : { title: 'Add someone you know', text: 'A classmate, a professor or someone you met at an event is enough. A name is all Link needs.',
+                      done: false, button: ['Add someone', () => { S.addPerson = true; go('people'); }] },
+      { title: 'Keep one person', text: c.available ? 'Look through the people Link found and keep the ones you want to remember.' : 'Open them to add where you met and what you talked about.',
+        done: false, button: c.available ? [c.waiting ? 'Review ' + c.waiting + (c.waiting === 1 ? ' person found' : ' people found') : 'Check my calendar', () => sources.open('calendar')] : null },
+      { title: 'After a meeting, say how it went', text: 'One tap: Great, Fine or Skip. Link saves a short note, so you never have to remember it all.', done: false, button: null }];
+    const now = steps.findIndex((s) => !s.done);
+    return h('section', { class: 'start-card', 'aria-label': 'Getting started' },
+      h('h1', { text: 'Start with one person.' }),
+      h('p', { text: 'Link helps you remember the people you meet and follow up without the awkwardness.' }),
+      h('ol', { class: 'start-steps' }, steps.map((s, i) => h('li', { class: s.done ? 'is-done' : '', 'aria-current': i === now ? 'step' : null },
+        h('span', { class: 'mark', 'aria-hidden': 'true', text: s.done ? '✓' : String(i + 1) }),
+        h('div', { class: 'stack' }, h('h2', { text: s.title }), i === now ? h('p', { text: s.text }) : null,
+          i === now && s.button ? h('div', { class: 'row' }, btn(s.button[0], s.button[1], 'primary')) : null)))),
+      h('div', { class: 'start-links row' },
+        c.available ? btn('Add someone by hand', () => { S.addPerson = true; go('people'); }, 'quiet') : null,
+        btn('I don’t know anyone yet', () => workflows.open({ mode: 'starting' }), 'quiet'),
+        btn('Take a one-minute tour', () => window.LinkGuide.start(), 'quiet')));
+  }
   function dailyShortcuts() {
     return h('nav',{class:'daily-shortcuts','aria-label':'Quick actions'},
       btn('Log a conversation',()=>go('quicklog'),'quiet'),
@@ -657,17 +712,22 @@
     const all = [view.recommended].concat(view.alternatives).filter(Boolean);
     const options = all.filter((o) => !S.skipped.has(o.action.id));
     const date = new Date(view.today + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-    const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", {class: "workspace-label", text: pick("YOUR CONNECTION STUDIO", "TODAY")}), h("span", {text: date})), sampleNotice());
+    const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", {class: "workspace-label", text: pick("YOUR CONNECTION STUDIO", "")}), h("span", {text: date})), sampleNotice());
     root.append(page);
     const hasPeople=items.some(item=>item.kind==='relationship');
-    page.append(todayHeader(hasPeople),dailyShortcuts());
+    if (!isDev() && !hasPeople) { page.append(startCard()); return; }
+    page.append(todayHeader(hasPeople), isDev() ? dailyShortcuts() : setupLine());
     await checkinCard(page);
     if (options.length) page.append(hero(options[0], view.today));
     else if (all.length) page.append(h("section", { class: "state" }, h("h2", { text: "That's everything set aside for today." }),
       h("p", { class: "hero-meta", text: "Nothing was changed. Your to-dos are still there." }), h("div", {}, btn("Show them again", () => { S.skipped.clear(); render(); }))));
     else page.append(dailyEmpty(hasPeople));
-    await workflows.todayTools(page,true);
-    await todayPeople(page,items.filter(i=>i.kind==="relationship"));
+    // User version: the hero is the one thing. Everything else waits behind "More for today".
+    const more = isDev() ? null : h("details", { class: "more-today" }, h("summary", { text: "More for today" }));
+    const sink = more || page;
+    if (more) page.append(more);
+    await workflows.todayTools(sink,true);
+    await todayPeople(sink,items.filter(i=>i.kind==="relationship"));
 
     const rest = options.slice(1);
     const tucked = h("section", { class: "section", "aria-label": "Everything else" }, h("div", { class: "eyebrow", text: "Next, at your pace" }));
@@ -688,7 +748,7 @@
         btn("Let it go", async () => { await act(() => api("POST", "/api/ideas/" + i.id + "/drop")); render(); }, "quiet"))))) : null));
     list.append(disc("add", "Add a to-do or reminder", "", actionForm(items), reminderForm()));
     tucked.append(list);
-    page.append(tucked);
+    sink.append(tucked);
   }
   async function todayPeople(page,items) {
     if(!items.length)return;

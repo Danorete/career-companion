@@ -237,3 +237,17 @@ Status: built and tested with frozen time. Not yet tried against a real meeting.
 - **Why one tap.** The survey and the builder both found typing a note after every meeting is the bottleneck. This turns it into a tap, with typing optional.
 - **Not built.** Dictation, outside-the-app nudges (step 5), a "how did it go?" prompt for meetings you didn't keep, and learning from answers.
 
+## D45 — A calmer first screen: Today, People, Add, Menu (2026-11-17)
+Status: built for the user version only. The developer version keeps the full bar and every shortcut (D42).
+
+Why: a first-time user met about 25 things on Today (eight places in the top bar, three ways to add a note, three ways to add people, two floating helpers, and sections for features they had not used yet). The features were right; the visibility was not.
+
+- **Top bar.** Today and People, then **Add** (Add a note, Add contacts, Connect your calendar) and **Menu** (About me, Jobs I'm looking at, What I've done, My messages, Things I pasted, Settings, Take the tour, and a short note about the AI and where data stays). Native `<details>` menus, closed by a click elsewhere, a choice or Escape. Hidden below 1000px, where the mobile tab bar already carries navigation.
+- **No spending pill.** The AI note moved into the Menu.
+- **Toolbar hidden.** The breadcrumb, a second "Add a note" and the Search button are gone in the user version. The ⌘K search still works from the keyboard.
+- **First screen with nobody in Link.** One card, "Start with one person", with the three real steps in order: connect your calendar, keep one person, say how a meeting went. Only the current step shows detail and a button. If calendar sign-in is not available, step 1 becomes "Add someone you know". Quiet links below: add someone by hand, "I don't know anyone yet", take a one-minute tour.
+- **Today once there are people.** Header, one setup line only when it matters (people waiting, or a calendar still to connect), the check-in if one is due, then the main next step. Everything else (focus session, conversation to revisit, your people, other to-dos, ideas) sits behind **More for today**, closed.
+- **Meet Link.** The floating button is gone in the user version, because it stacked with the Link bubble. It lives in the first-screen card and the Menu. The tour's "Add a note" step now points at the Add button. This reverses the position given to the button earlier the same day, which fixed a real overlap but kept two floaters.
+- **Not changed.** Every page, the API, the data and the developer version. People, Add contacts and the rest look as before.
+- **Still to do.** The mobile tab bar still lists four sections plus More. A test with three people who have never seen Link, asking "what would you do first?" and timing the first kept person, is the real measure of this change.
+

@@ -355,3 +355,36 @@ body.connection-studio { background:var(--ground); font:14px/1.65 var(--body); c
 .connection-studio .checkin-card summary { cursor:pointer; color:var(--accent); font-weight:600; }
 .connection-studio .checkin-card details[open] summary { margin-bottom:12px; }
 
+/* User version: two menus in the top bar, one calm first screen. */
+.connection-studio[data-mode="user"] .workspace-toolbar, .connection-studio[data-mode="user"] .guide-launcher { display:none; }
+.connection-studio .menu { position:relative; }
+.connection-studio .menu > summary { list-style:none; display:flex; align-items:center; gap:8px; min-height:40px; padding:0 16px; border:1px solid transparent; border-radius:4px; font-size:13px; font-weight:600; color:var(--ink-2); cursor:pointer; }
+.connection-studio .menu > summary::-webkit-details-marker { display:none; }
+.connection-studio .menu > summary::after { content:""; border:4px solid transparent; border-top-color:currentColor; margin-top:4px; }
+.connection-studio .menu > summary:hover { background:var(--well); color:var(--ink); }
+.connection-studio .menu[open] > summary { background:var(--sheet); border-color:var(--line); color:var(--accent); }
+.connection-studio .menu > summary:focus-visible, .connection-studio .menu-item:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+.connection-studio .menu-add > summary, .connection-studio .menu-add[open] > summary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.connection-studio .menu-add > summary:hover { filter:brightness(1.12); }
+.connection-studio .menu-panel { position:absolute; top:46px; right:0; min-width:250px; z-index:45; display:flex; flex-direction:column; padding:6px; background:var(--sheet); border:1px solid var(--line-strong); border-radius:6px; box-shadow:0 12px 25px #18221b1f; }
+.connection-studio .menu-item { display:block; width:100%; padding:10px 12px; border:0; border-radius:4px; background:transparent; color:var(--ink); font:inherit; font-size:13px; text-align:left; text-decoration:none; cursor:pointer; }
+.connection-studio .menu-item:hover { background:var(--well); }
+.connection-studio .menu-note { margin:6px 0 0; padding:8px 12px 4px; border-top:1px solid var(--line); font-size:12px; line-height:1.5; color:var(--ink-2); }
+.connection-studio .menu-note + .menu-note { margin-top:0; border-top:0; padding-top:0; }
+@media(max-width:1000px) { .connection-studio .top-menus { display:none; } }
+
+.connection-studio .start-card { max-width:680px; margin:48px auto 0; display:flex; flex-direction:column; gap:20px; }
+.connection-studio .start-card h1, .connection-studio .start-card p { margin:0; }
+.connection-studio .start-steps { list-style:none; margin:0; padding:0; border-top:1px solid var(--line); }
+.connection-studio .start-steps li { display:grid; grid-template-columns:32px minmax(0,1fr); gap:16px; padding:18px 0; border-bottom:1px solid var(--line); color:var(--ink-2); }
+.connection-studio .start-steps li[aria-current="step"] { color:var(--ink); }
+.connection-studio .start-steps h2 { margin:0; font:inherit; font-size:17px; font-weight:600; }
+.connection-studio .start-steps .mark { display:grid; place-items:center; width:28px; height:28px; border:1px solid var(--line-strong); border-radius:50%; font-size:13px; }
+.connection-studio .start-steps li[aria-current="step"] .mark { background:var(--accent); border-color:var(--accent); color:#fff; }
+.connection-studio .start-steps li.is-done .mark { background:var(--well); color:var(--accent); }
+.connection-studio .start-links { flex-wrap:wrap; gap:4px; }
+.connection-studio .more-today { margin-top:24px; border-top:1px solid var(--line); padding-top:12px; }
+.connection-studio .more-today > summary { cursor:pointer; color:var(--accent); font-weight:600; padding:8px 0; }
+.connection-studio[data-mode="user"] .sheet > .page { padding-top:20px; }
+@media(max-width:1000px) { .connection-studio .start-card { margin-top:24px; padding-bottom:170px; } }
+

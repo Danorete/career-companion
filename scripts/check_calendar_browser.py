@@ -19,6 +19,13 @@ from companion.people import load_demo
 from companion.services import local_today
 
 PORT = 8893
+
+
+def open_add_contacts(page):
+    page.locator('#add-menu > summary').click()
+    page.get_by_role('link', name='Add contacts', exact=True).click()
+
+
 errors = []
 with tempfile.TemporaryDirectory(prefix='link-calendar-') as folder:
     settings = Settings(data_dir=Path(folder), port=PORT, ai_mode='mock')
@@ -40,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix='link-calendar-') as folder:
             page = browser.new_page(viewport={'width': 1440, 'height': 1000}, reduced_motion='reduce')
             page.on('pageerror', lambda e: errors.append(str(e)))
             page.goto(f'http://127.0.0.1:{PORT}/#t={app.state.security.launch_token}')
-            page.get_by_role('link', name='Add contacts', exact=True).first.click()
+            open_add_contacts(page)
             page.locator('#source-tab-calendar').click()
             page.get_by_role('heading', name='Connect your calendar').wait_for()
             page.get_by_role('button', name='Try with a sample calendar').wait_for()
@@ -72,7 +79,7 @@ with tempfile.TemporaryDirectory(prefix='link-calendar-') as folder:
             [log] = db.q("SELECT * FROM interactions WHERE source='calendar_checkin'")
             assert 'Went well.' in log['note'] and 'send her the article' in log['note']
             assert db.one('SELECT COUNT(*) AS n FROM actions WHERE title=?', ('send her the article',))['n'] == 1
-            page.get_by_role('link', name='Add contacts', exact=True).first.click()
+            open_add_contacts(page)
             page.locator('#source-tab-calendar').click()
             page.get_by_role('button', name='Check my calendar').wait_for()
             page.locator('.connect-card article', has_text='Priya').get_by_role('button', name='Never suggest this person', exact=True).click()
