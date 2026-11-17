@@ -309,3 +309,51 @@ def test_cross_site_is_refused_everywhere_except_the_callback(tmp_path):
 def test_google_client_settings_come_from_the_environment(tmp_path, monkeypatch):
     monkeypatch.setenv("COMPANION_DATA_DIR", str(tmp_path)); monkeypatch.setenv("COMPANION_GOOGLE_CLIENT_ID", " abc ")
     assert Settings.from_env().google_client_id == "abc" and Settings(data_dir=tmp_path).google_client_id == ""
+
+
+# ---- the downloaded client file -------------------------------------------------------------
+
+def _client_file(tmp_path, body):
+    path = tmp_path / "client.json"
+    path.write_text(body if isinstance(body, str) else json.dumps(body), encoding="utf-8")
+    return path
+
+
+def test_the_downloaded_desktop_client_file_is_read(tmp_path, monkeypatch):
+    path = _client_file(tmp_path, {"installed": {"client_id": " abc.apps.googleusercontent.com ", "client_secret": "S3CRET",
+                                                 "redirect_uris": ["http://localhost"]}})
+    monkeypatch.setenv("COMPANION_DATA_DIR", str(tmp_path)); monkeypatch.setenv("COMPANION_GOOGLE_CLIENT_FILE", str(path))
+    settings = Settings.from_env()
+    assert (settings.google_client_id, settings.google_client_secret) == ("abc.apps.googleusercontent.com", "S3CRET")
+
+
+def test_the_two_variables_override_the_file(tmp_path, monkeypatch):
+    path = _client_file(tmp_path, {"installed": {"client_id": "from-file", "client_secret": "file-secret"}})
+    monkeypatch.setenv("COMPANION_DATA_DIR", str(tmp_path)); monkeypatch.setenv("COMPANION_GOOGLE_CLIENT_FILE", str(path))
+    monkeypatch.setenv("COMPANION_GOOGLE_CLIENT_ID", "from-env")
+    settings = Settings.from_env()
+    assert (settings.google_client_id, settings.google_client_secret) == ("from-env", "file-secret")
+
+
+@pytest.mark.parametrize("body,message", [
+    ({"web": {"client_id": "x", "client_secret": "WEB-SECRET"}}, "Web application"),
+    ({"something": "else"}, "isn't a Google Desktop app"),
+    ({"installed": {"client_secret": "NO-ID-SECRET"}}, "no client ID"),
+    ("not json {{ SECRET-TEXT", "isn't readable JSON"),
+    ("[1, 2]", "isn't a Google Desktop app"),
+])
+def test_a_wrong_client_file_gives_a_plain_error_without_its_contents(tmp_path, body, message):
+    from companion.config import load_google_client_file
+
+    with pytest.raises(ValueError) as exc:
+        load_google_client_file(_client_file(tmp_path, body))
+    assert message in str(exc.value) and "SECRET" not in str(exc.value)
+
+
+def test_a_missing_client_file_is_reported_and_the_cli_stops_cleanly(tmp_path, monkeypatch, capsys):
+    from companion.cli import main
+
+    monkeypatch.setenv("COMPANION_DATA_DIR", str(tmp_path)); monkeypatch.setenv("COMPANION_GOOGLE_CLIENT_FILE", str(tmp_path / "nope.json"))
+    assert main(["run", "--no-browser"]) == 2
+    assert "not found" in capsys.readouterr().out
+

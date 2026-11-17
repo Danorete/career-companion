@@ -38,7 +38,7 @@ Your data lives in `~/Library/Application Support/CareerCompanion/`, outside thi
 |---|---|---|
 | AI mode | `COMPANION_AI_MODE` (`mock`, `live`, `off`) | `mock` |
 | Version | `COMPANION_UI_MODE` or `companion run --mode` (`user`, `dev`) | `user` |
-| Google Calendar sign-in | `COMPANION_GOOGLE_CLIENT_ID`, `COMPANION_GOOGLE_CLIENT_SECRET` | unset (calendar connection off) |
+| Google Calendar sign-in | `COMPANION_GOOGLE_CLIENT_FILE`, or `COMPANION_GOOGLE_CLIENT_ID` and `COMPANION_GOOGLE_CLIENT_SECRET` | unset (calendar connection off) |
 | Port | `COMPANION_PORT` | `8765` |
 | Data folder | `COMPANION_DATA_DIR` | see above |
 | Time zone for the daily cap | `COMPANION_TIMEZONE` | `America/New_York` |
@@ -64,11 +64,21 @@ To connect your own calendar you need your own Google sign-in settings. This is 
 2. Under the OAuth consent screen, choose **External**, keep it in **Testing**, add your own Google address as a test
    user, and add the read-only calendar scope (`.../auth/calendar.readonly`).
 3. Create an **OAuth client ID** of type **Desktop app**. Copy the client ID and secret.
-4. Start Link with them (the secret is not a real secret for a desktop app, but keep it out of the repository):
+4. Download the client's JSON file, move it somewhere outside this repository, and make it private:
 
 ```
-COMPANION_GOOGLE_CLIENT_ID="..." COMPANION_GOOGLE_CLIENT_SECRET="..." .venv/bin/companion run
+mkdir -p ~/.config/link && mv ~/Downloads/client_secret_*.json ~/.config/link/google-client.json && chmod 600 ~/.config/link/google-client.json
 ```
+
+   Then start Link with `COMPANION_GOOGLE_CLIENT_FILE` pointing at it:
+
+```
+COMPANION_GOOGLE_CLIENT_FILE=~/.config/link/google-client.json .venv/bin/companion run
+```
+
+   `COMPANION_GOOGLE_CLIENT_ID` and `COMPANION_GOOGLE_CLIENT_SECRET` also work and override the file. Git ignores
+   `client_secret*.json`, but keep the file out of the repository anyway. The file must be a **Desktop app** client.
+   `companion status` shows whether Link found sign-in settings, without printing them.
 
 5. Open **Add contacts**, then the calendar tab, then **Connect Google Calendar**. Your browser opens Google; after you
    approve, it returns to Link on `http://127.0.0.1:<port>`. The sign-in is stored in your system keychain, never in the

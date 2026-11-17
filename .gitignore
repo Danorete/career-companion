@@ -11,3 +11,7 @@ export-*.json
 
 # Graphify cache
 graphify-out/cache/
+
+# Google sign-in settings downloaded from the Cloud Console. Never commit these.
+client_secret*.json
+*.apps.googleusercontent.com.json

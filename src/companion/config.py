@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from dataclasses import dataclass, field
@@ -18,6 +19,26 @@ def default_data_dir() -> Path:
         return Path.home() / "Library" / "Application Support" / "CareerCompanion"
     base = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
     return Path(base) / "career-companion"
+
+
+def load_google_client_file(path: str | Path) -> dict[str, str]:
+    """Read the file Google lets you download for a Desktop app client. Error messages never include its contents."""
+    file = Path(path).expanduser()
+    try:
+        data = json.loads(file.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise ValueError(f"Google client file not found: {file}") from None
+    except (OSError, ValueError):
+        raise ValueError("The Google client file isn't readable JSON.") from None
+    section = data.get("installed") if isinstance(data, dict) else None
+    if not isinstance(section, dict):
+        if isinstance(data, dict) and "web" in data:
+            raise ValueError("That client is a Web application. Create a client of type Desktop app instead.")
+        raise ValueError("That file isn't a Google Desktop app client file.")
+    client_id, secret = str(section.get("client_id", "")).strip(), str(section.get("client_secret", "")).strip()
+    if not client_id:
+        raise ValueError("That Google client file has no client ID.")
+    return {"google_client_id": client_id, "google_client_secret": secret}
 
 
 @dataclass
@@ -62,6 +83,8 @@ class Settings:
             kwargs["port"] = int(os.environ["COMPANION_PORT"])
         if os.environ.get("COMPANION_AI_MODE"):
             kwargs["ai_mode"] = os.environ["COMPANION_AI_MODE"]
+        if os.environ.get("COMPANION_GOOGLE_CLIENT_FILE"):
+            kwargs.update(load_google_client_file(os.environ["COMPANION_GOOGLE_CLIENT_FILE"]))  # the two variables below override it
         if os.environ.get("COMPANION_GOOGLE_CLIENT_ID"):
             kwargs["google_client_id"] = os.environ["COMPANION_GOOGLE_CLIENT_ID"].strip()
         if os.environ.get("COMPANION_GOOGLE_CLIENT_SECRET"):

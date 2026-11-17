@@ -11,13 +11,30 @@ import webbrowser
 from .config import Settings
 
 
+def _tip_if_client_file_is_open() -> None:
+    import os
+    import stat
+
+    path = os.environ.get("COMPANION_GOOGLE_CLIENT_FILE")
+    try:
+        if path and os.stat(os.path.expanduser(path)).st_mode & (stat.S_IRWXG | stat.S_IRWXO):
+            print(f"  Tip: other users on this computer can read {path}. Run: chmod 600 {path}")
+    except OSError:
+        pass
+
+
 def _run(args: argparse.Namespace) -> int:
     import uvicorn
 
     from .app import create_app
 
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
-    settings = Settings.from_env()
+    try:
+        settings = Settings.from_env()
+    except ValueError as exc:
+        print(f"Can't start: {exc}")
+        return 2
+    _tip_if_client_file_is_open()
     if args.mode:
         from dataclasses import replace as _replace
         settings = _replace(settings, ui_mode=args.mode)
@@ -78,8 +95,13 @@ def _status(_: argparse.Namespace) -> int:
     from .budget import PRICES_VERIFIED_ON, prices_are_fresh
     from .keys import get_api_key
 
-    settings = Settings.from_env()
+    try:
+        settings = Settings.from_env()
+    except ValueError as exc:
+        print(f"Settings problem : {exc}")
+        return 2
     print(f"Data folder      : {settings.data_dir}")
+    print(f"Google Calendar  : {'sign-in settings found' if settings.google_client_id else 'not set up'}")
     print(f"AI mode          : {settings.ai_mode}")
     print(f"API key stored   : {'yes' if get_api_key() else 'no'}")
     print(f"Prices verified  : {PRICES_VERIFIED_ON} ({'current' if prices_are_fresh() else 'STALE: re-verify'})")
