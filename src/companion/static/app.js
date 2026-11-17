@@ -612,6 +612,7 @@
       btn('Log a conversation',()=>go('quicklog'),'quiet'),
       btn('Prepare for a conversation',()=>workflows.open({mode:'prepare'}),'quiet'),
       btn(pick('Import connections','Add contacts'),()=>sources.open('connections'),'quiet'),
+      S.calendar && S.calendar.available && !S.calendar.connected ? btn('Connect your calendar',()=>sources.open('calendar'),'quiet') : null,
       S.calendar && S.calendar.waiting ? btn(S.calendar.waiting + (S.calendar.waiting === 1 ? ' person found in your calendar' : ' people found in your calendar'),()=>sources.open('calendar'),'primary') : null);
   }
   function dailyEmpty(hasPeople) {

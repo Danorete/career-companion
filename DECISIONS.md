@@ -219,4 +219,6 @@ Status: built and tested against stand-ins. No real Google sign-in has been trie
 - **Schema.** Version 6 adds `encounter_candidates`, included in export and delete.
 - **Limits.** 250 events per check, no paging, 21 days back and 14 days ahead. One calendar. No Microsoft sign-in yet.
 - **Next.** The post-event check-in, which asks how a meeting went with a tap, is step 4 of the plan.
+- **Finding it (added after the first real try).** The connection card sits in the calendar tab of Add contacts, which was labelled "Your next meeting" and was easy to miss. In the user version that tab is now "Your calendar" (eyebrow "Connect"), Today shows "Connect your calendar" until a calendar is connected, and the card shows "Loading…" or a plain error instead of staying blank. The developer version keeps the original tab wording (D42).
+- **Meet Link button.** The tour launcher was a small pill 12px from the bottom edge, partly under the Link chat bubble. It is now a larger button with a play icon above the bubble, beside the chat panel when it is open, and clear of the welcome screen.
 

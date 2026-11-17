@@ -247,7 +247,14 @@ body.connection-studio { background:var(--ground); font:14px/1.65 var(--body); c
 .orb.is-thinking .link-avatar { animation:link-think 1.8s ease-in-out infinite; }
 .orb.is-off .link-avatar { opacity:.65; }
 .avatar-label { font-weight:600; padding-right:6px; }
-.guide-launcher { position:fixed; right:35px; bottom:12px; z-index:32; background:var(--sheet); color:var(--ink); border:1px solid var(--line); border-radius:20px; padding:5px 14px; font:inherit; font-size:12px; cursor:pointer; }
+.guide-launcher { position:fixed; right:35px; bottom:124px; z-index:32; display:inline-flex; align-items:center; gap:8px; min-height:44px; background:var(--sheet); color:var(--accent); border:1px solid var(--accent); border-radius:22px; padding:10px 18px; font:inherit; font-size:14px; font-weight:600; cursor:pointer; box-shadow:0 5px 20px #203b2420; }
+.guide-launcher::before { content:""; border-left:9px solid currentColor; border-top:6px solid transparent; border-bottom:6px solid transparent; }
+.guide-launcher:hover { background:var(--accent); color:var(--sheet); }
+.guide-launcher:focus-visible { outline:3px solid var(--accent); outline-offset:3px; }
+/* Beside the chat panel when it is open, above the chat bubble when it is closed, and clear of the welcome screen. */
+.connection-studio:not(.dock-closed) .guide-launcher { right:calc(var(--dock-w) + 56px); bottom:28px; }
+.connection-studio.onboarding .guide-launcher { right:28px; bottom:20px; }
+@media(max-width:1000px) { .guide-launcher { right:16px; bottom:150px; } .connection-studio:not(.dock-closed) .guide-launcher { display:none; } }
 .guide-launcher[hidden] { display:none; }
 .link-guide { position:fixed; z-index:100; box-sizing:border-box; background:var(--sheet); color:var(--ink); border:1px solid var(--accent); border-radius:18px; padding:24px; box-shadow:0 12px 50px #102a2633; }
 .link-guide h2 { font:26px/1.15 Georgia,serif; margin:16px 0 12px; }

@@ -43,6 +43,7 @@ with tempfile.TemporaryDirectory(prefix='link-calendar-') as folder:
             page.get_by_role('link', name='Add contacts', exact=True).first.click()
             page.locator('#source-tab-calendar').click()
             page.get_by_role('heading', name='Connect your calendar').wait_for()
+            page.get_by_role('button', name='Try with a sample calendar').wait_for()
             for promise in ('event titles', 'never reads', 'never: '):
                 assert promise in page.locator('.connect-card').inner_text().lower(), promise
             page.get_by_role('button', name='Try with a sample calendar').click()
