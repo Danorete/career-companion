@@ -8,7 +8,9 @@ keep your information in place. This is a local desktop-browser workflow. The **
 
 Start with Link's guided onboarding even if you have no contacts or résumé. It proposes a plan;
 you review what becomes a person, log, task, or preference. Existing career tools are still available.
-Link never browses or operates LinkedIn and never sends messages for you.
+Link never signs in to LinkedIn, browses it or operates it, and never sends messages for you. LinkedIn data
+comes only from files you export yourself. Calendar and email connections, and nudges outside the app, are
+decided but not built yet (D39 to D41 in `DECISIONS.md`).
 
 Version one, single user. Decisions are in `DECISIONS.md`; build status is in `PROGRESS.md`.
 

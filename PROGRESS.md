@@ -16,6 +16,7 @@ This project moved here from a folder in `Danorete/spotify-listening-bi` on 2026
 - `graphify-out/` was rebuilt from code on 2026-11-13.
 - Still unverified: a real provider call, billing reconciliation, macOS, Safari, Keychain.
 - Entries below are a dated log; their test counts were correct when written.
+- 2026-11-17: recorded D39 (calendar and email connectors, local-first nudges), D40 (LinkedIn data sources) and D41 (per-student data). Decisions and copy only; no code changed. D38 is used on the unmerged `claude/dazzling-volta-pmv681` branch, so expect a small merge conflict at the end of `DECISIONS.md`.
 
 ## How to resume
 

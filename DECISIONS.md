@@ -38,9 +38,9 @@ Not verified: prepaid credits and auto-reload behaviour, Console usage-page lag,
 | D12 | Confirmation rule | Model-proposed memory changes and reminders need a click. Marking an action done needs a click. Autosaving drafts, session progress, and the resume note does not. Copying a draft never changes state. |
 | D13 | Storage | `~/Library/Application Support/CareerCompanion/` on macOS, outside the repo, files mode 600. Chat transcripts kept 30 days. `secure_delete` on; "delete everything" removes the database files. Backups, exports, and the provider's 30-day retention are outside the app's control. No forensic-erasure promise. |
 | D14 | Credentials | macOS Keychain through `keyring`, set with a hidden prompt. No environment-variable or file fallback. The key never reaches the browser or logs. |
-| D15 | Egress and logs | The live client uses an HTTP transport that only allows `https://api.anthropic.com`. Logs and the activity table hold metadata only (event, IDs, token counts, cost). |
+| D15 | Egress and logs | The live client uses an HTTP transport that only allows `https://api.anthropic.com`. Logs and the activity table hold metadata only (event, IDs, token counts, cost). **Amended by D39:** connector hosts are added one provider at a time, each listed in D39. |
 | D16 | Without AI | Every workspace feature (evidence, opportunities, actions, drafts, outcomes, reminders, memory, export) works with AI off, over budget, or failing. |
-| D17 | Resume card, reminder, outcomes | Interpreted as: a card showing where you left off on the recommended action; date-based reminders that surface when the app is open (no notifications); one-click outcome buttons (reply, interview, no response, rejection, offer). |
+| D17 | Resume card, reminder, outcomes | Interpreted as: a card showing where you left off on the recommended action; date-based reminders that surface when the app is open (no notifications); one-click outcome buttons (reply, interview, no response, rejection, offer). **Amended by D39:** nudges can now reach the user outside the open app. |
 | D19 | Visual direction | "Daylight" layout (light, typographic, open sheet) with the session ring from the "Console" direction, chosen by the user from two mockups on 2026-11-10. Three surfaces: ground (chrome), sheet (work), tint (companion). Space Grotesk for headings, Inter for text, one indigo accent, amber for "waiting for your OK". Light theme only for now. |
 | D20 | Fonts and CSP | Both fonts are bundled as files under `static/fonts/` (SIL Open Font License). The policy gained `font-src 'self'` and nothing else; no inline styles, no outside requests. |
 | D21 | Companion identity | Working name "Tempo". An orb mark with four states: ready, thinking, waiting for your OK, AI off. The panel resizes (drag or arrow keys) and collapses to a corner pill; both are remembered in the browser as layout preferences only. |
@@ -48,7 +48,7 @@ Not verified: prepaid credits and auto-reload behaviour, Console usage-page lag,
 | D23 | Session timer | Starting a session records its start time and length; the ring counts down from that, so it survives a reload. A chat on its own starts no timer. The app never alarms; the companion says once when time is up. |
 | D24 | Starter file | Bulk import of the user's own information from a `.json` file they choose and preview. Imported evidence is always stored as an unverified claim; entries carry the provenance `imported_file`; duplicates are skipped; unknown fields are rejected. The user's file is personal data and stays out of the repository. |
 | D25 | Setup progress | Five milestones, not a field count: a goal, a project, one verified claim, pasted profile text, one person or role. Shown as a percentage together with "N of 5 steps". Sample rows never count. Live AI is listed as optional and is not part of the percentage, so mock mode is a complete setup. Computed on the server and sent with the bootstrap data; the interface refreshes it on every page render. The sidebar card hides at 100% and can be pinned back from Settings (a browser layout preference). |
-| D18 | Out of scope for version one | LinkedIn integration or automation, URL fetching, background AI calls, people discovery, accounts, billing, hosting, desktop packaging, streaming responses. |
+| D18 | Out of scope for version one | LinkedIn integration or automation, URL fetching, background AI calls, people discovery, accounts, billing, hosting, desktop packaging, streaming responses. **Amended by D39, D40:** calendar and email sync (not AI) and the official LinkedIn export are in scope; LinkedIn sign-in, scraping, extensions and automation, background AI calls, hosting and accounts stay out. |
 | D26 | Motion libraries | Amends D1. Anime.js 4.5.0 (page reveal) and Motion 14.12.0, mini build (toast, chat bubbles) are vendored under `static/vendor/`, MIT licensed, served from this app only: still no CDN, no build step at run time, and the Content-Security-Policy is unchanged. They load on demand and the app works the same without them. Motion always plays, and the app does not read the device's `prefers-reduced-motion` setting. That is acceptable for a single-user app and must be revisited before any public version (D18): add the check back in `fx()` and in `style.css`. How they were built is in `static/vendor/README.md`. **Superseded in part by D32:** `fx()` now skips animation under `prefers-reduced-motion`. |
 | D27 | Less typing | Three changes after the first real use showed setup was too much work. (1) A role and its job posting are added in one form; the posting is stored as pasted, untrusted material linked to the role, and the comparison runs from the role. (2) A résumé pasted on the Evidence page is turned into entries by one AI call that receives only that text; code strips or flags any number the résumé does not contain; nothing is saved until the user reviews the list and adds it. (3) The user can mark entries as confirmed in bulk, at import or with one click for everything unverified. "Confirmed" records that the user stands behind the entry and names their source, for example the master résumé. Starter files still cannot mark themselves verified (D24); only an action on screen can. |
 
@@ -134,3 +134,59 @@ Add a browser acceptance check for visible capability buttons at a 1470×956 des
 
 ## D37 — Distinct daily workspace and import hub
 The feature map on Today repeated Import's three illustrated categories, making the two pages feel identical. Remove the duplicated catalogue from Today. Restore the next action and resume point as its main content, with compact log/preparation/import shortcuts and context-sensitive empty states. Keep Import in primary navigation and retain all reviewed source workflows there. Remove the repeated lower workspace summary links and unused evidence/draft fetches from Today. Keep the first welcome import bypass. First-click acceptance now checks meaningful page differentiation, visible recommended action/shortcuts at laptop sizes, and a substantive empty-state path.
+
+
+## D39 — Connectors and nudges, local-first (2026-11-17)
+Status: decided, not built. Amends D15, D17 and D18.
+
+Why: the 12-response survey found the stall points were time, energy and forgetting, not fear of networking. Typing every memory by hand is a bottleneck even for the builder. Reminders that only appear when the app is open depend on the same discipline that is failing.
+
+**Principle: capture by default, confirm by exception.** Nothing becomes a person, a promise or a task without a one-tap confirmation (extends D12). Nothing in this decision ends manual input completely. It aims at near-zero typing.
+
+**Sources, in order of build.**
+1. Calendar, read-only. Events with at least one outside attendee, or words like "coffee chat" or "career fair", become encounter candidates. Fields kept: title, start and end, attendee names and addresses.
+2. Email headers. Fields kept: sender and recipient names and addresses, date, thread id. Subject lines and bodies are not kept by default. Skip no-reply and bulk senders. Create a person only after a two-way exchange.
+3. Email bodies, opt-in only, and only user-sent messages in threads with people already in Link, to propose promises ("I'll send you the article"). Rule-based matching runs first. Any text sent to the AI is limited to what D5 allows, and no AI call runs in the background (D18).
+
+**Access.** OAuth with a loopback redirect. Tokens live in Keychain (D14). Each connector adds only its own provider hosts to the egress allowlist (amends D15 and D20), confirmed when it is built: Google APIs for Google accounts, Microsoft Graph for Microsoft accounts. No other outside host. Sync runs on the user's computer, with rate limits, and is not AI.
+
+**Consent.** Each connector shows its fields before it connects: what it reads, what it keeps and what it never reads. Promise: "Reads only what you connect, only these fields, disconnect any time." Disconnect removes the tokens and offers to remove data that came from that source. Delete everything (D13) removes all of it.
+
+**Post-event check-in replaces the manual log.** About an hour after an event ends, Link asks "How did it go with Maya?" with one tap (Great, Fine, Skip) and an optional typed or dictated note. An unanswered check-in expires quietly.
+
+**Nudges outside the app (amends D17).** Channels, in order: a desktop notification from a small local helper, and an event on the user's own calendar. No hosted service in version one.
+- At most one nudge a day, at a time the user sets, with quiet hours.
+- One action per nudge, plus snooze. Stop after two ignored nudges for the same person.
+- Text outside Link is generic, for example "1 follow-up due today. Open Link". Calendar events use a generic title such as "Link: follow-up due". Names appear only inside Link, because a notification or a calendar entry is stored or shown outside the app.
+- Limit: local nudges only fire while the computer is on. Phone push needs a hosted relay, which stays out of scope (D18) until it is decided separately. If it is ever built, the relay holds only schedule times and a device token, never contacts.
+
+**Measure.** Typed notes per user per week. If capture works, it falls toward zero.
+
+**Trust copy.** Use these statements, and keep each one true:
+- "Reads only what you connect, only these fields, disconnect any time."
+- "Never sends a message for you."
+- "Never signs in to LinkedIn or browses it for you."
+- "Never shares your data with anyone else."
+Do not use the old line "Never AI" for Import. AI is optional and clearly labelled, and mock output is shown as mock.
+
+## D40 — LinkedIn data sources (2026-11-17)
+Status: decided. Amends D18.
+
+LinkedIn's Help Center says it does not permit third-party software, including browser plug-ins and extensions, that scrape or modify its site (page "Prohibited software and extensions", read as a search excerpt on 2026-11-17; the full page would not load, so read it again before relying on exact wording). Tools that read LinkedIn in the background survive on selective enforcement, and the risk to a restricted account falls on the user.
+
+Allowed:
+- The user's own official data export (Settings and privacy, Data privacy, Get a copy of your data), guided in the app with a link to LinkedIn's own instructions, and a monthly "refresh your export" prompt.
+- Once email is connected, notification emails LinkedIn sends the user ("accepted your invitation", "new message"), reading names and event type only.
+- A profile link the user types or pastes. It is stored as text and never fetched (D18, URL fetching).
+
+Not allowed in the product: LinkedIn sign-in or cookies, scraping, background reading, automated actions, and a browser extension or clipper. A clipper may exist only behind the developer-mode flag, only after the owner has read LinkedIn's current terms, and with a plain warning at install. Do not design anything around avoiding LinkedIn's detection.
+
+## D41 — Each student's data stays theirs (2026-11-17)
+Status: decided.
+
+- No pooling. Data from a user's export, calendar or email is never combined across users, shared, resold or used for analytics about other users.
+- No reuse. Data from a source is used only for that user.
+- Minimal. Keep only the fields D39 lists, because connections' names and addresses are other people's data.
+- Deletion works. Disconnect removes a source's tokens and, on request, its data. Delete everything removes all.
+- Any future hosted part (for example phone push) holds schedule times and a device token only, and never contacts or message text.
+- The Gemini coaching prototype in `gemini-skill/` is a separate test, not part of the product. Text typed into it goes to Google, so it never carries the "stays on your computer" promise.
