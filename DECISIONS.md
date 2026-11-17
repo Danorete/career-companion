@@ -252,7 +252,7 @@ Why: a first-time user met about 25 things on Today (eight places in the top bar
 - **Still to do.** The mobile tab bar still lists four sections plus More. A test with three people who have never seen Link, asking "what would you do first?" and timing the first kept person, is the real measure of this change.
 
 ## D46 — Reminders outside the app: desktop channel only (2026-11-17)
-Status: built and tested with a stand-in notifier. No notification has been shown and the login agent has not been installed on a real Mac. Step 5 of D39's plan.
+Status: built and tested with a stand-in notifier. The builder confirmed the test reminder appeared on a real Mac. The login agent has not been installed on a real Mac yet. Step 5 of D39's plan.
 
 - **Channel.** A macOS notification from a small local helper. No server, no hosted service, no AI.
 - **What is due.** A person you kept whose meeting is waiting for "How did it go?" (D44), or a pending reminder on an open next step (D17). Several things for one person count once.

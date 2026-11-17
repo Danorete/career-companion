@@ -114,8 +114,9 @@ reminders in a row that lead nowhere for the same person, Link stops reminding y
    shows what it would do, and `companion nudge --status` says whether it is installed. Its log, in your data folder,
    holds counts only.
 
-Not yet verified: the notification and the login agent have only been tested with stand-ins. Neither has run on a real
-Mac. A reminder cannot open Link by itself, so you still start Link yourself.
+Verified once: the builder's test reminder appeared on a real Mac. Not yet verified: the login agent (`--install`) has only
+been tested with stand-ins, and no real reminder for a due follow-up has been shown. A reminder cannot open Link by itself,
+so you still start Link yourself.
 
 ## Loading your information in one step
 
