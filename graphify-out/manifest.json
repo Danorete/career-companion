@@ -24,9 +24,9 @@
     "semantic_hash": ""
   },
   "src/companion/app.py": {
-    "mtime": 1794942851.4838507,
-    "seen": 1794943073.0734901,
-    "ast_hash": "35a1054a4922f95c2550dc1a7523557e",
+    "mtime": 1794946978.803558,
+    "seen": 1794947248.8264933,
+    "ast_hash": "bcc33adb072bf2306442e860ad058b42",
     "semantic_hash": ""
   },
   "src/companion/budget.py": {
@@ -36,9 +36,9 @@
     "semantic_hash": ""
   },
   "src/companion/cli.py": {
-    "mtime": 1794940258.8257995,
-    "seen": 1794942320.5782838,
-    "ast_hash": "ab9ba2eb2cbc072524f36434d6f3c2d8",
+    "mtime": 1794946978.8029327,
+    "seen": 1794947248.8264954,
+    "ast_hash": "cbe5d28388308f7afd19a6795a3b41a6",
     "semantic_hash": ""
   },
   "src/companion/config.py": {
@@ -84,9 +84,9 @@
     "semantic_hash": ""
   },
   "src/companion/static/app.js": {
-    "mtime": 1794943343.2897782,
-    "seen": 1794943560.6923223,
-    "ast_hash": "03eb6cfb42601e77405d946488617ab5",
+    "mtime": 1794947155.2953036,
+    "seen": 1794947248.8265362,
+    "ast_hash": "07c1f60ea3a68621fb80e62eded251af",
     "semantic_hash": ""
   },
   "src/companion/static/login.js": {
@@ -168,21 +168,21 @@
     "semantic_hash": ""
   },
   "DECISIONS.md": {
-    "mtime": 1794943494.7466786,
-    "seen": 1794943560.692356,
-    "ast_hash": "d4418febd0182664dc405d293276ee7c",
+    "mtime": 1794947175.3157372,
+    "seen": 1794947248.82657,
+    "ast_hash": "e385f44ec518c6442a4e2c32b694fcbc",
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1794943558.5914922,
-    "seen": 1794943560.6923587,
-    "ast_hash": "11fe06e75bfea765aa1c13e409861227",
+    "mtime": 1794947175.3146799,
+    "seen": 1794947248.8265722,
+    "ast_hash": "33113d8332362262c501284af0ed7bf2",
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794943008.708765,
-    "seen": 1794943073.0735373,
-    "ast_hash": "53ddaa474ae493bae123298fddbd8c41",
+    "mtime": 1794947175.3153365,
+    "seen": 1794947248.8265734,
+    "ast_hash": "b23caa45b6c0d9594a890d53eb677477",
     "semantic_hash": ""
   },
   "src/companion/static/fonts/LICENSE-Inter.txt": {
@@ -354,9 +354,9 @@
     "semantic_hash": ""
   },
   "HANDOFF.md": {
-    "mtime": 1794943008.7077312,
-    "seen": 1794943073.0735352,
-    "ast_hash": "d1632f458473923a76ff265d02730a9f",
+    "mtime": 1794947175.3141468,
+    "seen": 1794947248.8265712,
+    "ast_hash": "1f07b9076b529688ae88f175d498d00b",
     "semantic_hash": ""
   },
   "VALIDATION.md": {
@@ -483,6 +483,30 @@
     "mtime": 1794942909.4396389,
     "seen": 1794943073.0735166,
     "ast_hash": "faa94c6a3d1eebb8ab0059c56b5f9f0a",
+    "semantic_hash": ""
+  },
+  "scripts/check_nudges_browser.py": {
+    "mtime": 1794947155.2959943,
+    "seen": 1794947248.8264847,
+    "ast_hash": "482f941b8364e59216e943744da593d1",
+    "semantic_hash": ""
+  },
+  "src/companion/nudge_agent.py": {
+    "mtime": 1794946960.1084745,
+    "seen": 1794947248.826505,
+    "ast_hash": "e07b6ee6bbd46086d609c6cbaa2a1983",
+    "semantic_hash": ""
+  },
+  "src/companion/nudges.py": {
+    "mtime": 1794946953.8724742,
+    "seen": 1794947248.826506,
+    "ast_hash": "ac6dec49e9462b85922a88c7a96e7fc2",
+    "semantic_hash": ""
+  },
+  "tests/test_nudges.py": {
+    "mtime": 1794947058.4008386,
+    "seen": 1794947248.8265564,
+    "ast_hash": "b29ac01370e453146404dfca090bb959",
     "semantic_hash": ""
   }
 }

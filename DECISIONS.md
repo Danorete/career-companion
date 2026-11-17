@@ -251,3 +251,26 @@ Why: a first-time user met about 25 things on Today (eight places in the top bar
 - **Not changed.** Every page, the API, the data and the developer version. People, Add contacts and the rest look as before.
 - **Still to do.** The mobile tab bar still lists four sections plus More. A test with three people who have never seen Link, asking "what would you do first?" and timing the first kept person, is the real measure of this change.
 
+## D46 — Reminders outside the app: desktop channel only (2026-11-17)
+Status: built and tested with a stand-in notifier. No notification has been shown and the login agent has not been installed on a real Mac. Step 5 of D39's plan.
+
+- **Channel.** A macOS notification from a small local helper. No server, no hosted service, no AI.
+- **What is due.** A person you kept whose meeting is waiting for "How did it go?" (D44), or a pending reminder on an open next step (D17). Several things for one person count once.
+- **The words.** "1 follow-up due today. Open Link." or "N follow-ups due today. Open Link." Fixed words and a number, never a name, a title or a note. The macOS command is run without a shell, and a check refuses any quote or backslash in the text.
+- **Rules.**
+  - Off until you turn it on.
+  - At most one reminder a day, at a time you choose, and never inside quiet hours (default 9 pm to 8 am). A reminder time inside quiet hours is refused.
+  - If the computer was asleep at the chosen time, the reminder comes later the same day, still outside quiet hours.
+  - Pause for 1 to 14 days from Settings.
+  - After two reminders in a row for the same person that led nowhere (the person was still due at the next reminder), that person is left out of reminders. They still appear in Link. Acting on it, or choosing "Bring those people back", starts the count again.
+  - If macOS can't show the notification, nothing is recorded, so the next pass tries again.
+- **The helper.** `companion nudge` does one pass. `companion nudge --install` writes a login agent (`com.career-companion.nudge`) that runs it every 15 minutes, passing along `COMPANION_DATA_DIR` and `COMPANION_TIMEZONE` if set. Installing and removing it is a deliberate Terminal command. The web page can show whether it is installed but cannot install it. The helper's log holds counts only.
+- **State.** Settings and bookkeeping are stored as identifiers and counts in the existing key-value table (no schema change). They hold no names.
+- **Delete everything** removes the settings but not the login agent, which then finds nothing to do. The page says to run `companion nudge --uninstall`.
+- **Deliberately not built: the calendar-event channel from D39.** An event on your own calendar would need Link to write to your calendar. That means a wider Google permission, a new consent screen, and breaking the promise on the connect screen that Link "never adds, changes or deletes an event". It would also put a generic title on Google's servers. It stays out until you decide to trade that promise for it.
+- **Limits.**
+  - Mac only for now. On other computers the page says so and the test reminder explains why.
+  - A reminder cannot open Link, because Link is started from Terminal and its sign-in link works once. You still start Link yourself. A launcher would fix that and is not built.
+  - Reminders fire only while the computer is awake and logged in.
+  - macOS may need Notifications allowed for Script Editor, which is what `osascript` shows as.
+

@@ -71,6 +71,38 @@ def _run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _nudge(args: argparse.Namespace) -> int:
+    """One pass of the reminder helper, or install and remove it. Output is counts only, never names."""
+    from datetime import datetime
+    from pathlib import Path
+
+    from . import nudge_agent, nudges
+    from .db import Database
+
+    try:
+        settings = Settings.from_env()
+    except ValueError as exc:
+        print(f"Can't start: {exc}")
+        return 2
+    home = Path.home()
+    if args.install:
+        print(nudge_agent.install(home, settings.data_dir / "nudge.log"))
+        return 0
+    if args.uninstall:
+        print(nudge_agent.uninstall(home))
+        return 0
+    if args.status:
+        print(f"Helper installed: {'yes' if nudge_agent.is_installed(home) else 'no'}")
+        return 0
+    db = Database(settings.db_path)
+    try:
+        result = nudges.run_once(db, nudges.build_notifier(), nudges.local_now(settings), dry_run=args.dry_run)
+    finally:
+        db.close()
+    print(f"{datetime.now().isoformat(timespec='minutes')} sent={result['sent']} count={result['count']} reason={result['reason']}")
+    return 0
+
+
 def _set_key(_: argparse.Namespace) -> int:
     from .keys import set_api_key
 
@@ -117,6 +149,13 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--mode", choices=("user", "dev"), help="user: plain wording for testers (default). dev: developer controls and original wording")
     run.add_argument("--demo", action="store_true", help="use temporary fictional data and mock AI; never opens your personal database")
     run.set_defaults(func=_run)
+    nudge = sub.add_parser("nudge", help="show today's reminder if one is due, or install or remove the helper that does it")
+    nudge.add_argument("--dry-run", action="store_true", help="say what would happen without showing anything")
+    group = nudge.add_mutually_exclusive_group()
+    group.add_argument("--install", action="store_true", help="install the helper (a Mac login agent that checks every 15 minutes)")
+    group.add_argument("--uninstall", action="store_true", help="remove the helper")
+    group.add_argument("--status", action="store_true", help="say whether the helper is installed")
+    nudge.set_defaults(func=_nudge)
     sub.add_parser("set-key", help="store the API key in the system keychain").set_defaults(func=_set_key)
     sub.add_parser("delete-key", help="remove the API key").set_defaults(func=_delete_key)
     sub.add_parser("status", help="show configuration without starting").set_defaults(func=_status)

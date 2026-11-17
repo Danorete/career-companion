@@ -1457,6 +1457,41 @@
   }
 
   // ---- Settings & data ------------------------------------------------------------------
+  // Reminders outside Link (decision D46): one generic desktop reminder a day, never a name.
+  async function nudgeSection() {
+    let n = await api("GET", "/api/nudges"), message = "";
+    const box = h("section", { class: "section", id: "nudges" });
+    const refresh = async () => { n = await api("GET", "/api/nudges"); draw(); };
+    const save = async (change) => { if (await act(() => api("PUT", "/api/nudges", Object.assign({}, n.settings, change)), "Saved.")) message = ""; await refresh(); };
+    const tell = async (path, body, say) => { const out = await act(() => api("POST", path, body)); if (out) message = say(out); await refresh(); };
+    const clock = (hhmm) => new Date("2000-01-01T" + hhmm).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    function draw() {
+      const s = n.settings;
+      const time = h("input", { type: "time", value: s.time, "aria-label": "Time of day", onchange: (e) => save({ time: e.target.value }) });
+      const quietFrom = h("input", { type: "time", value: s.quiet_start, "aria-label": "Quiet hours start", onchange: (e) => save({ quiet_start: e.target.value }) });
+      const quietTo = h("input", { type: "time", value: s.quiet_end, "aria-label": "Quiet hours end", onchange: (e) => save({ quiet_end: e.target.value }) });
+      fill(box,
+        h("h3", { text: "Reminders outside Link" }),
+        h("p", { text: "Link can show one reminder a day on your computer when a follow-up is due. It says how many, never who. Nothing is sent anywhere." }),
+        n.supported ? null : h("p", { class: "notice", text: n.reason }),
+        field("Remind me", select([["off", "Never"], ["on", "Once a day"]], s.enabled ? "on" : "off", (v) => save({ enabled: v === "on" }))),
+        field("Time of day", time),
+        h("details", {}, h("summary", { text: "Quiet hours: " + clock(s.quiet_start) + " to " + clock(s.quiet_end) }), field("From", quietFrom), field("Until", quietTo)),
+        n.supported && s.enabled ? h("p", { class: "muted small", text: n.helper_installed ? "The helper is installed, so reminders can appear when Link is closed." : "To get reminders while Link is closed, run this once in Terminal:" }) : null,
+        n.supported && s.enabled && !n.helper_installed ? h("p", {}, h("code", { text: "companion nudge --install" })) : null,
+        n.would_mention ? h("p", { class: "muted small", text: "Right now a reminder would say: " + n.would_mention + (n.would_mention === 1 ? " follow-up" : " follow-ups") + " due." }) : null,
+        n.paused_people ? h("p", { class: "muted small", text: plural(n.paused_people, "person is", "people are") + " set aside because two reminders in a row led nowhere. They still show in Link." }) : null,
+        h("div", { class: "row" },
+          btn("Send a test reminder", () => tell("/api/nudges/test", {}, (o) => o.sent ? "Sent. Look for it on your screen. If you don’t see it, check Notifications in System Settings." : o.reason), "quiet"),
+          n.snooze_until ? btn("Resume reminders (paused until " + n.snooze_until + ")", () => tell("/api/nudges/resume", {}, () => "Reminders are back on."), "quiet")
+            : btn("Pause for 3 days", () => tell("/api/nudges/pause", { days: 3 }, (o) => "Paused until " + o.snooze_until + "."), "quiet"),
+          n.paused_people ? btn("Bring those people back", () => tell("/api/nudges/resume", {}, () => "Those people will be in reminders again."), "quiet") : null),
+        message ? h("p", { class: "notice", role: "status", text: message }) : null,
+        h("p", { class: "muted small", text: "If you delete everything, also run “companion nudge --uninstall” to remove the helper." }));
+    }
+    draw();
+    return box;
+  }
   async function renderSettings(root) {
     const [b, activity] = await Promise.all([api("GET", "/api/budget"), api("GET", "/api/activity")]);
     const s = b.status, level = s.level === "hard_stop" ? "bad" : s.level === "warn" ? "warn" : "";
@@ -1464,6 +1499,7 @@
     root.append(page);
     page.append(h("section",{class:"section"},h("h3",{text:pick("Your networking sources","Add contacts")}),h("p",{text:pick("Import a LinkedIn snapshot, choose conversation excerpts or prepare from a calendar file.","Bring in your LinkedIn contacts file, messages you choose, or a calendar file.")}),btn(pick("Open Sources & imports","Add contacts"),()=>go("sources"),"quiet")));
     page.append(h("section", {class:"section"}, h("h3",{text:"Meet Link"}), btn("Take the guided walkthrough",()=>window.LinkGuide.start(),"quiet")));
+    page.append(await nudgeSection());
     page.append(h("section", {class: "section"}, h("h3", {text: "Appearance"}),
       field("Color theme", select([["system","Follow system"],["light","Light"],["dark","Dark"]], store.get("theme", "light"), value => { store.set("theme", value); applyTheme(); })),
       h("p", {class: "muted small", text: "Your theme is remembered on this browser. Motion follows your device's reduced-motion setting."})));

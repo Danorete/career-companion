@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import services, store, people, coaching, network_imports, encounters, connectors
+from . import services, store, people, coaching, network_imports, encounters, connectors, nudges, nudge_agent
 from .ai import AIClient, AIUnavailable, CompanionTurn, Gateway, build_client
 from .budget import Budget
 from .config import Settings
@@ -296,6 +296,17 @@ class KeepIn(In):
     person_id: int | None = None
 
 
+class NudgeSettingsIn(In):
+    enabled: bool
+    time: str = Field(max_length=5)
+    quiet_start: str = Field(max_length=5)
+    quiet_end: str = Field(max_length=5)
+
+
+class PauseIn(In):
+    days: int = Field(ge=1, le=nudges.MAX_PAUSE_DAYS)
+
+
 class CheckinIn(In):
     answer: Literal["great", "fine", "skip"]
     note: str = Field(default="", max_length=1000)
@@ -310,7 +321,7 @@ class WipeIn(In):
     confirm: Literal["DELETE EVERYTHING"]
 
 
-def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=None, secret_store=None) -> FastAPI:
+def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=None, secret_store=None, notifier=None) -> FastAPI:
     db = Database(settings.db_path)
     store.purge_old_messages(db, settings.transcript_days)
     security = Security(settings.port)
@@ -327,6 +338,7 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     app.state.db, app.state.security, app.state.budget, app.state.gateway = db, security, budget, gateway
     app.state.settings = settings
     secrets_store = secret_store or KeyringSecrets()
+    desktop = notifier or nudges.build_notifier()
     flows = connectors.OAuthFlows()
     app.state.secrets, app.state.flows = secrets_store, flows
 
@@ -936,6 +948,32 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     @app.post("/api/encounters/{cid}/dismiss")
     def encounter_dismiss(cid: int, body: DismissIn) -> dict:
         return encounters.dismiss(db, cid, body.scope)
+
+    # ---- reminders outside the app (decision D46) ------------------------------------------
+    @app.get("/api/nudges")
+    def nudges_info() -> dict:
+        state = nudges.get_state(db)
+        return {"settings": nudges.get_settings(db), "supported": desktop.supported, "reason": desktop.reason,
+                "helper_installed": nudge_agent.is_installed(Path.home()), "snooze_until": state["snooze_until"],
+                "last_date": state["last_date"], **nudges.preview(db, nudges.local_now(settings))}
+
+    @app.put("/api/nudges")
+    def nudges_save(body: NudgeSettingsIn) -> dict:
+        return nudges.save_settings(db, body.enabled, body.time, body.quiet_start, body.quiet_end)
+
+    @app.post("/api/nudges/pause")
+    def nudges_pause(body: PauseIn) -> dict:
+        return {"snooze_until": nudges.pause(db, body.days, nudges.local_now(settings).date())["snooze_until"]}
+
+    @app.post("/api/nudges/resume")
+    def nudges_resume() -> dict:
+        nudges.resume(db)
+        return {"resumed": True}
+
+    @app.post("/api/nudges/test")
+    def nudges_test() -> dict:
+        sent = desktop.send("Link", "This is a test reminder. Nothing is due.")
+        return {"sent": sent, "reason": "" if sent else (desktop.reason or "macOS did not show the notification. Check Notifications in System Settings.")}
 
     @app.get("/api/checkins")
     def checkins_due() -> list[dict]:
