@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse, Response
 COOKIE_NAME = "cc_session"
 CSRF_HEADER = "x-csrf-token"
 MAX_BODY_BYTES = 1_000_000
+OAUTH_CALLBACK_PATH = "/connect/google/callback"
 SAFE_METHODS = {"GET", "HEAD"}
 MAX_FAILED_EXCHANGES = 5
 
@@ -84,7 +85,10 @@ def make_guard(security: Security) -> Callable[[Request, Callable[[Request], Awa
         if origin is not None and origin not in security.allowed_origins:
             return _deny(403, "origin not allowed")
         fetch_site = request.headers.get("sec-fetch-site")
-        if fetch_site is not None and fetch_site not in {"same-origin", "none"}:
+        # One exception: Google sends the browser back to the sign-in callback, which is a cross-site navigation by
+        # design. That route accepts GET only and trusts nothing but a single-use, expiring `state` value (D43).
+        callback = method == "GET" and request.url.path == OAUTH_CALLBACK_PATH
+        if fetch_site is not None and fetch_site not in {"same-origin", "none"} and not callback:
             return _deny(403, "cross-site request")
 
         mutating = method not in SAFE_METHODS

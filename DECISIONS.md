@@ -203,3 +203,20 @@ One codebase, one switch. `Settings.ui_mode` is `user` (the default) or `dev`, s
 - **Why not two copies of the app:** parallel copies already diverged once (`connections-redesign`).
 - **Still to do:** most longer sentences inside the workflows are unchanged, the demo banner still says "mock AI", and the Setup list in Settings still says "Unlocks". These belong to a second plain-language pass after testers read it.
 
+## D43 — Calendar connect, first slice (2026-11-17)
+Status: built and tested against stand-ins. No real Google sign-in has been tried. Implements the first source of D39.
+
+- **Provider.** Google Calendar, read-only (`calendar.readonly`), primary calendar only. A fictional sample calendar stands in for the demo, so the whole flow can be tried without an account.
+- **Sign-in.** OAuth for a Desktop app with PKCE, returning to `http://127.0.0.1:<port>/connect/google/callback`. The refresh token lives in the system keychain through `KeyringSecrets` (D14). The short-lived access token stays in memory. No token is in the database, an export, a log or the page.
+- **Request guard (amends D2, one path only).** Google sends the browser back to the callback, which is a cross-site navigation by design. The guard lets exactly `GET /connect/google/callback` through its cross-site check. Every other route still refuses cross-site requests, and the Host check still applies. The callback trusts only a `state` value that is random, works once, expires after 10 minutes, and is held in memory (at most 5 pending). It answers with a small page rather than a redirect, because the browser withholds the session cookie from a redirect chain that began on another site.
+- **Outbound traffic (amends D15).** A separate transport lets calendar code reach only `oauth2.googleapis.com` and `www.googleapis.com` over HTTPS. The AI transport is unchanged and still allows only the AI provider. The browser, not Link, opens `accounts.google.com`.
+- **Fields.** Link asks Google for event title, start, end, status, recurrence, and attendee name, address and response. It does not ask for descriptions, places or notes. Addresses are kept, as D39 says.
+- **What becomes a suggestion.** An event with at least one other human invited, not cancelled, not all-day, not declined by you. Recurring events and groups of more than six need a networking word in the title (coffee, networking, career fair, informational, mentor, meetup, interview, recruiter, alumni and similar). No-reply senders, group calendars and rooms are ignored.
+- **Confirm by exception.** Nothing is a person until Keep. Keep saves a person and no conversation, because an invitation does not establish that anyone met. The person is offered as "same as" an existing one when the address or exact name matches. "Not now" hides one event. "Never suggest this person" also stops that address from any later event.
+- **No background work.** Checking the calendar is a button. There is no scheduled sync and no AI involved.
+- **Disconnect.** Keeps what was found, or removes everything that came from the calendar. People you kept stay in either case. Delete everything also cancels the sign-in, because the keychain is outside the database files.
+- **Trust copy.** The page says what Link reads, never reads and never does, and its "No accounts connected" label follows the real state.
+- **Schema.** Version 6 adds `encounter_candidates`, included in export and delete.
+- **Limits.** 250 events per check, no paging, 21 days back and 14 days ahead. One calendar. No Microsoft sign-in yet.
+- **Next.** The post-event check-in, which asks how a meeting went with a tap, is step 4 of the plan.
+

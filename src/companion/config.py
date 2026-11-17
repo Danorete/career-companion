@@ -34,6 +34,9 @@ class Settings:
     timezone: str = "America/New_York"
     transcript_days: int = 30
     ui_mode: str = "user"
+    # Google Calendar sign-in (decision D39). Create a Desktop app OAuth client; see the README. Unset means unconfigured.
+    google_client_id: str = ""
+    google_client_secret: str = ""
 
     def __post_init__(self) -> None:
         if self.host != LOOPBACK_HOST:
@@ -59,6 +62,10 @@ class Settings:
             kwargs["port"] = int(os.environ["COMPANION_PORT"])
         if os.environ.get("COMPANION_AI_MODE"):
             kwargs["ai_mode"] = os.environ["COMPANION_AI_MODE"]
+        if os.environ.get("COMPANION_GOOGLE_CLIENT_ID"):
+            kwargs["google_client_id"] = os.environ["COMPANION_GOOGLE_CLIENT_ID"].strip()
+        if os.environ.get("COMPANION_GOOGLE_CLIENT_SECRET"):
+            kwargs["google_client_secret"] = os.environ["COMPANION_GOOGLE_CLIENT_SECRET"].strip()
         if os.environ.get("COMPANION_UI_MODE"):
             kwargs["ui_mode"] = os.environ["COMPANION_UI_MODE"]
         if os.environ.get("COMPANION_TIMEZONE"):

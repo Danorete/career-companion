@@ -8,17 +8,18 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import services, store, people, coaching, network_imports
+from . import services, store, people, coaching, network_imports, encounters, connectors
 from .ai import AIClient, AIUnavailable, CompanionTurn, Gateway, build_client
 from .budget import Budget
 from .config import Settings
 from .db import Database, now
 from .validate import validate_draft
-from .security import COOKIE_NAME, Security, make_guard
+from .keys import KeyringSecrets
+from .security import COOKIE_NAME, OAUTH_CALLBACK_PATH, Security, make_guard
 
 STATIC = Path(__file__).parent / "static"
 log = logging.getLogger("companion")
@@ -290,11 +291,20 @@ class StarterIn(In):
     actions: list[StarterAction] = Field(default_factory=list, max_length=60)
 
 
+class KeepIn(In):
+    name: str | None = Field(default=None, max_length=120)
+    person_id: int | None = None
+
+
+class DismissIn(In):
+    scope: Literal["event", "person"] = "event"
+
+
 class WipeIn(In):
     confirm: Literal["DELETE EVERYTHING"]
 
 
-def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI:
+def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=None, secret_store=None) -> FastAPI:
     db = Database(settings.db_path)
     store.purge_old_messages(db, settings.transcript_days)
     security = Security(settings.port)
@@ -310,6 +320,24 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
     app = FastAPI(title="Career Companion", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.db, app.state.security, app.state.budget, app.state.gateway = db, security, budget, gateway
     app.state.settings = settings
+    secrets_store = secret_store or KeyringSecrets()
+    flows = connectors.OAuthFlows()
+    app.state.secrets, app.state.flows = secrets_store, flows
+
+    def calendar_provider():
+        """The injected provider (tests), the sample calendar (demo), Google when configured, otherwise nothing."""
+        if calendar is not None:
+            return calendar
+        if db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'"):
+            return connectors.SampleCalendar()
+        if settings.google_client_id:
+            if not hasattr(app.state, "google"):
+                app.state.google = connectors.GoogleCalendar(settings.google_client_id, settings.google_client_secret, secrets_store)
+            return app.state.google
+        return None
+
+    def redirect_uri() -> str:
+        return f"http://127.0.0.1:{settings.port}{OAUTH_CALLBACK_PATH}"
     app.middleware("http")(make_guard(security))
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
@@ -343,9 +371,17 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
         resp.set_cookie(COOKIE_NAME, pair[0], httponly=True, samesite="strict", path="/")
         return resp
 
+    def calendar_status() -> dict:
+        provider = calendar_provider()
+        state = encounters.status(db)
+        connected = bool(state) and (provider is not None and provider.has_token())
+        return {"available": provider is not None, "demo": bool(provider and provider.demo), "connected": connected,
+                "last_sync": state.get("last_sync") if state else None,
+                "waiting": db.one("SELECT COUNT(*) AS n FROM encounter_candidates WHERE state='pending'")["n"] if connected else 0}
+
     @app.get("/api/bootstrap")
     def bootstrap(request: Request) -> dict:
-        return {"demo": bool(db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'")), "ui_mode": settings.ui_mode,
+        return {"demo": bool(db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'")), "ui_mode": settings.ui_mode, "calendar": calendar_status(),
                 "csrf": security.csrf_for(request.cookies.get(COOKIE_NAME)), "ai": gateway.availability(),
                 "budget": budget.status(), "onboarding": services.onboarding_state(db),
                 "setup": services.setup_progress(db),
@@ -832,8 +868,80 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
             store.check_evidence({**e, "status": "unverified_user_claim"})
         return services.import_starter(db, data)
 
+    # ---- calendar connection (decision D39) ---------------------------------------------
+    @app.get("/api/connectors/calendar")
+    def calendar_info() -> dict:
+        return calendar_status()
+
+    @app.post("/api/connectors/calendar/start")
+    def calendar_start() -> dict:
+        provider = calendar_provider()
+        if provider is None:
+            raise store.RuleError("Calendar sign-in isn't set up in this copy of Link yet.")
+        if provider.demo:
+            encounters.mark_connected(db, demo=True)
+            return {"connected": True, "demo": True}
+        state, challenge = flows.begin()
+        try:
+            return {"connected": False, "url": provider.authorize_url(redirect_uri(), state, challenge)}
+        except connectors.ConnectorError as exc:
+            raise store.RuleError(str(exc))
+
+    @app.get(OAUTH_CALLBACK_PATH)
+    def calendar_callback(code: str = "", state: str = "", error: str = "") -> HTMLResponse:
+        # Cross-site by design, so it trusts only a live single-use `state`. It serves a page rather than a redirect,
+        # because the browser withholds the session cookie from a redirect that began on another site.
+        provider = calendar_provider()
+        verifier = flows.take(state)
+        message = "Your calendar is connected. Taking you back to Link."
+        if provider is None or verifier is None:
+            message = "That sign-in link was already used or has expired. Go back to Link and try again."
+        elif error or not code:
+            message = "Google didn't connect your calendar. Go back to Link and try again."
+        else:
+            try:
+                provider.complete(code, verifier, redirect_uri())
+                encounters.mark_connected(db)
+            except connectors.ConnectorError as exc:
+                message = str(exc)
+        return HTMLResponse('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Link</title>'
+                            '<meta http-equiv="refresh" content="1;url=/#sources"></head>'
+                            f'<body><p>{message}</p><p><a href="/#sources">Back to Link</a></p></body></html>')
+
+    @app.post("/api/connectors/calendar/sync")
+    def calendar_sync() -> dict:
+        provider = calendar_provider()
+        if provider is None or not encounters.status(db):
+            raise store.RuleError("Connect your calendar first.")
+        try:
+            return encounters.sync(db, provider)
+        except connectors.ConnectorError as exc:
+            raise store.RuleError(str(exc))
+
+    @app.get("/api/encounters")
+    def encounters_pending() -> list[dict]:
+        return encounters.pending(db)
+
+    @app.post("/api/encounters/{cid}/keep")
+    def encounter_keep(cid: int, body: KeepIn) -> dict:
+        return encounters.keep(db, cid, body.name, body.person_id)
+
+    @app.post("/api/encounters/{cid}/dismiss")
+    def encounter_dismiss(cid: int, body: DismissIn) -> dict:
+        return encounters.dismiss(db, cid, body.scope)
+
+    @app.delete("/api/connectors/calendar")
+    def calendar_disconnect(remove_data: bool = False) -> dict:
+        provider = calendar_provider()
+        if provider is None:
+            return {"disconnected": True, "removed_data": False}
+        return encounters.disconnect(db, provider, remove_data)
+
     @app.post("/api/wipe")
     def wipe(body: WipeIn) -> dict:
+        provider = calendar_provider()
+        if provider is not None:
+            provider.disconnect()  # the sign-in lives in the keychain, outside the database files
         # Spend already committed this month survives the wipe, so deleting data can't reset the cap.
         carried = budget.month_committed()
         db.wipe()

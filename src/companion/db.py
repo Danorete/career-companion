@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -118,6 +118,15 @@ CREATE TABLE IF NOT EXISTS connection_plans (
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 
 -- Metadata only. Never private content.
+-- People found in a connected calendar (decision D39). One row per event and attendee. Nothing here is a
+-- person until the user keeps it, and an invitation never counts as a conversation.
+CREATE TABLE IF NOT EXISTS encounter_candidates (
+    id INTEGER PRIMARY KEY, source TEXT NOT NULL, event_id TEXT NOT NULL, address TEXT NOT NULL,
+    name TEXT NOT NULL, name_guessed INTEGER NOT NULL DEFAULT 0, title TEXT NOT NULL DEFAULT '',
+    starts_at TEXT NOT NULL, ends_at TEXT NOT NULL DEFAULT '', reason TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'pending', item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL, decided_at TEXT, UNIQUE(source, event_id, address));
+
 CREATE TABLE IF NOT EXISTS activity (
     id INTEGER PRIMARY KEY, ts TEXT NOT NULL, event TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '');
 """
@@ -125,6 +134,7 @@ CREATE TABLE IF NOT EXISTS activity (
 USER_TABLES = (
     "kv", "memory", "evidence", "items", "actions", "drafts", "outcomes", "reminders",
     "ideas", "imports", "proposals", "sessions", "messages", "ledger", "activity", "draft_versions", "interactions", "connection_plans",
+    "encounter_candidates",
 )
 
 

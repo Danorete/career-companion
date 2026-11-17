@@ -246,7 +246,7 @@
   // ---- status, sidebar, session timer ---------------------------------------------------
   async function refreshStatus() {
     const b = await api("GET", "/api/bootstrap");
-    Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup });
+    Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup, calendar: b.calendar });
     applyMode(b.ui_mode);
     renderSide(); syncCompanion();
   }
@@ -611,7 +611,8 @@
     return h('nav',{class:'daily-shortcuts','aria-label':'Quick actions'},
       btn('Log a conversation',()=>go('quicklog'),'quiet'),
       btn('Prepare for a conversation',()=>workflows.open({mode:'prepare'}),'quiet'),
-      btn(pick('Import connections','Add contacts'),()=>sources.open('connections'),'quiet'));
+      btn(pick('Import connections','Add contacts'),()=>sources.open('connections'),'quiet'),
+      S.calendar && S.calendar.waiting ? btn(S.calendar.waiting + (S.calendar.waiting === 1 ? ' person found in your calendar' : ' people found in your calendar'),()=>sources.open('calendar'),'primary') : null);
   }
   function dailyEmpty(hasPeople) {
     return h('section',{class:'daily-empty'},h('span',{class:'eyebrow',text:'ONE SMALL STEP'}),

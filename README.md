@@ -38,6 +38,7 @@ Your data lives in `~/Library/Application Support/CareerCompanion/`, outside thi
 |---|---|---|
 | AI mode | `COMPANION_AI_MODE` (`mock`, `live`, `off`) | `mock` |
 | Version | `COMPANION_UI_MODE` or `companion run --mode` (`user`, `dev`) | `user` |
+| Google Calendar sign-in | `COMPANION_GOOGLE_CLIENT_ID`, `COMPANION_GOOGLE_CLIENT_SECRET` | unset (calendar connection off) |
 | Port | `COMPANION_PORT` | `8765` |
 | Data folder | `COMPANION_DATA_DIR` | see above |
 | Time zone for the daily cap | `COMPANION_TIMEZONE` | `America/New_York` |
@@ -48,6 +49,34 @@ Your data lives in `~/Library/Application Support/CareerCompanion/`, outside thi
 settings, and one plain line when the AI is off or showing sample answers. `companion run --mode dev` opens the
 **developer version**: the original wording, the AI budget, the mock/live switch and spending details. The browser
 checks in `scripts/` run the developer version, except `check_user_mode_browser.py`, which checks both. See D42.
+
+## Connect Google Calendar (optional)
+
+Link can read your Google Calendar to find people you have met or are about to meet. It is read-only: it never adds,
+changes or deletes an event, and it never reads event descriptions, places or notes. Nothing is saved as a person
+until you click Keep, and an invitation is never treated as a conversation. Decision D43 has the details.
+
+In `--demo` mode this works with a fictional sample calendar and needs no Google account.
+
+To connect your own calendar you need your own Google sign-in settings. This is the part to do once:
+
+1. In the Google Cloud Console, create a project and turn on the **Google Calendar API**.
+2. Under the OAuth consent screen, choose **External**, keep it in **Testing**, add your own Google address as a test
+   user, and add the read-only calendar scope (`.../auth/calendar.readonly`).
+3. Create an **OAuth client ID** of type **Desktop app**. Copy the client ID and secret.
+4. Start Link with them (the secret is not a real secret for a desktop app, but keep it out of the repository):
+
+```
+COMPANION_GOOGLE_CLIENT_ID="..." COMPANION_GOOGLE_CLIENT_SECRET="..." .venv/bin/companion run
+```
+
+5. Open **Add contacts**, then the calendar tab, then **Connect Google Calendar**. Your browser opens Google; after you
+   approve, it returns to Link on `http://127.0.0.1:<port>`. The sign-in is stored in your system keychain, never in the
+   database, an export or a log. **Disconnect** removes it, and Delete everything removes it too.
+
+Not yet verified: this has been tested against stand-ins only. No real Google sign-in has been tried. As far as I know,
+an app in Testing mode is limited to listed test users and Google may expire its sign-in after about a week; school
+Google accounts may need an administrator's approval. Check Google's current rules before you rely on it.
 
 ## Loading your information in one step
 
@@ -118,7 +147,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`205 passed` on Linux, Python 3.12, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
+`237 passed` on Linux, Python 3.12, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -320,6 +349,7 @@ it in headless Chromium, and writes screenshots to the `--output` folder:
 | `check_studio_browser.py` | People directory and tabs by keyboard, next-step undo, Link panel, both themes |
 | `check_people_browser.py` | People, Quick log, approximate dates, review, search, narrow layout |
 | `check_connection_browser.py` | Guided onboarding, preparation, rehearsal, drafting, resume after reload |
+| `check_calendar_browser.py` | Sample calendar: connect, find people, keep, never suggest, disconnect; the page's connection label stays true |
 | `check_user_mode_browser.py` | User version uses plain words and hides spending and AI-mode controls; developer version keeps them |
 | `check_qol_browser.py` | Quick log recovery, undo, duplicate-name suggestions, reminders, reduced motion |
 | `check_avatar_browser.py` | Link character and the Meet Link walkthrough |
