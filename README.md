@@ -206,7 +206,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`328 passed` on Linux, Python 3.13, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
+`364 passed` on Linux, Python 3.13, 2026-11-18. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -427,3 +427,32 @@ were written on. On a Mac, change `executable_path` in the script to your browse
 
 The first four in the table were re-run on Linux on 2026-11-13 and passed with no JavaScript errors.
 The other three last passed in the sessions recorded in `VALIDATION.md`.
+
+## The web version (for remote testers)
+
+Decision D50. The same app, behind a front door that signs people in with Google. Only addresses on an invite list get
+in, and each person's data is in its own database file. The Mac app above is unchanged.
+
+To try it on your own Mac before it goes online (quit the Mac app first; both use port 8765):
+
+1. In Google Cloud, create an OAuth client of type **Web application** with the redirect URI
+   `http://localhost:8765/connect/google/callback`, and add the scopes `openid` and `.../auth/userinfo.email`.
+   Save its JSON file as `~/link-private/google-web-client.json` (`chmod 600`).
+2. Install the extra piece the web version needs, and make a secret key once. Keep the key: a new key means everyone's
+   account and saved Google connections stop working.
+
+```
+.venv/bin/pip install -e '.[web]'
+python3 -c "import secrets; print(secrets.token_urlsafe(48))" > ~/link-private/web-secret-key && chmod 600 ~/link-private/web-secret-key
+```
+
+3. Start it, with your own address on the invite list (separate several with commas):
+
+```
+LINK_PUBLIC_URL=http://localhost:8765 LINK_DATA_ROOT=~/link-web-test LINK_SECRET_KEY="$(cat ~/link-private/web-secret-key)" COMPANION_GOOGLE_CLIENT_FILE=~/link-private/google-web-client.json LINK_INVITES=you@gmail.com .venv/bin/companion web
+```
+
+Settings, all read from environment variables: `LINK_PUBLIC_URL` (the site's address; https except on localhost),
+`LINK_DATA_ROOT` (where accounts live), `LINK_SECRET_KEY` (at least 32 characters; encrypts saved Google sign-ins and
+scrambles email addresses), `LINK_INVITES`, the Google Web client (`COMPANION_GOOGLE_CLIENT_FILE`, or
+`COMPANION_GOOGLE_CLIENT_ID` and `COMPANION_GOOGLE_CLIENT_SECRET`), `PORT`, and `LINK_TRUST_PROXY=1` behind a host's proxy.

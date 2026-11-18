@@ -389,3 +389,12 @@ body.connection-studio { background:var(--ground); font:14px/1.65 var(--body); c
 @media(max-width:1000px) { .connection-studio .start-card { margin-top:24px; padding-bottom:170px; } }
 .connection-studio .stopped { max-width:520px; margin:20vh auto 0; padding:0 24px; }
 
+
+/* Web sign-in (D50) */
+.signin-box { max-width: 460px; }
+.signin-button { display:inline-flex; justify-content:center; align-items:center; min-height:44px; padding:0 20px; border-radius:8px;
+  background:var(--ink, #1d1d1f); color:var(--sheet, #fff); font-weight:600; text-decoration:none; }
+.signin-button:focus-visible { outline:3px solid var(--accent, #2f6fde); outline-offset:2px; }
+.signin-note { border-top:1px solid var(--line); padding-top:12px; }
+.signin-note h2 { font-size:1rem; margin:0 0 6px; }
+.signin-note p { margin:0 0 8px; font-size:.92rem; }

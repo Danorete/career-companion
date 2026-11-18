@@ -21,8 +21,9 @@ def default_data_dir() -> Path:
     return Path(base) / "career-companion"
 
 
-def load_google_client_file(path: str | Path) -> dict[str, str]:
-    """Read the file Google lets you download for a Desktop app client. Error messages never include its contents."""
+def load_google_client_file(path: str | Path, kind: str = "installed") -> dict[str, str]:
+    """Read the file Google lets you download for an OAuth client. `installed` is a Desktop app client (the Mac app);
+    `web` is a Web application client (the web version, D50). Error messages never include its contents."""
     file = Path(path).expanduser()
     try:
         data = json.loads(file.read_text(encoding="utf-8"))
@@ -30,11 +31,13 @@ def load_google_client_file(path: str | Path) -> dict[str, str]:
         raise ValueError(f"Google client file not found: {file}") from None
     except (OSError, ValueError):
         raise ValueError("The Google client file isn't readable JSON.") from None
-    section = data.get("installed") if isinstance(data, dict) else None
+    section = data.get(kind) if isinstance(data, dict) else None
     if not isinstance(section, dict):
-        if isinstance(data, dict) and "web" in data:
+        if kind == "installed" and isinstance(data, dict) and "web" in data:
             raise ValueError("That client is a Web application. Create a client of type Desktop app instead.")
-        raise ValueError("That file isn't a Google Desktop app client file.")
+        if kind == "web" and isinstance(data, dict) and "installed" in data:
+            raise ValueError("That client is a Desktop app. The web version needs a client of type Web application.")
+        raise ValueError("That file isn't a Google Web application client file." if kind == "web" else "That file isn't a Google Desktop app client file.")
     client_id, secret = str(section.get("client_id", "")).strip(), str(section.get("client_secret", "")).strip()
     if not client_id:
         raise ValueError("That Google client file has no client ID.")
@@ -58,6 +61,9 @@ class Settings:
     # Google Calendar sign-in (decision D39). Create a Desktop app OAuth client; see the README. Unset means unconfigured.
     google_client_id: str = ""
     google_client_secret: str = ""
+    # The web version (D50): this copy serves one signed-in person behind the web front door, never a port of its own.
+    hosted: bool = False
+    public_url: str = ""
 
     def __post_init__(self) -> None:
         if self.host != LOOPBACK_HOST:
@@ -69,6 +75,8 @@ class Settings:
         if not 0 < self.hard_stop_usd <= self.monthly_budget_usd:
             raise ValueError("hard_stop_usd must be positive and within the monthly budget.")
         self.data_dir = Path(self.data_dir)
+        if self.hosted and not self.public_url:
+            raise ValueError("A hosted copy needs the site's public address.")
 
     @property
     def db_path(self) -> Path:

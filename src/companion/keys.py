@@ -99,3 +99,66 @@ class FolderSecrets:
         self.inner.delete(self._name(account))
         if self.adopt_legacy:
             self.inner.delete(account)  # a sign-in from before D49 must not survive a disconnect
+
+
+class EncryptedFileSecrets:
+    """Google sign-ins for one person in the web version (decision D50). A server has no keychain, so each person's
+    sign-ins sit in one file in their own folder, encrypted with a key that exists only in the host's secret settings.
+
+    Each value is sealed together with the person's account id and the entry's name, so a file copied into another
+    person's folder, or an entry moved under another name, does not open. The file is readable by the server user only.
+    """
+
+    def __init__(self, path, key: bytes, owner: str):
+        from pathlib import Path
+
+        from cryptography.fernet import Fernet
+
+        self.path, self.owner, self._fernet = Path(path), owner, Fernet(key)
+
+    def _load(self) -> dict:
+        import json
+
+        try:
+            return json.loads(self.path.read_text(encoding="utf-8"))
+        except (FileNotFoundError, ValueError):
+            return {}
+
+    def _save(self, items: dict) -> None:
+        import json
+        import os
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
+            json.dump(items, out)
+        os.replace(tmp, self.path)
+
+    def get(self, account: str) -> str | None:
+        import json
+
+        from cryptography.fernet import InvalidToken
+
+        sealed = self._load().get(account)
+        if not sealed:
+            return None
+        try:
+            inside = json.loads(self._fernet.decrypt(sealed.encode("ascii")))
+        except (InvalidToken, ValueError):
+            return None
+        if inside.get("owner") != self.owner or inside.get("account") != account:
+            return None
+        return inside.get("value") or None
+
+    def set(self, account: str, value: str) -> None:
+        import json
+
+        items = self._load()
+        items[account] = self._fernet.encrypt(json.dumps({"owner": self.owner, "account": account, "value": value}).encode()).decode("ascii")
+        self._save(items)
+
+    def delete(self, account: str) -> None:
+        items = self._load()
+        if items.pop(account, None) is not None:
+            self._save(items)

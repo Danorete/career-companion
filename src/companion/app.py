@@ -327,7 +327,8 @@ class WipeIn(In):
     confirm: Literal["DELETE EVERYTHING"]
 
 
-def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=None, secret_store=None, notifier=None, mail=None) -> FastAPI:
+def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=None, secret_store=None, notifier=None, mail=None,
+               google_transport=None) -> FastAPI:
     db = Database(settings.db_path)
     store.purge_old_messages(db, settings.transcript_days)
     security = Security(settings.port)
@@ -337,16 +338,19 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     else:
         client, reason = build_client(settings)
     if client is not None and client.name == "mock":
-        reason = "Mock AI: replies are canned and nothing leaves this Mac."
+        reason = "Mock AI: replies are canned." if settings.hosted else "Mock AI: replies are canned and nothing leaves this Mac."
     gateway = Gateway(db, budget, client, reason)
 
     app = FastAPI(title="Career Companion", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.db, app.state.security, app.state.budget, app.state.gateway = db, security, budget, gateway
     app.state.settings = settings
     # Each data folder has its own keychain entries (D49); your usual folder adopts a sign-in saved before that.
+    if settings.hosted and secret_store is None:
+        raise ValueError("A hosted copy needs its encrypted sign-in store; the keychain is never used on a server.")
     secrets_store = secret_store or FolderSecrets(KeyringSecrets(), settings.data_dir,
                                                   adopt_legacy=Path(settings.data_dir).expanduser().resolve() == default_data_dir().expanduser().resolve())
-    launcher_key = launcher.ensure_key(settings.data_dir)
+    # The web version has no launcher and no Quit: one person must never be able to stop the server for everyone.
+    launcher_key = None if settings.hosted else launcher.ensure_key(settings.data_dir)
     app.state.request_shutdown = lambda: None  # `companion run` replaces this with a real stop
     desktop = notifier or nudges.build_notifier()
     flows = connectors.OAuthFlows()
@@ -360,7 +364,8 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
             return connectors.SampleCalendar()
         if settings.google_client_id:
             if not hasattr(app.state, "google"):
-                app.state.google = connectors.GoogleCalendar(settings.google_client_id, settings.google_client_secret, secrets_store)
+                app.state.google = connectors.GoogleCalendar(settings.google_client_id, settings.google_client_secret, secrets_store,
+                                                             transport=google_transport)
             return app.state.google
         return None
 
@@ -372,13 +377,24 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
             return connectors.SampleMail()
         if settings.google_client_id:
             if not hasattr(app.state, "google_mail"):
-                app.state.google_mail = connectors.GoogleMail(settings.google_client_id, settings.google_client_secret, secrets_store)
+                app.state.google_mail = connectors.GoogleMail(settings.google_client_id, settings.google_client_secret, secrets_store,
+                                                               transport=google_transport)
             return app.state.google_mail
         return None
 
     def redirect_uri() -> str:
+        if settings.hosted:
+            return settings.public_url.rstrip("/") + OAUTH_CALLBACK_PATH
         return f"http://127.0.0.1:{settings.port}{OAUTH_CALLBACK_PATH}"
-    app.middleware("http")(make_guard(security))
+
+    def csrf_of(request: Request) -> str | None:
+        """Hosted: the web front door has already checked the session and passes its CSRF token along (D50)."""
+        if settings.hosted:
+            return request.scope.get("link.csrf")
+        return security.csrf_for(request.cookies.get(COOKIE_NAME))
+
+    if not settings.hosted:  # hosted copies sit behind the web front door, which applies its own guard
+        app.middleware("http")(make_guard(security))
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     @app.exception_handler(store.RuleError)
@@ -398,18 +414,19 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     # ---- shell and sign-in ------------------------------------------------------------
     @app.get("/")
     def index(request: Request) -> Response:
-        signed_in = security.csrf_for(request.cookies.get(COOKIE_NAME)) is not None
+        signed_in = csrf_of(request) is not None
         return FileResponse(STATIC / ("index.html" if signed_in else "login.html"))
 
-    @app.post("/auth/exchange")
-    def exchange(body: TokenIn) -> Response:
-        pair = security.exchange(body.token)
-        if not pair:
-            return JSONResponse({"error": "That link was already used or is wrong. Restart the app for a new one."},
-                                status_code=403)
-        resp = JSONResponse({"ok": True})
-        resp.set_cookie(COOKIE_NAME, pair[0], httponly=True, samesite="strict", path="/")
-        return resp
+    if not settings.hosted:
+        @app.post("/auth/exchange")
+        def exchange(body: TokenIn) -> Response:
+            pair = security.exchange(body.token)
+            if not pair:
+                return JSONResponse({"error": "That link was already used or is wrong. Restart the app for a new one."},
+                                    status_code=403)
+            resp = JSONResponse({"ok": True})
+            resp.set_cookie(COOKIE_NAME, pair[0], httponly=True, samesite="strict", path="/")
+            return resp
 
     def calendar_status() -> dict:
         provider = calendar_provider()
@@ -423,7 +440,7 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     @app.get("/api/bootstrap")
     def bootstrap(request: Request) -> dict:
         return {"demo": bool(db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'")), "ui_mode": settings.ui_mode, "calendar": calendar_status(),
-                "csrf": security.csrf_for(request.cookies.get(COOKIE_NAME)), "ai": gateway.availability(),
+                "hosted": settings.hosted, "csrf": csrf_of(request), "ai": gateway.availability(),
                 "budget": budget.status(), "onboarding": services.onboarding_state(db),
                 "setup": services.setup_progress(db),
                 "has_sample": bool(db.one("SELECT 1 FROM evidence WHERE is_sample=1 UNION SELECT 1 FROM actions WHERE is_sample=1")),
@@ -1003,26 +1020,27 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     def stop_soon() -> None:
         threading.Timer(0.4, lambda: app.state.request_shutdown()).start()
 
-    def launcher_key_ok(request: Request) -> bool:
-        return secrets.compare_digest(request.headers.get("x-launcher-key", "").encode(), launcher_key.encode())
+    if not settings.hosted:  # no launcher and no Quit on the web (D50)
+        def launcher_key_ok(request: Request) -> bool:
+            return secrets.compare_digest(request.headers.get("x-launcher-key", "").encode(), launcher_key.encode())
 
-    @app.get("/launcher/token")
-    def launcher_token(request: Request) -> JSONResponse:
-        if not launcher_key_ok(request):
-            return JSONResponse({"error": "launcher key required"}, status_code=401)
-        return JSONResponse({"token": security.mint_launch_token()})
+        @app.get("/launcher/token")
+        def launcher_token(request: Request) -> JSONResponse:
+            if not launcher_key_ok(request):
+                return JSONResponse({"error": "launcher key required"}, status_code=401)
+            return JSONResponse({"token": security.mint_launch_token()})
 
-    @app.post("/launcher/quit")
-    def launcher_quit(request: Request) -> JSONResponse:
-        if not launcher_key_ok(request):
-            return JSONResponse({"error": "launcher key required"}, status_code=401)
-        stop_soon()
-        return JSONResponse({"stopping": True})
+        @app.post("/launcher/quit")
+        def launcher_quit(request: Request) -> JSONResponse:
+            if not launcher_key_ok(request):
+                return JSONResponse({"error": "launcher key required"}, status_code=401)
+            stop_soon()
+            return JSONResponse({"stopping": True})
 
-    @app.post("/api/quit")
-    def quit_link() -> dict:
-        stop_soon()
-        return {"stopping": True}
+        @app.post("/api/quit")
+        def quit_link() -> dict:
+            stop_soon()
+            return {"stopping": True}
 
     # ---- email connection (decision D48) ------------------------------------------------
     def mail_status() -> dict:
@@ -1095,14 +1113,20 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
             return {"disconnected": True, "removed_data": False}
         return encounters.disconnect(db, provider, remove_data)
 
-    @app.post("/api/wipe")
-    def wipe(body: WipeIn) -> dict:
+    def cancel_sign_ins() -> None:
+        """Cancel the calendar and email sign-ins with Google and forget them. They live outside the database files."""
         provider = calendar_provider()
         if provider is not None:
-            provider.disconnect()  # the sign-in lives in the keychain, outside the database files
+            provider.disconnect()
         mail_to_cancel = mail_provider()
         if mail_to_cancel is not None:
             mail_to_cancel.disconnect()
+
+    app.state.cancel_sign_ins = cancel_sign_ins
+
+    @app.post("/api/wipe")
+    def wipe(body: WipeIn) -> dict:
+        cancel_sign_ins()
         # Spend already committed this month survives the wipe, so deleting data can't reset the cap.
         carried = budget.month_committed()
         db.wipe()

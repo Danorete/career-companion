@@ -10,12 +10,14 @@ This project moved here from a folder in `Danorete/spotify-listening-bi` on 2026
   2026-11-13 were only delivered as ZIP archives, because pushes from those sessions were refused.
   Notes below that say "no GitHub push performed" or "GitHub writes returned 403" describe those
   sessions; they no longer apply.
-- 328 Python tests pass on Linux, Python 3.13. Schema version 8. Mock AI only. The Google Calendar sign-in has been tried once for real by the builder; the check-in has not.
+- 364 Python tests pass on Linux, Python 3.13. Schema version 8. Mock AI only. The Google Calendar sign-in has been tried once for real by the builder; the check-in has not.
 - `claude/connections-redesign` is a separate People/Quick log implementation built in parallel; it is
   not merged. `claude/less-friction` is included in this build.
 - `graphify-out/` was rebuilt from code on 2026-11-13.
 - Still unverified: a real provider call, billing reconciliation, macOS, Safari, Keychain.
 - Entries below are a dated log; their test counts were correct when written.
+- 2026-11-18 (web version, step 1 of 5): `companion web` runs a front door with invite-only Google sign-in, one database per person, server-side sessions, CSRF and rate limits, encrypted Google sign-ins, real Delete everything and 30-day clean-up. 36 new tests and a browser check. Not deployed yet; Google sign-in tried only with a stand-in.
+- 2026-11-18 (full security check): no secrets or other people's data in any version of the public repository; no known library vulnerabilities; SQL names now checked against a list; log file private; wider .gitignore.
 - 2026-11-17 (launcher on a Mac): the builder installed `Link.app` with `companion launcher --install` and opened Link from Applications. Email found a real two-way contact after two fixes (lost To-only recipients, archived replies).
 - 2026-11-17 (email connection): Gmail headers only (`gmail.metadata`, read-only). Link suggests people you wrote to who wrote back; you keep, not-now or never. Kept people show when you last wrote. Tested on the sample mailbox and in the browser; not tried with a real Google account yet.
 - 2026-11-17 (one-click launcher): `companion launch` opens Link, starting it quietly in the background if needed, and `companion launcher --install` builds a Mac `Link.app` (D47). Quit Link added to the Menu and Settings. 20 new tests, plus `scripts/check_launcher_end_to_end.py`, which ran a real background server on Linux. 305 tests and all 10 browser checks pass. `Link.app` has not been built or opened on a real Mac.

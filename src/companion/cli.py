@@ -197,6 +197,37 @@ def _status(_: argparse.Namespace) -> int:
     return 0
 
 
+def web_bind(cfg) -> tuple[str, int]:
+    """Where the web version listens. On a host such as Railway: every interface, on the port it assigns.
+    On your own computer (a localhost address): this computer only."""
+    import os
+    from urllib.parse import urlsplit
+
+    local = urlsplit(cfg.public_url).hostname in ("localhost", "127.0.0.1")
+    host = os.environ.get("LINK_BIND") or ("127.0.0.1" if local else "0.0.0.0")
+    return host, int(os.environ.get("PORT") or urlsplit(cfg.public_url).port or 8765)
+
+
+def _web(args: argparse.Namespace) -> int:
+    """The web version for remote testers (decision D50). Settings come from environment variables; see the README."""
+    import uvicorn
+
+    from .web import WebConfig, create_web_app
+
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # its request lines are not needed in the log
+    try:
+        cfg = WebConfig.from_env()
+    except ValueError as exc:
+        print(f"Can't start: {exc}")
+        return 2
+    host, port = web_bind(cfg)
+    print(f"Link (web version) for {cfg.public_url}: {len(cfg.invites)} invited addresses, AI mode {cfg.ai_mode}.")
+    uvicorn.run(create_web_app(cfg), host=host, port=port, access_log=False, log_level="warning",
+                proxy_headers=False, server_header=False, date_header=False)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="companion", description="Link (local connection companion, single user)")
     sub = parser.add_subparsers(dest="command")
@@ -224,6 +255,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("set-key", help="store the API key in the system keychain").set_defaults(func=_set_key)
     sub.add_parser("delete-key", help="remove the API key").set_defaults(func=_delete_key)
     sub.add_parser("status", help="show configuration without starting").set_defaults(func=_status)
+    sub.add_parser("web", help="run the web version for remote testers (settings from environment variables)").set_defaults(func=_web)
     args = parser.parse_args(argv)
     if not args.command:
         args = parser.parse_args(["run"])

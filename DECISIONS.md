@@ -312,7 +312,9 @@ Why: first-time-user tests happen on the builder's Mac, each tester in a fresh d
 - **Not covered.** The AI provider key is still one per Mac user. With live AI on, a tester's folder would spend on the owner's key, and each folder has its own monthly cap. Run tests with mock AI.
 
 ## D50 — Web version for remote testers, and what it must have before anyone signs in (2026-11-18)
-Status: decided, not built. The Mac app stays as it is.
+Status: front door built and tested (items 1 to 7, 8 except a live-AI cap, 10). Not yet: email reminders, the sample-data demo for strangers, the feedback button, usage counts, pinned dependencies and the deploy to Railway (9, 11). The Mac app stays as it is.
+
+How it is built: `web.py` is a front door in front of the existing app. It signs people in, checks every request, and hands each request to that person's own copy of the app, which opens only their own database file. The app itself runs unchanged in a `hosted` mode with no launcher, no Quit and no one-time links, and with wording that never says "on this Mac".
 
 Why: most testers are not near the builder, and a web link works on any device. This reverses the local-first rule (D41) for the test run only. The plan for later versions is still to keep people's information on their own device.
 

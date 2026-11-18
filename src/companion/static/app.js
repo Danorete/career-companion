@@ -39,6 +39,9 @@
   S.mode = "user";
   const isDev = () => S.mode === "dev";
   const pick = (dev, user) => (isDev() ? dev : user);
+  // The web version (D50) keeps data on Link's server, so nothing may say "on this Mac" there.
+  const web = () => !!S.hosted;
+  const here = (mac, onWeb) => (web() ? onWeb : mac);
   function applyMode(mode) {
     S.mode = mode === "dev" ? "dev" : "user";
     document.body.dataset.mode = S.mode;
@@ -246,7 +249,8 @@
   // ---- status, sidebar, session timer ---------------------------------------------------
   async function refreshStatus() {
     const b = await api("GET", "/api/bootstrap");
-    Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup, calendar: b.calendar });
+    Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup, calendar: b.calendar, hosted: !!b.hosted });
+    document.body.dataset.hosted = S.hosted ? "1" : "";
     applyMode(b.ui_mode);
     renderSide(); syncCompanion();
   }
@@ -292,7 +296,7 @@
     fill($("side-status"),
       h("a", { class: "side-status", href: "#settings", title: S.ai.reason || "" },
         h("span", { class: "mode" }, h("span", { class: "dot " + mode[1] }), mode[0]),
-        h("span", { class: "detail muted", text: !S.ai.available ? "Everything else still works." : S.ai.mode === "mock" ? "Canned replies. Nothing leaves this Mac." : "Text you send goes to the AI provider." }),
+        h("span", { class: "detail muted", text: !S.ai.available ? "Everything else still works." : S.ai.mode === "mock" ? here("Canned replies. Nothing leaves this Mac.", "Canned replies. Nothing is sent to an AI company.") : "Text you send goes to the AI provider." }),
         h("span", { class: "detail split" }, h("span", { text: "AI budget" }), h("span", { text: money(b.committed_usd || 0) + " / $" + Math.round(b.hard_stop_usd || 16) })),
         (function () { const m = h("span", { class: "detail meter " + level }, h("span", {})); m.firstChild.style.width = Math.min(100, 100 * (b.committed_usd || 0) / (b.hard_stop_usd || 16)) + "%"; return m; })()));
   }
@@ -303,6 +307,10 @@
   document.addEventListener("click", (event) => { if (!event.target.closest(".menu")) closeMenus(); });
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && document.querySelector(".menu[open]")) closeMenus(true); });
   // Stops Link (decision D47). The page is replaced so nothing looks alive after the server is gone.
+  async function signOut() {
+    if (!(await act(() => api("POST", "/api/signout", {})))) return;
+    window.location.replace("/");
+  }
   async function quitLink() {
     if (!(await act(() => api("POST", "/api/quit", {})))) return;
     document.body.replaceChildren(h("main", { class: "stopped" }, h("h1", { text: "Link has stopped." }),
@@ -318,9 +326,9 @@
     const more = h("details", { class: "menu", id: "more-menu" }, h("summary", {}, "Menu"),
       h("div", { class: "menu-panel" }, page("me"), page("roles"), page("evidence"), page("drafts"), page("pasted"), page("settings"),
         h("button", { type: "button", class: "menu-item", onclick: go2(() => window.LinkGuide.start()), text: "Take the tour" }),
-        h("button", { type: "button", class: "menu-item", onclick: go2(quitLink), text: "Quit Link" }),
+        h("button", { type: "button", class: "menu-item", onclick: go2(web() ? signOut : quitLink), text: web() ? "Sign out" : "Quit Link" }),
         aiNote ? h("p", { class: "menu-note", text: aiNote }) : null,
-        h("p", { class: "menu-note", text: "Everything you add stays on this computer." })));
+        h("p", { class: "menu-note", text: here("Everything you add stays on this computer.", "Kept on Link’s server during this test. Delete everything removes it.") })));
     return h("div", { class: "top-menus row" }, add, more);
   }
   // Mobile tab bar adapts the kit's five-item capsule. Utility sections live in More.
@@ -1058,7 +1066,7 @@
     if(!quickDirty)return quickWrite;
     const value=structuredClone(quickWorkspace);quickDirty=false;quickPending++;
     quickWrite=quickWrite.catch(()=>{}).then(()=>api('PUT','/api/workspace/quicklog',value)).then(()=>{
-      const status=$('quick-draft-status');if(status&&!quickDirty&&quickPending===1)status.textContent='Draft saved on this Mac';
+      const status=$('quick-draft-status');if(status&&!quickDirty&&quickPending===1)status.textContent=here('Draft saved on this Mac','Draft saved');
     }).catch(()=>{quickDirty=true;const status=$('quick-draft-status');if(status)status.textContent='Draft not saved — keep this page open and try again.';}).finally(()=>{quickPending--;});
     return quickWrite;
   }
@@ -1075,7 +1083,7 @@
     const page=h("div",{class:"page quicklog-page"},pageHead("Keep the moment.","A name, a thought, a rough memory. Start there."));root.append(page);
     let person=quickWorkspace.item_id||S.logPerson||"",kind=quickWorkspace.when?.kind||"unknown",exact=quickWorkspace.when?.date||"",rough=quickWorkspace.when?.text||"",keep=quickWorkspace.keep_exchange||false;
     if(person&&!people.some(p=>p.id===Number(person)))person="";
-    const draftStatus=h('p',{id:'quick-draft-status',class:'muted small',role:'status',text:quickWorkspace.note?'Draft saved on this Mac':'Your unfinished recap is saved locally as you type.'});
+    const draftStatus=h('p',{id:'quick-draft-status',class:'muted small',role:'status',text:quickWorkspace.note?here('Draft saved on this Mac','Draft saved'):here('Your unfinished recap is saved locally as you type.','Your unfinished recap is saved as you type.')});
     const note=h("textarea",{rows:4,maxlength:8000,value:quickWorkspace.note||"",required:false,placeholder:"Met someone at an event last week. Talked about…","aria-label":"What do you remember?"});
     const exchange=h("textarea",{rows:4,maxlength:12000,value:quickWorkspace.exchange||"","aria-label":"Optional pasted exchange"});
     const exactField=field("Date",h("input",{type:"date",value:exact,oninput:e=>exact=e.target.value})); exactField.hidden=kind!=="date";
@@ -1084,7 +1092,7 @@
     const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),"Saved. No tasks were created.");if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();}}},
       field("What do you remember?",note),draftStatus,workflows.quickPrompts(note),h("div",{class:"grid2"},field("Person (optional)",select([["","Not sure / choose later"],...people.map(p=>[p.id,p.name])],person,v=>person=v)),
       field("When (optional)",select([["unknown","Not sure"],["today","Today"],["yesterday","Yesterday"],["approx","Approximately"],["date","Exact date"]],kind,v=>{kind=v;exactField.hidden=v!=="date";roughField.hidden=v!=="approx";}))),exactField,roughField,
-      disc("paste-log","Paste an exchange instead","Optional",exchange,h("label",{class:"check"},h("input",{type:"checkbox",checked:keep,onchange:e=>keep=e.target.checked}),"Keep the original exchange on this Mac"),h("p",{class:"muted small",text:"Unchecked: only your written recap is saved. To retain an exchange without a recap, explicitly check this box."})),
+      disc("paste-log","Paste an exchange instead","Optional",exchange,h("label",{class:"check"},h("input",{type:"checkbox",checked:keep,onchange:e=>keep=e.target.checked}),here("Keep the original exchange on this Mac","Keep the original exchange in Link")),h("p",{class:"muted small",text:"Unchecked: only your written recap is saved. To retain an exchange without a recap, explicitly check this box."})),
       h("button",{type:"submit",class:"btn primary"},"Save quick log"),btn('Discard unfinished note',async()=>{if(!confirm('Discard this unfinished note?'))return;clearTimeout(quickTimer);quickTimer=null;quickDirty=false;await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};S.logPerson=null;render();},'quiet'),h("p",{class:"muted small",text:"Saving stays local and works without AI. Organizing with Link sends the selected log to your configured provider in live mode."}));
     form.addEventListener('input',remember);form.addEventListener('change',remember);page.append(form);
     page.append(h("section",{class:"section"},h("h3",{text:"Recent logs"}),logs.length?logs.map(log=>h("div",{},h("h4",{text:log.person||"Unassigned · associate when ready"}),timelineCard(log,people))):h("p",{class:"muted",text:"A name, a moment, a few details. That's enough to begin."})));
@@ -1250,7 +1258,7 @@
     const page = h("div", { class: "page" }, pageHead("Drafts", "Write it yourself or with Link. Either way, every save is checked against your evidence.",
       help("What can drafting see?", "Only this page: the evidence you tick, your voice notes for the audience, and what you type here.",
         "It never sees your private planning notes, your goals, or the chat.",
-        S.ai.available && S.ai.mode === "live" ? "In live mode, those three things are sent to the AI provider." : "In mock mode nothing leaves this Mac.")));
+        S.ai.available && S.ai.mode === "live" ? "In live mode, those three things are sent to the AI provider." : here("In mock mode nothing leaves this Mac.", "In sample mode nothing is sent to an AI company."))));
     root.append(page);
     if (!S.ai.available) page.append(h("div", { class: "notice warn" }, icon("info", 18), "AI drafting is off right now. You can still write, save, and check drafts yourself."));
 
@@ -1503,14 +1511,20 @@
   async function renderSettings(root) {
     const [b, activity] = await Promise.all([api("GET", "/api/budget"), api("GET", "/api/activity")]);
     const s = b.status, level = s.level === "hard_stop" ? "bad" : s.level === "warn" ? "warn" : "";
-    const page = h("div", { class: "page" }, pageHead(pick("Settings & data", "Settings"), pick("Setup, AI mode, spending, and everything stored on this Mac.", "Your data, and how the AI works.")));
+    const page = h("div", { class: "page" }, pageHead(pick("Settings & data", "Settings"), pick(here("Setup, AI mode, spending, and everything stored on this Mac.", "Setup, AI mode, spending, and everything stored in your account."), "Your data, and how the AI works.")));
     root.append(page);
     page.append(h("section",{class:"section"},h("h3",{text:pick("Your networking sources","Add contacts")}),h("p",{text:pick("Import a LinkedIn snapshot, choose conversation excerpts or prepare from a calendar file.","Bring in your LinkedIn contacts file, messages you choose, or a calendar file.")}),btn(pick("Open Sources & imports","Add contacts"),()=>go("sources"),"quiet")));
     page.append(h("section", {class:"section"}, h("h3",{text:"Meet Link"}), btn("Take the guided walkthrough",()=>window.LinkGuide.start(),"quiet")));
-    page.append(h("section", { class: "section" }, h("h3", { text: "Starting and stopping Link" }),
-      h("p", { text: "To open Link with one click on a Mac, run this once in Terminal. After that, open Link from Spotlight (Cmd+Space) or drag it to your Dock." }),
-      h("p", {}, h("code", { text: "companion launcher --install" })), h("div", { class: "row" }, btn("Quit Link", quitLink, "quiet"))));
-    page.append(await nudgeSection());
+    if (web()) {
+      page.append(h("section", { class: "section" }, h("h3", { text: "Signing out" }),
+        h("p", { text: "Signing out ends this session. Your information stays in your account until you delete it, or until 30 days pass without signing in." }),
+        h("div", { class: "row" }, btn("Sign out", signOut, "quiet"))));
+    } else {
+      page.append(h("section", { class: "section" }, h("h3", { text: "Starting and stopping Link" }),
+        h("p", { text: "To open Link with one click on a Mac, run this once in Terminal. After that, open Link from Spotlight (Cmd+Space) or drag it to your Dock." }),
+        h("p", {}, h("code", { text: "companion launcher --install" })), h("div", { class: "row" }, btn("Quit Link", quitLink, "quiet"))));
+      page.append(await nudgeSection());  // Mac notifications; the web version will send email reminders instead
+    }
     page.append(h("section", {class: "section"}, h("h3", {text: "Appearance"}),
       field("Color theme", select([["system","Follow system"],["light","Light"],["dark","Dark"]], store.get("theme", "light"), value => { store.set("theme", value); applyTheme(); })),
       h("p", {class: "muted small", text: "Your theme is remembered on this browser. Motion follows your device's reduced-motion setting."})));
@@ -1520,7 +1534,7 @@
     if (!isDev()) {
       const aiText = s.level === "hard_stop" ? "AI is paused until next month. Everything else still works."
         : !b.ai.available ? "AI is off. Everything else works: people, notes, reminders and your data."
-        : b.ai.mode === "mock" ? "In this version Link shows sample answers. They are examples, not advice written for you. Nothing you type leaves this computer."
+        : b.ai.mode === "mock" ? here("In this version Link shows sample answers. They are examples, not advice written for you. Nothing you type leaves this computer.", "In this version Link shows sample answers. They are examples, not advice written for you. Nothing you type is sent to an AI company.")
         : "Link sends what you type in chat, and the details you choose for a draft, to the AI provider. It never sends messages for you.";
       page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "About the AI" }), h("p", { text: aiText })));
     }
@@ -1529,7 +1543,7 @@
     if (isDev()) page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "AI" }),
       h("div", { class: "row" }, h("h3", { text: !b.ai.available ? "AI is off" : b.ai.mode === "mock" ? "Mock AI" : "Live AI" }), chip(b.ai.mode === "mock" ? "Canned replies" : b.ai.available ? "Real replies" : "Unavailable", b.ai.available ? (b.ai.mode === "mock" ? "warn" : "ok") : "bad")),
       h("p", { text: b.ai.reason }),
-      help("What leaves this Mac?", "In mock mode, nothing.", "In live mode, chat sends your planning context and recent conversation to the AI provider. Drafting and comparison send only the evidence you tick, your voice notes, and what you type in the form.",
+      help(here("What leaves this Mac?", "What is sent to an AI company?"), "In mock mode, nothing.", "In live mode, chat sends your planning context and recent conversation to the AI provider. Drafting and comparison send only the evidence you tick, your voice notes, and what you type in the form.",
         "To switch modes, set COMPANION_AI_MODE when starting the app. The README has the steps for a first live call.")));
     const amount = h("input", { type: "number", step: "0.01", min: 0, placeholder: "e.g. 3.42", "aria-label": "Month-to-date total from the provider Console" });
     if (isDev()) page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Spending this month" }),
@@ -1571,17 +1585,18 @@
     } });
     const phrase = h("input", { placeholder: "DELETE EVERYTHING", "aria-label": "Type DELETE EVERYTHING to confirm" });
     page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Your data" }),
-      h("p", { text: "Everything is in one file on this Mac. Chat transcripts are removed after 30 days." }),
+      h("p", { text: here("Everything is in one file on this Mac. Chat transcripts are removed after 30 days.", "Everything is in one file on Link’s server, separate from everyone else’s. It’s deleted when you click Delete everything, or after 30 days without signing in. Chat transcripts are removed after 30 days.") }),
       h("div", { class: "row" }, h("a", { class: "btn", href: "/api/export", download: "career-companion-export.json" }, "Export everything"),
         S.hasSample ? btn("Remove sample data", async () => { await act(() => api("POST", "/api/sample/remove"), "Removed."); await refreshStatus(); render(); })
           : btn("Load labelled sample data", async () => { await act(() => api("POST", "/api/sample/load"), "Loaded."); await refreshStatus(); render(); })),
       disc("starter", "Import a starter file", "add your projects, goals and to-dos in one step",
-        h("p", { class: "small muted", text: "A starter file is a .json file prepared for you. Choose it, check the preview, then add it. The file is read on this Mac only." }), picker, preview),
-      help("Delete everything", "This removes the database files. It can't reach Time Machine or other backups, exports you saved, or copies the AI provider keeps for up to 30 days. It isn't forensic erasure.",
+        h("p", { class: "small muted", text: "A starter file is a .json file prepared for you. Choose it, check the preview, then add it. " + here("The file is read on this Mac only.", "The file is read by Link only and isn’t shared with anyone.") }), picker, preview),
+      help("Delete everything", here("This removes the database files. It can't reach Time Machine or other backups, exports you saved, or copies the AI provider keeps for up to 30 days. It isn't forensic erasure.", "This deletes your account, everything Link stored for you on its server, and your Google connections, then signs you out. It can't reach exports you saved. There are no backups during this test."),
         h("form", { class: "row", onsubmit: async (e) => {
           e.preventDefault();
           await writeQuickWorkspace();
           if (!(await act(() => api("POST", "/api/wipe", { confirm: phrase.value }), "Everything was deleted."))) return;
+          if (web()) { window.location.replace("/"); return; }  // the account is gone; back to the sign-in page
           quickWorkspace={};quickDirty=false;clearTimeout(quickTimer);quickTimer=null;$("undo-bar")?.remove();
           $("chat-log").replaceChildren();
           Object.assign(S.draft, { current: null, action_id: null }); S.draft.evidence_ids.clear(); S.session = null; S.skipped.clear();

@@ -76,7 +76,7 @@
       };
       root.append(field('Search participants or text',h('input',{type:'search','aria-label':'Search conversation messages',oninput:e=>{query=e.target.value.toLowerCase();page=0;draw();}})),selection,rows,
         choosePerson(messages.person,v=>messages.person=v),field('Your recap (required)',h('textarea',{rows:3,maxlength:8000,value:messages.note,'aria-label':'Your conversation recap',placeholder:'What happened? What are you unsure about?',oninput:e=>messages.note=e.target.value})),
-        h('label',{class:'check'},h('input',{type:'checkbox',checked:messages.retain,onchange:e=>messages.retain=e.target.checked}),'Keep the selected original messages on this Mac'),
+        h('label',{class:'check'},h('input',{type:'checkbox',checked:messages.retain,onchange:e=>messages.retain=e.target.checked}),(S.hosted?'Keep the selected original messages in Link':'Keep the selected original messages on this Mac')),
         h('p',{class:'muted small',text:'Unchecked: only your recap is saved. The original file and unselected messages are not stored. Message dates are shown as source dates; the conversation date stays unknown until you choose it. No promises become tasks.'}),
         btn('Save selected conversation',async e=>{
           if(!messages.selected.size||!messages.note.trim()){alert('Choose at least one message and write a short recap.');return;}
@@ -108,7 +108,7 @@
         box.append(btn(info.demo?'Try with a sample calendar':'Connect Google Calendar',async()=>{
           const out=await act(()=>api('POST','/api/connectors/calendar/start',{}));if(!out)return;
           if(out.url){window.location.assign(out.url);return;}
-          cal.msg='Sample calendar connected. Nothing is real here and nothing leaves this computer.';await calendarRefresh(box);
+          cal.msg=S.hosted?'Sample calendar connected. Nothing here is real.':'Sample calendar connected. Nothing is real here and nothing leaves this computer.';await calendarRefresh(box);
         },'primary'));return;
       }
       const row=h('div',{class:'row'});
@@ -157,7 +157,7 @@
         box.append(btn(info.demo?'Try with a sample mailbox':'Connect Gmail',async()=>{
           const out=await act(()=>api('POST','/api/connectors/email/start',{}));if(!out)return;
           if(out.url){window.location.assign(out.url);return;}
-          mail.msg='Sample mailbox connected. Nothing is real here and nothing leaves this computer.';await mailRefresh(box);
+          mail.msg=S.hosted?'Sample mailbox connected. Nothing here is real.':'Sample mailbox connected. Nothing is real here and nothing leaves this computer.';await mailRefresh(box);
         },'primary'));return;
       }
       const row=h('div',{class:'row'});
