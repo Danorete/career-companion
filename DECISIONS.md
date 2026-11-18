@@ -310,3 +310,25 @@ Why: first-time-user tests happen on the builder's Mac, each tester in a fresh d
 - **No reconnecting.** The usual data folder (the default location) adopts a sign-in saved before this change the first time it reads it, and the old entry is removed. Other folders never adopt it.
 - **Ending a test.** Delete everything in the tester's folder cancels that folder's Google sign-ins only.
 - **Not covered.** The AI provider key is still one per Mac user. With live AI on, a tester's folder would spend on the owner's key, and each folder has its own monthly cap. Run tests with mock AI.
+
+## D50 — Web version for remote testers, and what it must have before anyone signs in (2026-11-18)
+Status: decided, not built. The Mac app stays as it is.
+
+Why: most testers are not near the builder, and a web link works on any device. This reverses the local-first rule (D41) for the test run only. The plan for later versions is still to keep people's information on their own device.
+
+What testers are told: during the test, Link keeps their information on Link's server so follow-ups work between visits. It is deleted when they click Delete everything, or automatically after 30 days without signing in. The person running the server could technically see it. A future version will keep everything on their own device.
+
+Must be true before any tester signs in, each with a test:
+1. **Only invited people get in.** Sign in with Google (`openid`, email only). An account is created only for an address on the invite list, which matches the Google test users. A stranger with the link gets nothing but the sample-data demo.
+2. **Each person's data is separate by construction.** One database file per account. A request can only open the signed-in person's file. Tests try every route as person A against person B's records.
+3. **Sessions.** HTTPS only with HSTS. Cookie is `__Host-`, Secure, HttpOnly, SameSite. Server-side session that expires after 7 days idle, a new session on every sign-in, sign-out ends it. CSRF token and origin check on every change, as now. Host allowlist set to the app's own address.
+4. **Google sign-ins encrypted at rest.** Calendar and email refresh tokens are encrypted with a key that exists only in the hosting provider's secret settings. Never in the database in plain text, an export, a log or the page.
+5. **Secrets live only in the host's secret settings.** Web client secret, encryption key, session key. Never in the repository, which is public.
+6. **Logs hold no personal data.** No request bodies, tokens, email addresses or query strings.
+7. **Deletion is real.** Delete everything removes the person's database file and cancels their Google sign-ins. A daily job deletes accounts after 30 days without a sign-in. No backups during the test, so deleted means deleted.
+8. **Limits.** Sign-in and request rate limits per person and per address, the existing request size limits, sample AI by default with a spending cap if live AI is ever turned on.
+9. **Pinned dependencies** with a vulnerability audit before every deploy.
+10. **No admin page** for browsing anyone's data.
+11. **Re-check before sharing.** The full check from 2026-11-18 is run again against the deployed site, plus a header and TLS scan of the live address, before the LinkedIn post goes out.
+
+Not possible to promise: perfect security. These are layered defenses, each tested, reviewed by the same tool that wrote them. An independent review has not been done.

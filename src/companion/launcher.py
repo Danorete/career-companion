@@ -79,7 +79,9 @@ def open_in_browser(url: str) -> None:
 def spawn_background(settings, python: str = sys.executable) -> None:
     log = Path(settings.data_dir) / "link.log"
     log.parent.mkdir(parents=True, exist_ok=True)
-    with open(log, "ab") as out:
+    fd = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)  # private even before the data folder is locked down
+    os.chmod(log, 0o600)
+    with os.fdopen(fd, "ab") as out:
         subprocess.Popen([python, "-m", "companion.cli", "run", "--background"], stdin=subprocess.DEVNULL, stdout=out, stderr=out,
                          start_new_session=True, env=os.environ.copy())
 

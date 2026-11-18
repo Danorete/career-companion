@@ -234,3 +234,11 @@ def test_installing_elsewhere_or_when_macos_refuses_is_explained(tmp_path):
     assert "Mac" in launcher.install(tmp_path, tmp_path, runner=lambda *a, **k: pytest.fail("no command"), platform="linux")
     assert "could not build" in launcher.install(tmp_path, tmp_path, runner=lambda *a, **k: SimpleNamespace(returncode=1), platform="darwin")
     assert not launcher.is_installed(tmp_path)
+
+
+def test_the_background_log_is_private_from_the_first_start(tmp_path, monkeypatch):
+    import stat
+    from types import SimpleNamespace
+    monkeypatch.setattr(launcher.subprocess, "Popen", lambda *a, **k: None)
+    launcher.spawn_background(SimpleNamespace(data_dir=tmp_path / "new-folder"))
+    assert stat.S_IMODE((tmp_path / "new-folder" / "link.log").stat().st_mode) == 0o600

@@ -206,7 +206,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`326 passed` on Linux, Python 3.13, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
+`328 passed` on Linux, Python 3.13, 2026-11-17. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|

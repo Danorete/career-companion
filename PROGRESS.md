@@ -10,7 +10,7 @@ This project moved here from a folder in `Danorete/spotify-listening-bi` on 2026
   2026-11-13 were only delivered as ZIP archives, because pushes from those sessions were refused.
   Notes below that say "no GitHub push performed" or "GitHub writes returned 403" describe those
   sessions; they no longer apply.
-- 326 Python tests pass on Linux, Python 3.13. Schema version 8. Mock AI only. The Google Calendar sign-in has been tried once for real by the builder; the check-in has not.
+- 328 Python tests pass on Linux, Python 3.13. Schema version 8. Mock AI only. The Google Calendar sign-in has been tried once for real by the builder; the check-in has not.
 - `claude/connections-redesign` is a separate People/Quick log implementation built in parallel; it is
   not merged. `claude/less-friction` is included in this build.
 - `graphify-out/` was rebuilt from code on 2026-11-13.

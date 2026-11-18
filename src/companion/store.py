@@ -3,10 +3,23 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import date
 from typing import Any
 
-from .db import Database, now
+from .db import USER_TABLES, Database, now
+
+_IDENT = re.compile(r"^[a-z][a-z0-9_]{0,40}$")
+
+
+def _safe(table: str, columns=()) -> None:
+    """Second line of defense against SQL injection: only known tables and plain column names reach SQL text.
+    Values are always passed separately as parameters; request models already reject unknown fields."""
+    if table not in USER_TABLES:
+        raise ValueError(f"unknown table: {table!r}")
+    for c in columns:
+        if not _IDENT.match(c):
+            raise ValueError(f"not a column name: {c!r}")
 
 # Memory kinds decide visibility (decision D5). Private kinds never reach outward drafting.
 PRIVATE_MEMORY_KINDS = ("goal", "constraint", "preference", "boundary")
@@ -73,10 +86,12 @@ def _encode(table: str, fields: dict[str, Any]) -> dict[str, Any]:
 
 
 def get(db: Database, table: str, row_id: int) -> dict | None:
+    _safe(table)
     return _decode(table, db.one(f"SELECT * FROM {table} WHERE id=?", (row_id,)))
 
 
 def rows(db: Database, table: str, where: str = "1=1", params: tuple = (), order: str = "id DESC") -> list[dict]:
+    _safe(table)
     return [_decode(table, r) for r in db.q(f"SELECT * FROM {table} WHERE {where} ORDER BY {order}", params)]
 
 
@@ -85,6 +100,7 @@ def insert(db: Database, table: str, **fields: Any) -> dict:
     f.setdefault("created_at", now())
     if table in STAMPED:
         f.setdefault("updated_at", f["created_at"])
+    _safe(table, f)
     cols = ",".join(f)
     row_id = db.run(f"INSERT INTO {table}({cols}) VALUES({','.join('?' * len(f))})", tuple(f.values()))
     return get(db, table, row_id)  # type: ignore[return-value]
@@ -94,6 +110,7 @@ def update(db: Database, table: str, row_id: int, **fields: Any) -> dict | None:
     f = _encode(table, fields)
     if table in STAMPED:
         f["updated_at"] = now()
+    _safe(table, f)
     if f:
         sets = ",".join(f"{k}=?" for k in f)
         db.run(f"UPDATE {table} SET {sets} WHERE id=?", (*f.values(), row_id))
@@ -101,6 +118,7 @@ def update(db: Database, table: str, row_id: int, **fields: Any) -> dict | None:
 
 
 def delete(db: Database, table: str, row_id: int) -> bool:
+    _safe(table)
     return db.run(f"DELETE FROM {table} WHERE id=?", (row_id,)) > 0
 
 
