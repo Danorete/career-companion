@@ -24,10 +24,18 @@
         'aria-label':label, rows, maxlength:max, value:values[key]||'', oninput:e=>values[key]=e.target.value
       }));
       function open(options={}) { flow={inputs:{mode:'starting',...options},plan:null}; go('connect'); }
-      async function skip() {
+      async function skip(target='today') {
         if(await act(()=>api('POST','/api/onboarding/skip'))) {
-          S.onboarding.done=true; document.body.classList.remove('onboarding'); go('today');
+          S.onboarding.done=true; document.body.classList.remove('onboarding'); go(target);
         }
+      }
+      // Two ways to begin (D51): the step-by-step guide to a first person (D52), or straight into the app.
+      function guideChoice(onboarding) {
+        return h('div',{class:'guide-start-choice'},
+          h('div',{class:'stack'},h('span',{class:'eyebrow',text:'Recommended'}),h('strong',{text:'Add your first person, step by step'}),
+            h('p',{class:'muted small',text:'Link walks you through it, one short question at a time. About a minute.'})),
+          h('div',{class:'row'},btn('Walk me through it',()=>{S.guideFirst=true;if(onboarding)skip('add');else go('add');},'primary'),
+            onboarding?btn('Start on my own',()=>skip(),'quiet'):null));
       }
       function choose(root, onboarding) {
         const descriptions=pick({starting:'Explore a direction, even with no contacts.',reconnect:'Find a genuine reason to start a conversation.',met:'Keep the fragments and decide what comes next.'},{starting:'That’s fine. We’ll start with people you already know a little.',reconnect:'Not sure what to say? Start here.',met:'Write down what you remember and decide what to do next.'});
@@ -35,7 +43,7 @@
           h('div',{class:'welcome-cover'},h('div',{class:'cover-brand'},h('span',{class:'orb is-ready'},orbSvg(35)),h('span',{text:'Link'})),
             h('span',{class:'eyebrow',text:pick('Your connection studio','Welcome to Link')}),h('h1',{text:pick('Good people. Real possibilities.','Remember the people you meet. Follow up without the awkwardness.')}),
             h('p',{class:'cover-caption',text:pick('A little confidence. A thoughtful conversation. Your next opportunity can start here.','Link helps you get ready for a conversation, write the message, and keep your promises.')}),connectionMotif()),
-          h('div',{class:'welcome-choices'},h('span',{class:'eyebrow',text:pick('01 / A place to begin','Start here')}),h('h2',{text:pick('Where shall we begin?','What do you need help with?')}),
+          h('div',{class:'welcome-choices'},onboarding?guideChoice(true):null,h('span',{class:'eyebrow',text:pick('01 / A place to begin','Start here')}),h('h2',{text:pick('Where shall we begin?','What do you need help with?')}),
             h('p',{text:pick('Tell Link what’s on your mind. We’ll build the context together.','Pick one. You can change your mind later.')}),
             h('div',{class:'connection-paths'},['starting','reconnect','met'].map(mode=>h('button',{type:'button',class:'path-choice','aria-label':title(mode),onclick:()=>{flow={inputs:{mode},plan:null};render();}},
               h('span',{},h('strong',{text:title(mode)}),h('small',{text:descriptions[mode]})),h('span',{class:'path-arrow','aria-hidden':'true',text:'→'})))),

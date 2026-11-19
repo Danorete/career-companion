@@ -63,7 +63,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             assert note.input_value().startswith('Person from the career fair')
             assert db.one('SELECT COUNT(*) AS n FROM interactions')['n'] == 3
             page.get_by_role('link',name='People',exact=True).first.click()
-            page.get_by_role('button',name='Add person',exact=True).click()
+            page.get_by_role('button',name='Quick form',exact=True).click()  # Add person opens the step-by-step guide (D52)
             page.get_by_label('Name',exact=True).fill('Maya')
             page.get_by_role('button',name='Open Maya Lindqvist · Example Health',exact=True).click()
             page.locator('.person-heading h2').filter(has_text='Maya Lindqvist').wait_for()

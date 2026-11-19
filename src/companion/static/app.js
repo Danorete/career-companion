@@ -167,7 +167,10 @@
       let msg = data && data.error;
       if (!msg && data && data.detail) msg = typeof data.detail === "string" ? data.detail : "Please check the form: " +
         data.detail.map((d) => (d.loc || []).slice(-1)[0] + " " + d.msg).join("; ");
-      if (resp.status === 401) msg = "This browser session ended. Stop the app and start it again for a new link.";
+      if (resp.status === 401) {
+        msg = S.hosted ? "Your session ended. Taking you to sign in again." : "This browser session ended. Stop the app and start it again for a new link.";
+        if (S.hosted) setTimeout(() => window.location.replace("/"), 1500);
+      }
       const err = new Error(msg || "Request failed (" + resp.status + ")");
       err.status = resp.status;
       throw err;
@@ -321,7 +324,7 @@
     const page = (id) => h("a", { class: "menu-item", href: "#" + id, onclick: () => closeMenus(), text: label(id) });
     const cal = S.calendar || {};
     const add = h("details", { class: "menu menu-add", id: "add-menu" }, h("summary", {}, icon("docplus", 16), "Add"),
-      h("div", { class: "menu-panel" }, page("quicklog"), page("sources"),
+      h("div", { class: "menu-panel" }, h("a", { class: "menu-item", href: "#add", onclick: () => closeMenus(), text: "Add a person" }), page("quicklog"), page("sources"),
         cal.available ? h("button", { type: "button", class: "menu-item", onclick: go2(() => sources.open("calendar")), text: cal.connected ? "Your calendar" : "Connect your calendar" }) : null));
     const more = h("details", { class: "menu", id: "more-menu" }, h("summary", {}, "Menu"),
       h("div", { class: "menu-panel" }, page("me"), page("roles"), page("evidence"), page("drafts"), page("pasted"), page("settings"),
@@ -660,7 +663,7 @@
       c.available ? { title: 'Connect your calendar', text: 'Link looks for people you have met or are about to meet. It only reads, and you choose who to keep.',
                       done: !!c.connected, button: ['Connect your calendar', () => sources.open('calendar')] }
                   : { title: 'Add someone you know', text: 'A classmate, a professor or someone you met at an event is enough. A name is all Link needs.',
-                      done: false, button: ['Add someone', () => { S.addPerson = true; go('people'); }] },
+                      done: false, button: ['Add someone, step by step', () => guide.open()] },
       { title: 'Keep one person', text: c.available ? 'Look through the people Link found and keep the ones you want to remember.' : 'Open them to add where you met and what you talked about.',
         done: false, button: c.available ? [c.waiting ? 'Review ' + c.waiting + (c.waiting === 1 ? ' person found' : ' people found') : 'Check my calendar', () => sources.open('calendar')] : null },
       { title: 'After a meeting, say how it went', text: 'One tap: Great, Fine or Skip. Link saves a short note, so you never have to remember it all.', done: false, button: null }];
@@ -673,7 +676,7 @@
         h('div', { class: 'stack' }, h('h2', { text: s.title }), i === now ? h('p', { text: s.text }) : null,
           i === now && s.button ? h('div', { class: 'row' }, btn(s.button[0], s.button[1], 'primary')) : null)))),
       h('div', { class: 'start-links row' },
-        c.available ? btn('Add someone by hand', () => { S.addPerson = true; go('people'); }, 'quiet') : null,
+        c.available ? btn('Add someone, step by step', () => guide.open(), 'quiet') : null,
         btn('I don’t know anyone yet', () => workflows.open({ mode: 'starting' }), 'quiet'),
         btn('Take a one-minute tour', () => window.LinkGuide.start(), 'quiet')));
   }
@@ -690,7 +693,7 @@
       h('h2',{text:hasPeople?'Who’s on your mind?':'You can begin without a contact list.'}),
       h('p',{text:hasPeople?'Open someone’s notes, pick up a conversation, or tell Link what you’d like help with. Nothing needs to be overdue to be worth doing.':'A classmate, someone you met at an event, or a community you’re curious about is enough to start. Link can help you work out an approach.'}),
       h('div',{class:'row'},hasPeople?btn('Choose a person',()=>go('people'),'primary'):btn('I don’t know anyone yet',()=>workflows.open({mode:'starting'}),'primary'),
-        btn('Add someone I know',()=>{S.addPerson=true;go('people');},'quiet')));
+        btn('Add someone I know',()=>guide.open(),'quiet')));
   }
   // After a meeting with someone you kept (decision D44): one tap says how it went. No typing needed.
   async function checkinCard(page) {
@@ -956,7 +959,7 @@
     const directory = h('aside',{class:'people-directory','aria-label':'People directory'});
     const workspace = h('section',{class:'person-workspace','aria-label':'Selected person'});
     page.append(frame);frame.append(directory,workspace);
-    directory.append(h('div',{class:'row spread'},h('span',{class:'eyebrow',text:plural(list.length,'person','people')}),btn('Add person',()=>{S.addPerson=true;render();},'primary')));
+    directory.append(h('div',{class:'row spread'},h('span',{class:'eyebrow',text:plural(list.length,'person','people')}),h('div',{class:'row'},btn('Quick form',()=>{S.addPerson=true;render();},'quiet'),btn('Add person',()=>guide.open({fresh:true}),'primary'))));
     const search=h('input',{type:'search',placeholder:'Find someone…','aria-label':'Search people',value:S.peopleSearch||''});
     let category=S.peopleCategory||'all';
     const rows=h('div',{class:'people-rows'});
@@ -1620,18 +1623,20 @@
   }
 
   // ---- shell: routing, loading and error states -----------------------------------------
+  const guide = window.LinkConnectionGuide.create({h,btn,field,api,S,go,orbSvg});
   const workflows = window.LinkWorkflows.create({h,btn,field,select,disc,api,act,S,go,render,toast,orbSvg,connectionMotif,openSource:kind=>sources.open(kind)});
   const sources = window.LinkSources.create({h,btn,field,select,api,act,S,go,render,workflows});
-  const RENDERERS = { sources:root=>sources.start(root), connect: root=>workflows.start(root), today: renderToday, people: renderPeople, quicklog: renderQuickLog, roles: renderRoles, evidence: renderEvidence, drafts: renderDrafts, me: renderMe, pasted: renderPasted, settings: renderSettings };
+  const RENDERERS = { add: root=>guide.render(root), sources:root=>sources.start(root), connect: root=>workflows.start(root), today: renderToday, people: renderPeople, quicklog: renderQuickLog, roles: renderRoles, evidence: renderEvidence, drafts: renderDrafts, me: renderMe, pasted: renderPasted, settings: renderSettings };
   function skeleton() {
     const bar = (w, ht) => { const s = h("span", {}); s.style.width = w; s.style.height = ht + "px"; return s; };
     return h("div", { class: "skeleton", "aria-busy": "true" }, h("span", { class: "sr", text: "Loading" }), bar("30%", 12), bar("85%", 40), bar("60%", 40), bar("70%", 16), bar("100%", 56), bar("45%", 56));
   }
   function errorView(err) {
     return h("section", { class: "state", role: "alert" }, h("span", { class: "notice bad" }, icon("warn", 20), "Something went wrong"),
-      h("h1", { text: "Couldn't load this." }), h("p", { class: "hero-meta", text: "Your saved work is fine. This usually means the app stopped running." }),
+      h("h1", { text: "Couldn't load this." }), h("p", { class: "hero-meta", text: S.hosted ? "Your saved work is fine. This usually means the connection dropped for a moment." : "Your saved work is fine. This usually means the app stopped running." }),
       h("div", { class: "row" }, btn("Try again", () => render(), "dark")),
-      help("What to check", "Is the terminal window that started the app still open and running?", "If you restarted the app, use the new link it printed. The old page can't reconnect.", "Details: " + err.message));
+      S.hosted ? help("What to check", "Check your internet connection, then choose Try again.", "If it keeps happening, sign out and sign in again.", "Details: " + err.message)
+        : help("What to check", "Is the terminal window that started the app still open and running?", "If you restarted the app, use the new link it printed. The old page can't reconnect.", "Details: " + err.message));
   }
   const STUDIO_CONTEXT = {
     sources: ["Bring context, keep control.", "File previews stay local. Choose the people, excerpts or meeting you want to work with; nothing is fetched from LinkedIn."],
@@ -1661,7 +1666,7 @@
     if (!page) return;
     page.classList.add("studio-" + S.tab);
     page.append(iconCredit());
-    const sectionName = S.tab === "connect" ? "Build a connection" : NAV.concat(NAV_MINOR).find(([id]) => id === S.tab)[1];
+    const sectionName = S.tab === "connect" ? "Build a connection" : S.tab === "add" ? "Add a person" : (NAV.concat(NAV_MINOR).find(([id]) => id === S.tab) || [, "Link"])[1];
     if(S.demo) page.prepend(h("div",{class:"demo-label",text:"Demo workspace · fictional people · mock AI"}));
     page.prepend(h("div", {class: "workspace-toolbar"},
       h("span", {class: "toolbar-breadcrumb"}, "Link", h("span", {"aria-hidden": "true", text: "/"}), h("strong", {text: sectionName})),

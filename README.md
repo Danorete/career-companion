@@ -206,7 +206,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`364 passed` on Linux, Python 3.13, 2026-11-18. Not yet run on macOS. Coverage by acceptance criterion:
+`381 passed` on Linux, Python 3.13, 2026-11-19. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -427,6 +427,13 @@ were written on. On a Mac, change `executable_path` in the script to your browse
 
 The first four in the table were re-run on Linux on 2026-11-13 and passed with no JavaScript errors.
 The other three last passed in the sessions recorded in `VALIDATION.md`.
+
+## Adding a person, step by step
+
+Decision D52. Choose **Walk me through it** on the welcome screen, **Add a person** in the Add menu, or **Add person**
+on the People page. Link asks four short questions (who, how you met, what you remember, one next step), shows what it
+will save as you answer, and saves everything at once. Only the name is required. **Quick form** on the People page
+keeps the one-screen form.
 
 ## The web version (for remote testers)
 

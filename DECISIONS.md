@@ -358,3 +358,40 @@ Points to settle when it is designed (not decisions yet):
   live AI is turned on with a spending cap.
 - It builds on what exists: the welcome screen ("What do you need help with?"), the guided walkthrough, and the
   planned feedback button and usage counts (D50).
+
+## D52 — A step-by-step guide for adding a person, first and every time after (2026-11-19)
+Status: built and tested (17 tests, a browser check). The study questions from D51 are not part of it.
+
+Why: adding someone was a blank form, and typing everything at once is the bottleneck the survey found. A guide that
+asks one short question at a time, and shows Link responding to each answer, makes the first person easy and every
+later one quick.
+
+What it is:
+- **Two ways to begin (D51).** The welcome screen offers "Walk me through it" (recommended) or "Start on my own".
+  The guide is also on the start card, the empty Today screen, the Add menu ("Add a person") and the People page
+  (Add person; Quick form keeps the old form).
+- **Four questions, then a review.** Who (a name is enough; where they work is optional), how you met and when
+  (tap a choice or write your own), what you remember (sentence starters), one small next step with a reminder.
+  Every question but the name can be skipped. The review has an Edit link for each answer.
+- **People Link already found** in the calendar or email are offered on the first question. Picking one keeps that
+  suggestion, as pressing Keep would, and the guide adds the rest.
+- **One save.** `POST /api/guide/connection` checks every answer before writing anything, then saves the person, a
+  dated note (what you remember, or how you met when that is all there is) and the next step with its reminder.
+
+Feedback and motion, from research:
+- Nielsen Norman Group's response-time limits: under 0.1 s needs no indicator; a spinner that flashes for less than
+  a second makes people anxious. So the save button says "Saving…" at once, and its spinner appears only after 0.4 s.
+  Moving progress makes people willing to wait about three times longer, so progress fills as you go.
+- Visibility of system status: a live preview card fills in as you type, and the line that just changed glows briefly.
+  The preview's status reads "Not saved yet", "Saving…", then "Saved".
+- From onboarding teardowns (Flow, Evernote, ROBIN, Inbound via CXL): say how long it takes ("about a minute"), show
+  "Step 2 of 4", make the first real success the goal, and let unsure steps be skipped. Optional steps say "Skip this"
+  until answered, then "Continue".
+- Success is confirmed item by item: a drawn check mark, then each saved thing appears in turn.
+- Motion is short (150 to 450 ms) and stops entirely when the system asks for reduced motion. Focus moves to each new
+  question and a screen reader hears the step. A chosen chip's tick is drawn with CSS borders, not a character,
+  because generated text would become part of the button's spoken name.
+
+Found and fixed while building it: the page label crashed on any page not in the navigation list; the error screen
+and the expired-session message said "terminal window" on the web version; the duplicate-name hint missed people
+added earlier in the same visit.

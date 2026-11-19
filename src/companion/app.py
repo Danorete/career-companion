@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import services, store, people, coaching, network_imports, encounters, connectors, nudges, nudge_agent, launcher, mailbook
+from . import services, store, people, coaching, network_imports, encounters, connectors, nudges, nudge_agent, launcher, mailbook, guide
 from .ai import AIClient, AIUnavailable, CompanionTurn, Gateway, build_client
 from .budget import Budget
 from .config import Settings, default_data_dir
@@ -313,6 +313,23 @@ class CheckinIn(In):
     answer: Literal["great", "fine", "skip"]
     note: str = Field(default="", max_length=1000)
     promise: str = Field(default="", max_length=200)
+
+
+class GuideSourceIn(In):
+    kind: Literal["calendar", "email"]
+    id: int = Field(gt=0)
+
+
+class GuideIn(In):
+    """The step-by-step guide's answers (D52). Only the name is required."""
+    name: str = Field(min_length=1, max_length=120)
+    org: str = Field(default="", max_length=200)
+    context: str = Field(default="", max_length=200)
+    when: WhenIn = Field(default_factory=WhenIn)
+    memory: str = Field(default="", max_length=2000)
+    next_step: str = Field(default="", max_length=200)
+    remind_in_days: int | None = Field(default=None, ge=0, le=60)
+    source: GuideSourceIn | None = None
 
 
 class MailDismissIn(In):
@@ -671,6 +688,10 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     @app.put("/api/people/{pid}")
     def person_edit(pid: int, body: PersonIn) -> dict:
         return people.save_person(db, pid, body.model_dump())
+
+    @app.post("/api/guide/connection")
+    def guide_save(body: GuideIn) -> dict:
+        return guide.save_connection(db, body.model_dump(), services.local_today(settings))
 
     @app.post("/api/people/{pid}/next")
     def person_next(pid: int, body: NextIn) -> dict:
