@@ -400,6 +400,19 @@ added earlier in the same visit.
 Status: built and tested (a new browser check, older checks updated, an adversarial review). People keeps its two-panel
 layout for now.
 
+Adversarial review (2026-11-19): 36 reviewers in four lenses (accessibility, behavior, visual, trust) found 32 issues;
+skeptics confirmed 31 (about 20 distinct) and all are fixed, with regression checks for the serious ones. The modal
+chat now also blocks nodes added while it is open, leaves the toast and native dialogs alone, and closes before the
+search palette opens. Tips step aside as soon as typing starts or they would cover the focused control (only real
+controls count: the page itself takes focus after every navigation), Escape on a tip keeps focus at the sprite, and a
+hide timer can no longer swallow the next tip. The one-tap Save names the person it saves to, quotes the exact note it
+would keep, words the box by who the note goes with, and leaves a note Link wrote itself unticked. Restored on the page:
+the referral limit ("Link can’t tell you whether someone will say yes") and the event-availability limit. Live AI plans
+are labelled; with live AI the chat chip says "Using your notes on Priya". The tour advances when the person closes the
+chat instead of closing it on a timer. Also fixed: a literal "null" on the review page, leftover side-column rules that
+reflowed pages, the welcome margin from 601 to 680px, the developer tour button on the phone tab bar, and the off state
+of the tips switch (now over 5:1).
+
 Why: a coworker who saw the demo found it too much for a first-time user. Measured before the change at 1280 to 1440
 wide: #connect showed 193 words in three competing columns (a marketing panel, the question, and the companion panel);
 at 1024 the marketing panel clipped its own headline ("Rememb…", "awkwar…"); Today printed a stray "null".

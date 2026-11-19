@@ -115,9 +115,26 @@ def first_visit(port):
                 page.mouse.click(200, 400)  # outside the drawer, on the dimmed page
                 expect(page.locator('#dock')).to_be_hidden()
 
+                # Review fixes: the toast is still spoken, later nodes are blocked, and search closes the chat first.
+                sprite.click()
+                expect(page.locator('#dock')).to_be_visible()
+                assert not page.evaluate("document.getElementById('toast').inert"), 'save messages are still spoken'
+                assert page.evaluate("(() => { const b = document.createElement('button'); b.id = 'late'; document.body.append(b); return new Promise(r => setTimeout(() => r(b.inert), 50)); })()"), 'a node added while the chat is open is blocked'
+                page.keyboard.press('Control+k')
+                expect(page.locator('#dock')).to_be_hidden()
+                assert page.evaluate("document.activeElement.closest('dialog.command-palette') !== null"), 'search takes focus'
+                page.keyboard.type('peo')
+                assert page.locator('dialog.command-palette input').input_value() == 'peo'
+                page.keyboard.press('Escape')  # a search field's first Escape clears its text (browser behavior)…
+                page.keyboard.press('Escape')  # …the second closes the search
+                assert not page.evaluate('!!document.querySelector("dialog.command-palette[open]")'), 'search closed'
+                assert not page.evaluate("document.getElementById('late').inert"), 'it is released when the chat closes'
+
                 # A starter card: one question, one box, one button that waits for words.
                 page.get_by_role('button', name='Reach out to someone').click()
                 page.get_by_role('heading', name='Who do you want to reach out to?').wait_for()
+                heading, hint = page.locator('#connect-question').bounding_box(), page.locator('.connect-hint').bounding_box()
+                assert heading['y'] + heading['height'] <= hint['y'] + 1, 'the first-visit question uses the one-column layout'
                 go = page.get_by_role('button', name='Show me a next step')
                 expect(go).to_be_disabled()
                 expect(page.locator('.connect-promise')).to_have_text('Nobody gets contacted. You decide what to keep.')  # on the page, not only in a tip
@@ -126,16 +143,44 @@ def first_visit(port):
                 go.click()
                 page.get_by_role('heading', name='Here’s a possible next step.').wait_for()
                 expect(page.locator('.connect-hint', has_text='sample answer')).to_be_visible()  # honest about sample AI
+                no_technical(page, 'review')  # includes no stray "null"
                 next_step = page.get_by_label('Your next step')
                 assert next_step.input_value().strip(), 'the suggested step comes prefilled'
-                assert page.get_by_label('Keep my note with them').is_checked()
+                # The exact note that would be kept is on screen, and the box says who it goes with.
+                expect(page.locator('.connect-note-preview')).to_have_text('Maya, a data analyst I met at the career fair. I want to ask how she got into analytics.')
+                keep = page.get_by_label('Keep this note (only you see it)')
+                assert keep.is_checked()
+                page.get_by_label('Their name (optional)').fill('Maya Chen')
+                assert page.get_by_label('Keep this note with Maya Chen').is_checked()
+                page.get_by_label('Their name (optional)').fill('')
                 shot(page, '4_review')
                 page.get_by_role('button', name='Save', exact=True).click()
                 page.get_by_text('Saved. No one has been contacted.').wait_for()
                 # A save is confirmed once, by a tip (confirmations are never rationed)…
                 expect(page.locator('#sprite-text')).to_have_text('Saved. Your next step is waiting on Today.')
                 shot(page, '4b_saved_tip')
-                # …and tips can be turned off right there; it is remembered.
+                # Escape on a tip's button hides it and keeps focus on the page, at the sprite.
+                page.wait_for_timeout(600)  # let the page finish rendering (it moves focus to the new page when done)
+                page.locator('#sprite-mute').focus()
+                page.keyboard.press('Escape')
+                expect(bubble).to_be_hidden()
+                assert page.evaluate('document.activeElement.id') == 'dock-pill'
+                # A tip never sits over the field you're typing in: it steps aside as soon as typing starts.
+                page.goto(page.url.split('#')[0] + '#quicklog')
+                note = page.get_by_label('What do you remember?')
+                note.wait_for()
+                page.evaluate("document.getElementById('sprite-bubble').hidden = false")  # a tip is up
+                note.click()
+                expect(bubble).to_be_hidden()
+                page.evaluate("document.getElementById('sprite-bubble').hidden = false")
+                note.type('Met Priya')
+                expect(bubble).to_be_hidden()
+                note.fill('')
+                # …and tips can be turned off right on a tip; it is remembered.
+                page.locator('#side').get_by_role('link', name='Today').click()
+                page.locator('#main h1').first.wait_for()
+                page.wait_for_timeout(600)
+                page.evaluate("document.getElementById('sprite-bubble').hidden = false")
                 page.get_by_role('button', name='Turn off tips').click()
                 expect(bubble).to_be_hidden()
                 assert page.evaluate("localStorage.getItem('cc.tipsOn')") == 'false'

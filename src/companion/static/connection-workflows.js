@@ -6,6 +6,9 @@
   window.LinkWorkflows = {
     create({h, btn, field, select, disc, api, act, S, go, render, toast, orbSvg, connectionMotif, openSource, tip}) {
       let flow = null;
+      const linkWrote = new Set();
+      const remember = (text) => { linkWrote.add(text); return text; };
+      const plain = (name) => String(name || '').replace(/^\[SAMPLE\]\s*/, '');
       const modes = {
         starting: ['Find a starting point', "You don't need a contact list. What would you like to explore, and where do you already spend time?", 'A field, class, workplace, interest or community. “I’m not sure” is a useful answer.'],
         reconnect: ['Approach someone', 'Who comes to mind, and what makes you interested in talking to them?', 'A name and fragments are enough. Include what you would genuinely like to learn.'],
@@ -21,7 +24,7 @@
         met: ['Who did you meet?', 'Whatever you remember is enough.'],
         prepare: ['What do you want to learn from them?', 'Link helps with an opening line and good questions.'],
         follow_up: ['What’s new since you talked?', 'Something you tried, finished, or found for them.'],
-        opportunity: ['What help would you like?', 'Be specific. Asking is never assumed.']
+        opportunity: ['What help would you like?', 'Be specific, and make it easy for them to say no.']
       };
       const ask = (mode) => (S.mode === 'dev' ? [modes[mode][1], modes[mode][2]] : SIMPLE[mode]);
       // User version uses everyday words. Developer version keeps the original labels.
@@ -37,7 +40,7 @@
       async function skip(target='today') {
         if(await act(()=>api('POST','/api/onboarding/skip'))) {
           S.onboarding.done=true; document.body.classList.remove('onboarding'); go(target);
-          if(target==='today')setTimeout(()=>tip('skip-nudge','Want to add your first person? It takes about a minute. Find it under Add.'),900);
+          if(target==='today')setTimeout(()=>tip('skip-nudge','Want to add your first person? Open People and choose Add person. It takes about a minute.','handoff'),900);
         }
       }
       // One question and three starter cards (D53). "I just met someone" is the step-by-step guide (D52); on a first
@@ -75,7 +78,7 @@
           return;
         }
         const values=flow.inputs;
-        const page=h('section',{class:(onboarding?'onb connection-onboarding ':'page ')+'connect-simple connect-step'});
+        const page=h('section',{class:'page connect-simple connect-step'+(onboarding?' is-welcome':'')});
         root.append(page);
         page.append(btn('Back',()=>{flow=null;render();},'quiet connect-back'));
         if(flow.plan) { review(page,flow.plan,onboarding); return; }
@@ -103,10 +106,19 @@
         const more=[];
         const helpType=values.mode==='opportunity'?field('Type of help',select(asks,values.ask_type||'perspective',v=>values.ask_type=v)):null;
         if(helpType&&S.mode==='dev')form.append(helpType); else if(helpType)more.push(helpType);  // shown up front for builders
-        if(values.mode==='starting')more.push(h('p',{class:'muted small',text:'Where could you start?'}),
-          h('div',{class:'row'},['Class or student group','Work or volunteering','Public community','No existing connection'].map(label=>btn(label,()=>{values.goal=label;tip('connect-goal-'+label,'Got it: '+label.toLowerCase()+'. I’ll keep that in mind.');},'quiet'))));
+        // Honest limits stay on the page in both versions.
+        if(values.mode==='opportunity')form.append(h('p',{class:'muted small',text:pick('We can make the ask specific and easy to decline. An introduction or referral needs their agreement; Link cannot tell you whether someone will say yes.',
+          'An introduction or referral needs their OK. Link can’t tell you whether someone will say yes.')}));
+        const goalField=input(pick('What are you hoping to work toward? (private planning)','What do you hope to get out of it?'), 'goal',values,600);
+        const goalBox=goalField.querySelector('textarea');
+        const goalAdded=h('p',{class:'muted small',role:'status'});
+        if(values.mode==='starting')more.push(h('p',{class:'muted small',text:pick('A classmate, recent graduate, former supervisor, professor, volunteer group or professional community can be a starting point. No campus access? Start with a public community or open event; Link cannot verify availability.',
+            'Where could you start? Link can’t check whether a group or event is open to you.')}),
+          h('div',{class:'row'},['Class or student group','Work or volunteering','Public community','No existing connection'].map(label=>btn(label,()=>{
+            // The choice is written into the visible goal box and said on the page, not only in a tip.
+            values.goal=label;goalBox.value=label;goalAdded.textContent=pick('Context added: '+label,'Added to your goal: '+label.toLowerCase()+'.');},'quiet'))),goalAdded);
         more.push(input(pick('Why this person or setting?','Why them, or why there?'), 'why_person',values,800),
-          input(pick('What are you hoping to work toward? (private planning)','What do you hope to get out of it?'), 'goal',values,600),
+          goalField,
           input(pick('Professional context approved for later messages','Anything you’re happy to mention to them'), 'approved_context',values,2000),
           input(pick('An example of your work you are comfortable sharing','Something you made that you’d be glad to share'), 'example',values,1200));
         form.append(submit,h('p',{class:'connect-promise',text:'Nobody gets contacted. You decide what to keep.'}),
@@ -119,15 +131,15 @@
         const story=h('section',{class:'plan-story'}), tools=h('section',{class:'plan-tools','aria-label':'Review and work on this plan'});
         root.append(h('div',{class:simple?'plan-column':'plan-spread'},story,tools));
         // Honest about where the answer came from, in plain words for the user version.
-        const source=simple?(plan.source==='live'?null:plan.source==='mock'?'This is a sample answer, not advice written for you.':'A general guide, written without AI.')
+        const source=simple?(plan.source==='live'?'Suggested by Link’s AI. Check it before you save.':plan.source==='mock'?'This is a sample answer, not advice written for you.':'A general guide, written without AI.')
           :(plan.source==='live'?'AI proposal · review before saving':plan.source==='mock'?'Mock example · not personalized analysis':'AI unavailable · general guide');
-        story.append(h('h1',{text:'Here’s a possible next step.'}),
+        story.append(...[h('h1',{text:'Here’s a possible next step.'}),
           source?h('p',{class:simple?'connect-hint':'notice',text:source}):null,
           h('p',{text:out.acknowledgment}),h('section',{class:'panel stack'},h('h2',{text:out.purpose}),h('p',{text:out.reason}),h('p',{text:out.next_step})),
           out.questions.length?(simple?disc('plan-questions','Questions you could ask','',h('ul',{},out.questions.map(q=>h('li',{text:q}))))
             :h('section',{class:'stack'},h('h3',{text:'Questions to explore'}),h('ul',{},out.questions.map(q=>h('li',{text:q}))))):null,
           out.uncertainties.length?disc('plan-uncertainty','What remains uncertain','Keep these as questions',...out.uncertainties.map(t=>h('p',{text:t}))):null,
-          out.considerations.length?disc('plan-considerations','Things to consider','',...out.considerations.map(t=>h('p',{text:t}))):null);
+          out.considerations.length?disc('plan-considerations','Things to consider','',...out.considerations.map(t=>h('p',{text:t}))):null].filter(Boolean));  // native append would print "null" for a skipped part
         if(plan.status==='confirmed') {
           tools.append(h('p',{class:'notice',text:'Saved. No one has been contacted.'}),
             h('div',{class:'row'},btn('Back to Today',()=>go('today'),'primary'),plan.item_id?btn('Open person',()=>{S.selectedPerson=plan.item_id;go('people');}):null),
@@ -167,8 +179,17 @@
       // The user version saves in one tap: the suggested step and name come prefilled, and the note is kept unless
       // unticked. Every value is visible and editable before Save, so nothing is saved that the person didn't see.
       function simpleSave(tools,plan,out) {
+        const note=plan.inputs.recollection||'';
+        const wroteIt=!!note&&!linkWrote.has(note);  // a summary Link prefilled is not saved as the person's own words by default
         const f={name:out.suggested_name||'',existing_person_id:null,organization:'',context:'',next_action:(out.next_step||'').slice(0,200),
-          preference:'',save_recollection:!!plan.inputs.recollection};
+          preference:'',save_recollection:wroteIt};
+        let personName='', people=[];
+        const who=h('p',{class:'connect-with'});
+        const noteLabel=h('span',{});
+        const sayWho=()=>{
+          const name=plan.item_id?personName:f.existing_person_id?plain((people.find(p=>p.id===f.existing_person_id)||{}).name):f.name.trim();
+          noteLabel.textContent=name?'Keep this note with '+name:'Keep this note (only you see it)';
+        };
         const save=h('button',{type:'submit',class:'btn primary big'},'Save');
         const form=h('form',{class:'connect-save stack',onsubmit:async e=>{
           e.preventDefault();save.disabled=true;save.setAttribute('aria-busy','true');save.textContent='Saving…';
@@ -176,18 +197,24 @@
           save.disabled=false;save.removeAttribute('aria-busy');save.textContent='Save';
           if(result){S.onboarding.done=true;document.body.classList.remove('onboarding');flow.plan={...plan,status:'confirmed',item_id:result.item_id,result};
             if(!tip('confirm','Saved. Your next step is waiting on Today.','confirm'))toast('Saved. Your next step is on Today.');go('connect');}
-        }},h('h2',{text:'Save it?'}),
+        }},h('h2',{text:'Save it?'}),who,
           field('Your next step',h('input',{maxlength:200,value:f.next_action,oninput:e=>f.next_action=e.target.value})));
-        if(!plan.item_id)form.append(field('Their name (optional)',h('input',{maxlength:200,value:f.name,oninput:e=>f.name=e.target.value})));
-        if(plan.inputs.recollection)form.append(h('label',{class:'check'},h('input',{type:'checkbox',checked:true,onchange:e=>f.save_recollection=e.target.checked}),'Keep my note with them'));
+        if(plan.item_id){  // say who it is saved to, so nothing lands on someone the screen didn't name
+          api('GET','/api/people/'+plan.item_id).then(p=>{personName=plain(p.name);who.textContent='Saving to '+personName;sayWho();}).catch(()=>{});
+        } else form.append(field('Their name (optional)',h('input',{maxlength:200,value:f.name,oninput:e=>{f.name=e.target.value;sayWho();}})));
+        if(note){
+          form.append(h('label',{class:'check'},h('input',{type:'checkbox',checked:wroteIt,onchange:e=>f.save_recollection=e.target.checked}),noteLabel),
+            h('blockquote',{class:'connect-note-preview',text:note}));  // the exact words that would be kept
+        }
         const options=[];
         if(!plan.item_id){
           const existing=h('div',{});
-          api('GET','/api/people').then(people=>{if(people.length)existing.append(field('Or someone already in Link',select([['','Someone new'],...people.map(p=>[p.id,p.name])],'',value=>f.existing_person_id=value?Number(value):null)));}).catch(()=>{});
+          api('GET','/api/people').then(list=>{people=list;if(list.length)existing.append(field('Or someone already in Link',select([['','Someone new'],...list.map(p=>[p.id,plain(p.name)])],'',value=>{f.existing_person_id=value?Number(value):null;sayWho();})));}).catch(()=>{});
           options.push(existing,field('Where they work or study',h('input',{maxlength:200,oninput:e=>f.organization=e.target.value})),
             input('What you’re comfortable sharing with them','context',f,2000));
         }
         options.push(input('How should Link work with you?','preference',f,1000));
+        sayWho();
         form.append(save,disc('plan-more','More options','',...options),btn('Change my answer',()=>{flow.plan=null;render();},'quiet'));
         tools.append(form,messageTools(plan),practiceTools(plan));
       }
@@ -198,7 +225,7 @@
         const v={context:plan.inputs.approved_context||'',instruction:(plan.mode==='opportunity' ? ask+': ' : '')+(plan.inputs.learning_question||'')};
         const output=h('div',{class:'stack'});
         return disc('plan-message-'+plan.id,'Prepare a message','Review the context first',
-          h('p',{class:'muted small',text:pick('Only these two fields and your public voice preferences go to drafting. Private planning, rough recollections, and chat are excluded. Include the recipient name yourself if wanted.','Link only uses these two boxes. Your private notes stay out.')}),
+          h('p',{class:'muted small',text:pick('Only these two fields and your public voice preferences go to drafting. Private planning, rough recollections, and chat are excluded. Include the recipient name yourself if wanted.','Link uses these two boxes and the writing style you saved in About me. Your private notes stay out.')}),
           input('Context I approve for this message','context',v,1500,3),input('What I want to ask or say','instruction',v,1000),
           btn('Generate a message',async()=>{const result=await act(()=>api('POST','/api/drafts/generate',{purpose:plan.mode==='follow_up'?'follow_up':'outreach',audience:'peer',evidence_ids:[],instruction:v.instruction||'Write a brief message with a specific request and an easy way to decline. Use placeholders rather than unsupported facts.',shareable_note:v.context,include_item_context:false}));
             if(!result)return;const draft=result.draft;
@@ -253,7 +280,7 @@
         if(candidates.length)page.append(disc('substantive-followup','A possible conversation to revisit',candidates[0].name,
           candidates.slice(0,3).map(c=>h('div',{class:'stack'},h('strong',{text:c.name}),h('p',{text:c.reason}),
             c.possible_commitments?h('p',{class:'muted small',text:'Unconfirmed: '+c.possible_commitments}):null,
-            btn('Review and decide',()=>open({mode:'follow_up',item_id:c.item_id,recollection:[c.summary,c.possible_commitments ? 'Possible commitment (unconfirmed): '+c.possible_commitments : '',c.suggestions].filter(Boolean).join('\n')})),btn('Not relevant',async()=>{await act(()=>api('POST','/api/connections/follow-ups/'+c.id+'/dismiss'));render();},'quiet')))));
+            btn('Review and decide',()=>open({mode:'follow_up',item_id:c.item_id,recollection:remember([c.summary,c.possible_commitments ? 'Possible commitment (unconfirmed): '+c.possible_commitments : '',c.suggestions].filter(Boolean).join('\n'))})),btn('Not relevant',async()=>{await act(()=>api('POST','/api/connections/follow-ups/'+c.id+'/dismiss'));render();},'quiet')))));
       }
       function quickPrompts(note) {
         const prompt=h('div',{class:'row'},h('span',{class:'muted small',text:'Need a memory cue?'}));

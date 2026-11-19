@@ -231,6 +231,7 @@
     });
     const open = async () => {
       if (dialog.open) { close(); return; }
+      if (window.LinkCompanion && window.LinkCompanion.isOpen()) window.LinkCompanion.close();  // one modal at a time
       trigger = document.activeElement; dialog.showModal(); input.value = ""; input.focus();
       records = NAV.concat(NAV_MINOR).map(([tab,label]) => ({label: "Open " + label, kind: "Section", run: () => go(tab)}));
       records.push({label: "New draft", kind: "Create", run: () => { S.draft.current = null; S.draft.action_id = null; draftWorkspaces.delete("new:unlinked"); go("drafts"); }},
@@ -470,7 +471,7 @@
     say("companion", view.greeting);
     const due = view.reminders.length;
     if (due) tip("today-due", due === 1 ? "One reminder is due today. It’s at the top of Today." : due + " reminders are due today. They’re at the top of Today.");
-    else tipEver("hello", "I’m Link. Tap me anytime you want help with a message or a next step.");
+    else if (S.ai.available) tipEver("hello", "I’m Link. Tap me anytime you want help with a message or a next step.");
     if (view.reminders.length) say("companion", view.reminders.length === 1 ? "One reminder is due: " + view.reminders[0].text : view.reminders.length + " reminders are due. They're on Today.");
   }
   // ---- the companion: a floating sprite, short tips and a chat drawer (decision D53) ---------------------------
@@ -481,9 +482,16 @@
     const out = [];
     for (let node = $("dock"); node && node !== document.body; node = node.parentElement)
       for (const sib of node.parentElement.children)
-        if (sib !== node && !["SCRIPT", "STYLE", "LINK", "TEMPLATE"].includes(sib.tagName) && !["dock-scrim", "sprite-live"].includes(sib.id) && !sib.inert) out.push(sib);
+        if (sib !== node && blockable(sib)) out.push(sib);
     return out;
   }
+  // Not blocked: the backdrop, the announcer, the toast (text only, and it must still be spoken) and native dialogs.
+  const blockable = (el) => el.nodeType === 1 && !["SCRIPT", "STYLE", "LINK", "TEMPLATE", "DIALOG"].includes(el.tagName)
+    && !["dock-scrim", "sprite-live", "toast"].includes(el.id) && !el.inert;
+  // Anything added to the page while the drawer is open (a redrawn tour card, an undo bar) waits too.
+  const lateNodes = new MutationObserver((records) => {
+    for (const r of records) for (const n of r.addedNodes) if (blockable(n)) { n.inert = true; behind.push(n); }
+  });
   function setDock(open) {
     if (open === dockOpen) { if (open) $("chat-input").focus({ preventScroll: true }); return; }
     dockOpen = open;
@@ -496,8 +504,8 @@
     $("dock").inert = !open;
     $("dock").setAttribute("aria-hidden", String(!open));
     $("dock-scrim").hidden = !open;
-    if (open) { behind = outsideDrawer(); behind.forEach((el) => { el.inert = true; }); }  // a modal drawer: the page waits
-    else { behind.forEach((el) => { el.inert = false; }); behind = []; }
+    if (open) { behind = outsideDrawer(); behind.forEach((el) => { el.inert = true; }); lateNodes.observe(document.body, { childList: true }); }
+    else { lateNodes.disconnect(); behind.forEach((el) => { el.inert = false; }); behind = []; }
     $("dock-pill").setAttribute("aria-expanded", String(open));
     window.dispatchEvent(new CustomEvent("link:dockchange", { detail: { open } }));
     if (open) { $("chat-input").focus({ preventScroll: true }); return; }
@@ -510,7 +518,7 @@
   // you type, and never while the chat is open. One polite live region speaks them; focus never moves.
   const TIP_MS = 5500, NUDGES_PER_VISIT = 3, NUDGE_GAP_MS = 30000;
   const tipsSeen = new Set();
-  let tipTimer = null, tipLeft = 0, tipSince = 0, nudges = 0, lastNudge = -Infinity;
+  let tipTimer = null, tipHideTimer = null, tipLeft = 0, tipSince = 0, nudges = 0, lastNudge = -Infinity;
   const tipsOn = () => store.get("tipsOn", true) !== false;
   function syncTipsToggle() {
     const on = tipsOn();
@@ -527,16 +535,18 @@
   }
   // kind "nudge": a suggestion, at most once per key, 3 per visit and 30 s apart. kind "confirm": says a save worked,
   // replacing that save's toast; when it can't show, the caller shows the toast instead. Returns whether it showed.
+  // kind "handoff": a nudge that directly follows the person's own choice, so it skips the 30 s spacing.
   function tip(key, text, kind = "nudge") {
     if (!text || !tipsOn() || dockOpen || typing()) return false;
-    if (kind === "nudge") {
-      if (tipsSeen.has(key) || nudges >= NUDGES_PER_VISIT || Date.now() - lastNudge < NUDGE_GAP_MS) return false;
+    if (kind === "nudge" || kind === "handoff") {
+      if (tipsSeen.has(key) || nudges >= NUDGES_PER_VISIT || (kind === "nudge" && Date.now() - lastNudge < NUDGE_GAP_MS)) return false;
       tipsSeen.add(key); nudges += 1; lastNudge = Date.now();
     }
+    clearTimeout(tipHideTimer);
     const bubble = $("sprite-bubble");
     $("sprite-text").textContent = text;
     bubble.hidden = false;
-    bubble.classList.remove("is-in"); void bubble.offsetWidth; bubble.classList.add("is-in");
+    bubble.classList.remove("is-in", "is-out"); void bubble.offsetWidth; bubble.classList.add("is-in");
     $("sprite-live").textContent = "Link: " + text;
     tipLeft = TIP_MS; runTip();
     return true;
@@ -554,9 +564,10 @@
     const bubble = $("sprite-bubble");
     if (bubble.hidden) return;
     const done = () => { bubble.hidden = true; bubble.classList.remove("is-in", "is-out"); };
-    if (now || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { done(); return; }
+    if (now || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { clearTimeout(tipHideTimer); done(); return; }
     bubble.classList.add("is-out");
-    setTimeout(done, 180);
+    clearTimeout(tipHideTimer);
+    tipHideTimer = setTimeout(done, 180);
   }
 
   function startDock() {
@@ -592,8 +603,25 @@
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       if (dockOpen) { e.preventDefault(); setDock(false); }
-      else if (!$("sprite-bubble").hidden) hideTip();
+      else if (!$("sprite-bubble").hidden) {
+        const held = $("sprite-bubble").contains(document.activeElement);
+        hideTip();
+        if (held) { e.preventDefault(); $("dock-pill").focus({ preventScroll: true }); }  // focus never drops to the page
+      }
     });
+    const covers = (el) => {
+      const a = el.getBoundingClientRect(), b = $("sprite-bubble").getBoundingClientRect();
+      return a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom;
+    };
+    document.addEventListener("focusin", (e) => {
+      const bubble = $("sprite-bubble");
+      if (bubble.hidden || bubble.contains(e.target) || e.target === $("dock-pill")) return;
+      // Never over what you're typing in or the control you're on. Only real controls count: the page itself takes
+      // focus after every navigation and would otherwise "cover" every tip.
+      const control = e.target.matches && e.target.matches("a[href], button, input, select, textarea, [contenteditable=true]");
+      if (typing() || (control && covers(e.target))) hideTip(true);
+    });
+    document.addEventListener("input", () => { if (!$("sprite-bubble").hidden && typing()) hideTip(true); });
   }
   async function submitChat(text) {
     const input = $("chat-input");
@@ -1045,7 +1073,7 @@
     if(S.addPerson){workspace.append(h('div',{class:'studio-person-form'},h('span',{class:'eyebrow',text:'One person is a beginning'}),h('h2',{text:'Who’s on your mind?'}),h('p',{class:'muted',text:'A name is enough. Add the rest as your connection develops.'}),personForm(null)));return;}
     if(!S.selectedPerson){workspace.append(h('div',{class:'people-welcome'},connectionMotif(),h('span',{class:'eyebrow',text:pick('Your connection studio','Your people')}),h('h2',{text:list.length?'Pick up a conversation.':'Good connections start somewhere.'}),h('p',{text:list.length?'Choose someone to see what you remember, what you’ve learned, and what might come next.':'Link can help you find a starting point, even before you know who to approach.'}),h('div',{class:'row'},btn('Help me get started',()=>workflows.open(),'primary'),btn('Log someone you met',()=>go('quicklog')))));return;}
     const person=await api('GET','/api/people/'+S.selectedPerson);scopePerson(person);
-    tip('person-open','Want help writing to '+person.name.split(/\s+/)[0]+'? Tap me and say what you’d like to send.');
+    if(S.ai.available)tip('person-open','Want help writing to '+plainName(person.name).split(/\s+/)[0]+'? Tap me and say what you’d like to send.');
     const importedSource=await api('GET','/api/network/people/'+person.id+'/source');
     workspace.append(h('div',{class:'person-heading'},h('div',{class:'person-avatar',text:person.name.slice(0,1).toUpperCase()}),h('div',{class:'grow'},h('span',{class:'eyebrow',text:'A connection, in context'}),h('h2',{text:person.name}),person.org?h('p',{class:'muted',text:person.org}):null),btn('← All people',()=>{S.selectedPerson=null;S.contextItem=null;document.getElementById('chat-log').replaceChildren();render();},'quiet')));
     if(importedSource.source)workspace.append(h('details',{class:'import-provenance'},h('summary',{text:'LinkedIn snapshot · source details'}),h('p',{class:'muted small',text:'Role at export: '+(importedSource.position||'Not supplied')+' · Connected on: '+(importedSource.connected_on||'Not supplied')}),h('p',{class:'muted small',text:'Imported '+importedSource.imported_at.slice(0,10)+'. This is not a current employment check or a recorded conversation.'})));
@@ -1153,7 +1181,7 @@
     const exactField=field("Date",h("input",{type:"date",value:exact,oninput:e=>exact=e.target.value})); exactField.hidden=kind!=="date";
     const roughField=field("Roughly when, in your own words",h("input",{maxlength:80,value:rough,placeholder:"Last week, sometime in October…",oninput:e=>rough=e.target.value}));roughField.hidden=kind!=="approx";
     const remember=()=>{quickWorkspace={note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:keep?exchange.value:'',keep_exchange:keep};quickDirty=true;draftStatus.textContent='Saving draft…';clearTimeout(quickTimer);quickTimer=setTimeout(writeQuickWorkspace,280);};
-    const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),isDev()?"Saved. No tasks were created.":null);if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();if(!isDev())confirmTip('Saved. Tap me if you’d like help turning it into a next step.','Saved.');}}},
+    const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),isDev()?"Saved. No tasks were created.":null);if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();if(!isDev())confirmTip(S.ai.available?'Saved. Tap me if you’d like help turning it into a next step.':'Saved.','Saved.');}}},
       field("What do you remember?",note),draftStatus,workflows.quickPrompts(note),h("div",{class:"grid2"},field("Person (optional)",select([["","Not sure / choose later"],...people.map(p=>[p.id,p.name])],person,v=>person=v)),
       field("When (optional)",select([["unknown","Not sure"],["today","Today"],["yesterday","Yesterday"],["approx","Approximately"],["date","Exact date"]],kind,v=>{kind=v;exactField.hidden=v!=="date";roughField.hidden=v!=="approx";}))),exactField,roughField,
       disc("paste-log","Paste an exchange instead","Optional",exchange,h("label",{class:"check"},h("input",{type:"checkbox",checked:keep,onchange:e=>keep=e.target.checked}),here("Keep the original exchange on this Mac","Keep the original exchange in Link")),h("p",{class:"muted small",text:"Unchecked: only your written recap is saved. To retain an exchange without a recap, explicitly check this box."})),
@@ -1720,7 +1748,9 @@
   function updateContextNote() {
     if (!isDev()) {  // the user version shows only what is relevant now: who you're talking about, if anyone
       const name = S.contextItem ? plainName(S.contextItem.title) : "";
-      fill($("studio-context"), S.contextItem ? h("div", { class: "context-now" }, h("p", { text: "About " + name }),
+      // With live AI, the person's notes go to the AI provider with each message, so the chip says so (consent).
+      const live = S.ai && S.ai.available && S.ai.mode === "live";
+      fill($("studio-context"), S.contextItem ? h("div", { class: "context-now" }, h("p", { text: (live ? "Using your notes on " : "About ") + name }),
         h("button", { type: "button", class: "context-stop", "aria-label": "Stop talking about " + name, onclick: () => {
           S.contextItem = null; updateContextNote(); $("chat-input").placeholder = chatPlaceholder(); $("chat-input").focus(); } }, icon("close", 14))) : null);
       $("studio-context").hidden = !S.contextItem;

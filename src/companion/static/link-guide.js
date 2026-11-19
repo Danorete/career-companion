@@ -5,7 +5,7 @@
   const read=()=>{try{return JSON.parse(localStorage.getItem(key))||{};}catch{return {};}};
   let state=read(), card, target, frame;
   const steps=[
-    {title:'A colleague, one click away.',text:'I’m Link. Click my avatar to open our conversation. You can tuck me away whenever you want more room.',selector:'#dock-pill',event:'dock'},
+    {title:'A colleague, one click away.',text:'I’m Link. Click my avatar to open our chat. Close it whenever you’re ready, and we’ll keep going.',selector:'#dock-pill',event:'dock'},
     {title:'Start with a person.',text:'Click People. This is where a brief encounter can grow into an ongoing connection.',selector:'#side a[href="#people"]',route:'people'},
     {title:'Context grows over time.',text:'You don’t need a complete profile. A name and where you met are enough. Open someone to revisit your conversations or choose a next step.',selector:'#main .page',manual:true},
     {title:'Keep the moment, while it’s fresh.',get text(){return (document.body.dataset.mode==='dev'?'Click Quick log.':'Open Add, then choose Add a note.')+' Capture a few fragments after a conversation, even when you don’t remember every detail.';},get selector(){return document.body.dataset.mode==='dev'?'#side a[href="#quicklog"]':'#add-menu > summary';},route:'quicklog'},
@@ -42,11 +42,13 @@
   const launcher=node('button','Meet Link','guide-launcher');launcher.type='button';launcher.setAttribute('aria-label','Meet Link: guided walkthrough');launcher.onclick=()=>window.LinkGuide.start();document.body.append(launcher);
   if(state.step&&!state.done)launcher.textContent='Resume tour';
   window.LinkGuide={start(){state={step:state.done?0:(state.step||0),active:true,done:false};save();if(state.step===0)window.LinkCompanion?.close();draw();card.querySelector('button').focus();}};
-  // The chat opens as a drawer that holds focus (D53), so once it has been seen it is tucked away before the next step.
-  window.addEventListener('link:dockchange',e=>{if(state.active&&steps[state.step]?.event==='dock'&&e.detail.open)setTimeout(()=>{window.LinkCompanion?.close();advance();},900);});
+  // The chat is a drawer that holds focus (D53). The step completes when the person closes it themselves, never on a
+  // timer that would pull focus out of the message box.
+  let dockSeen=false;
+  window.addEventListener('link:dockchange',e=>{if(!state.active||steps[state.step]?.event!=='dock')return;if(e.detail.open)dockSeen=true;else if(dockSeen){dockSeen=false;setTimeout(advance,100);}});
   window.addEventListener('hashchange',()=>setTimeout(()=>{if(!state.active)return;const step=steps[state.step];if(step?.route===location.hash.slice(1))advance();else draw();},100));
   document.addEventListener('input',e=>{if(state.active&&steps[state.step]?.event==='input'&&e.target.matches('#main textarea')&&e.target.value.trim())advance();});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.active){e.preventDefault();pause();}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.active&&!e.defaultPrevented){e.preventDefault();pause();}});  // an Escape that closed the chat isn't for the tour
   const observer=new MutationObserver(()=>{cancelAnimationFrame(frame);frame=requestAnimationFrame(()=>{if(state.active)draw();});});
   observer.observe($('#main'),{childList:true,subtree:true});observer.observe($('#side'),{childList:true,subtree:true});
   window.addEventListener('resize',position);document.addEventListener('scroll',position,true);

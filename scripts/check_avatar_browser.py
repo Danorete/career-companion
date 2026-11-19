@@ -47,6 +47,9 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             page.get_by_role('button',name='Meet Link: guided walkthrough').click()
             page.get_by_role('heading',name='A colleague, one click away.').wait_for()
             page.get_by_role('button',name='Open Link, your companion',exact=True).click()
+            page.wait_for_timeout(1200)  # the tour waits while the chat is open (D53 review)…
+            assert page.locator('#dock').get_attribute('aria-hidden') == 'false'
+            page.keyboard.press('Escape')  # …and moves on when the person closes it
             page.get_by_role('heading',name='Start with a person.').wait_for()
             page.get_by_role('link',name='People',exact=True).first.click()
             page.get_by_role('heading',name='Context grows over time.').wait_for()
