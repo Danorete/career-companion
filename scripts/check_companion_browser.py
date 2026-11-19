@@ -69,7 +69,17 @@ def first_visit(port):
                 cards = page.locator('.connect-card')
                 expect(cards).to_have_count(3)
                 assert [c.locator('strong').inner_text() for c in cards.all()] == ['I don’t know where to start', 'Reach out to someone', 'I just met someone']
-                assert page.get_by_role('button', name='Skip for now').count() == 1
+                assert page.get_by_role('button', name='Skip for now', exact=True).count() == 1
+                # A brand-new user learns what Link is for, what each card leads to, and where Skip goes (D54).
+                expect(page.locator('.connect-lede')).to_have_text('Link remembers who you met, what you talked about, and what to say next.')
+                lede = page.locator('.connect-lede').bounding_box()
+                assert lede['height'] < 30, 'the value line fits on one line on a laptop'
+                helpers = [c.locator('small').inner_text() for c in cards.all()]
+                assert helpers[0].startswith('No contacts needed.') and 'first message' in helpers[1] and 'nothing is sent' in helpers[1] and 'remember them later' in helpers[2], helpers
+                skip_btn = page.get_by_role('button', name='Skip for now', exact=True)
+                assert skip_btn.get_attribute('aria-describedby') == 'connect-skip-note'
+                expect(page.locator('#connect-skip-note')).to_have_text('Goes straight to Today, your home screen.')
+                assert page.title() == 'Link · Remember the people you meet'
                 for gone in ('Already have a network?', 'Your context stays in your control', 'Remember the people you meet'):
                     assert gone not in visible_words(page), gone
 

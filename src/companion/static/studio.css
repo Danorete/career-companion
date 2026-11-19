@@ -597,6 +597,12 @@ body.connection-studio { background:var(--ground); font:14px/1.65 var(--body); c
 .connect-card .path-arrow { flex:none; display:grid; place-items:center; width:32px; height:32px; border:1px solid var(--line-strong); border-radius:50%; color:var(--ink-2); }
 .connect-card:hover .path-arrow { border-color:var(--accent); color:var(--accent); }
 .connect-skip, .connect-back { align-self:flex-start; }
+.connect-lede { margin:-8px 0 4px; font-size:16px; line-height:1.55; color:var(--ink-2); text-wrap:pretty; }
+.connect-skip-row { display:flex; flex-wrap:wrap; align-items:center; gap:2px 10px; }
+.connect-skip-note { font-size:13px; color:var(--muted); }
+/* The skip is a quiet text link that lines up with the cards; it keeps a 44px tap height. */
+.connection-studio .connect-skip { padding-inline:0; min-height:44px; background:transparent; border-color:transparent; box-shadow:none; text-decoration:underline; text-underline-offset:3px; }
+@media (max-width:600px) { .connection-studio .page.connect-simple.is-welcome { padding-inline:16px; } }
 .connect-demo { margin:0; font-size:13px; color:var(--muted); }
 .connect-resume { margin-top:4px; }
 .connect-with { margin:0; color:var(--ink-2); font-weight:500; }

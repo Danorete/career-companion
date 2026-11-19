@@ -451,3 +451,25 @@ Research and review:
 Not done here: People as a single column (it still uses a directory and a workspace with an inner scroller); server-side
 text such as "[MOCK]" tags in sample answers and the ranking wording in Today's greeting ("With 20 minutes, I'd do one
 thing…"); the backlog file above.
+
+## D54 — The first screen says what Link is and where each choice leads (2026-11-19)
+Status: built and tested (the companion browser check covers it).
+
+Why: after D53 the first screen was calm but assumed context. A brand-new user could not tell what Link is for, what
+each card would do, or where "Skip for now" goes.
+
+- **One line under the question** (first visit only): "Link remembers who you met, what you talked about, and what
+  to say next." It fits on one line from tablet width up; on phones it wraps to two.
+- **Card lines say the outcome**, each true to the screen it opens:
+  - I don’t know where to start: "No contacts needed. Explore ideas and find one small first step."
+  - Reach out to someone: "Get help writing a first message. Start with just a name; nothing is sent." (It starts
+    from what you type, not from saved notes; the message help is on its review screen.)
+  - I just met someone: "Save a few quick details now, so you remember them later." (the step-by-step guide)
+- **Skip says where it goes**: a quiet underlined "Skip for now" with "Goes straight to Today, your home screen." as its
+  description (aria-describedby), so its name stays short.
+- **The browser tab** reads "Link · Remember the people you meet" instead of the internal name "Connection Studio".
+- Phones get a 16px side margin on the welcome screen, which it lacked.
+- Measured visible words (same method as D53): the first-visit screen rises from 59 to 89, which is 46% fewer than
+  before D53 (166) and below D53's 60% target, a trade made on purpose for clarity. The in-app #connect shares the new
+  card lines and rises from 60 to 69, still 64% fewer than before (193). The developer version keeps its original
+  card wording.

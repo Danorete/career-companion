@@ -1827,7 +1827,7 @@
     const tab = window.location.hash.replace("#", "");
     S.tab = RENDERERS[tab] ? tab : "today";
     closeMore();
-    document.title = "Link — Connection Studio";
+    document.title = "Link · Remember the people you meet";  // says what Link is for, not an internal name
     // Moving focus to the new page lets keyboard and screen-reader users land in it directly.
     render().then(() => {
       if (!S.onboarding.done) return;

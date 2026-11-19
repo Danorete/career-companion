@@ -16,6 +16,7 @@ This project moved here from a folder in `Danorete/spotify-listening-bi` on 2026
 - `graphify-out/` was rebuilt from code on 2026-11-13.
 - Still unverified: a real provider call, billing reconciliation, macOS, Safari, Keychain.
 - Entries below are a dated log; their test counts were correct when written.
+- 2026-11-19 (first screen, D54): a one-line description of Link under the question, card lines that say what each choice leads to, a clearer Skip, and a plain browser-tab title.
 - 2026-11-19 (beginner layout, D53): #connect is one question and three cards (69% fewer words on first paint); the companion is a floating sprite with tips and a chat drawer over the page; technical labels hidden in the user version; stray "null" on Today and the dark-mode sprite face fixed. A four-lens audit before and an adversarial review after; remaining copy fixes in docs/plain-language-backlog.md.
 - 2026-11-19 (step-by-step guide, D52): adding a person is now four short questions with a live preview, visible progress and a confirmed save; offered on the welcome screen, Add menu, People page and start card. Works in the Mac app and the web version.
 - 2026-11-18 (web version, step 1 of 5): `companion web` runs a front door with invite-only Google sign-in, one database per person, server-side sessions, CSRF and rate limits, encrypted Google sign-ins, real Delete everything and 30-day clean-up. 36 new tests and a browser check. Not deployed yet; Google sign-in tried only with a stand-in.

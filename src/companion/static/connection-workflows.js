@@ -50,15 +50,21 @@
       }
       function choose(root, onboarding) {
         const note = pick({starting:'Explore a direction, even with no contacts.',reconnect:'Find a genuine reason to start a conversation.',met:'Keep the fragments and decide what comes next.'},
-          {starting:'No contacts needed.',reconnect:'We’ll help you find the words.',met:'Write down what you remember.'});
+          {starting:'No contacts needed. Explore ideas and find one small first step.',
+           reconnect:'Get help writing a first message. Start with just a name; nothing is sent.',
+           met:'Save a few quick details now, so you remember them later.'});
         const page=h('section',{class:'page connect-simple'+(onboarding?' is-welcome':'')},
           onboarding?h('div',{class:'connect-brand'},h('span',{class:'orb is-ready'},orbSvg(36)),h('span',{text:'Link'})):null,
           h('h1',{text:pick('Where shall we begin?','What do you need help with?')}),
+          // A first visit says what Link is for, in one line, right under the question (D54).
+          onboarding?h('p',{class:'connect-lede',text:'Link remembers who you met, what you talked about, and what to say next.'}):null,
           // Each card is named by its title; the helper line is its description, so names stay short for screen readers.
           h('div',{class:'connect-cards'},['starting','reconnect','met'].map(mode=>h('button',{type:'button',class:'connect-card',onclick:()=>startPath(mode,onboarding),
             'aria-labelledby':'connect-'+mode+'-title','aria-describedby':'connect-'+mode+'-note'},
             h('span',{class:'connect-card-text'},h('strong',{id:'connect-'+mode+'-title',text:title(mode)}),h('small',{id:'connect-'+mode+'-note',text:note[mode]})),h('span',{class:'path-arrow','aria-hidden':'true',text:'→'})))),
-          onboarding?btn('Skip for now',()=>skip(),'quiet connect-skip'):null,
+          onboarding?h('div',{class:'connect-skip-row'},
+            h('button',{type:'button',class:'btn quiet connect-skip','aria-describedby':'connect-skip-note',onclick:()=>skip()},'Skip for now'),
+            h('span',{id:'connect-skip-note',class:'connect-skip-note',text:'Goes straight to Today, your home screen.'})):null,
           onboarding&&S.demo?h('p',{class:'connect-demo',text:pick('Fictional demo · mock AI · separate database','Demo with sample people')}):null);
         root.append(page);
       }
