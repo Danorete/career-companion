@@ -548,3 +548,25 @@ each thing. People who arrive confused need the reason, not only the question.
 - **Motion.** transitions.dev tokens: 150, 250, 400 and 500 ms; ease-out for things entering, ease-in-out for things
   moving. web-animation-design rules: transform and opacity only, interface changes under 300 ms, and a reduced-motion
   rule for every animation. The pointer's glide and the typing are demonstrations, so they run longer.
+
+## D56 — Opening Link after an update shows the update, and git pull can open it (2026-11-19)
+Status: built and tested (`tests/test_launcher.py`, `scripts/check_launcher_end_to_end.py`).
+
+Why: three times the builder ran `git pull` and expected the new Link, but `git pull` only downloads code, and opening
+Link handed back the copy already running, which still runs the code it started with.
+
+- **Each running copy says which code it runs.** The launcher's key-protected `/launcher/token` now returns a fingerprint
+  of Link's own files (paths, sizes and modification times of its .py, .js, .css, .html and .svg files). A pull rewrites
+  the files it changes, so the fingerprint moves. A false alarm only costs a restart.
+- **Opening Link restarts an older copy.** `companion launch` (and so `Link.app`) compares the running copy's
+  fingerprint with the code on disk. When they differ, it stops the old copy, starts the new code, and says "Restarted
+  Link with the update". A copy started before this change gives no fingerprint, so it counts as older. If the old
+  copy won't stop, it says to use Menu > Quit Link and nothing else happens.
+- **git pull can open Link.** `companion launcher --install` also writes a git `post-merge` hook in this checkout, so a
+  pull that brings changes opens Link: `Link.app` on a Mac when installed, otherwise `companion launch` with the
+  settings carried from the install. It never carries a secret.
+  - The hook is marked as Link's. A hook that someone else wrote is never replaced or removed.
+  - A shared hooks folder (`core.hooksPath`) is skipped, because a hook there would open Link after a pull in every
+    repository.
+  - `--status` reports the hook; `--uninstall` removes it with the app.
+- Not part of this: pulling updates automatically. Link never runs git by itself; the person decides when to update.

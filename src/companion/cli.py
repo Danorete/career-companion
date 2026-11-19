@@ -118,12 +118,18 @@ def _launcher(args: argparse.Namespace) -> int:
         print(f"Can't start: {exc}")
         return 2
     home = Path.home()
+    root = launcher.repo_root()
     if args.uninstall:
         print(launcher.uninstall(home))
+        said = launcher.uninstall_pull_hook(root)
     elif args.status:
         print(f"Link.app installed: {'yes' if launcher.is_installed(home) else 'no'}")
+        said = f"git pull opens Link: {'yes' if launcher.pull_hook_installed(root) else 'no'}" if root else ""
     else:
         print(launcher.install(home, settings.data_dir))
+        said = launcher.install_pull_hook(root)  # D56: git pull itself opens the new Link
+    if said:
+        print(said)
     return 0
 
 

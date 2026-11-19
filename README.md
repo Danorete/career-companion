@@ -109,8 +109,14 @@ first. **Quit Link** in the Menu (or `companion quit`) stops it. `companion laun
 and `companion launcher --uninstall` removes the app. Link stays running in the background until you quit it, listening only
 on this computer. Its log is `link.log` in your data folder. Decision D47 has the details.
 
-Not yet verified: `Link.app` has been built only with a stand-in, never on a real Mac. The launcher itself was run end to
-end against a real background server on Linux.
+**After an update** (decision D56): `git pull` downloads new code, and opening Link then starts the new code. If an older
+copy is still running, opening Link stops it and starts the new one ("Restarted Link with the update"). The same install
+command also adds a git hook in this folder, so `git pull` opens Link by itself whenever it brings changes. Run
+`companion launcher --status` to check it, and `companion launcher --uninstall` to remove it with the app. If your git
+uses a shared hooks folder (`core.hooksPath`), the hook is skipped, and you open Link after pulling.
+
+The builder installed and opened `Link.app` on a real Mac (see PROGRESS, 2026-11-17). The launcher itself, including the
+restart after an update, was run end to end against a real background server on Linux.
 
 ## Reminders outside Link (optional, Mac)
 
@@ -206,7 +212,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`392 passed` on Linux, Python 3.13, 2026-11-19. Not yet run on macOS. Coverage by acceptance criterion:
+`403 passed` on Linux, Python 3.13, 2026-11-19. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|

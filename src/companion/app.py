@@ -368,6 +368,8 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
                                                   adopt_legacy=Path(settings.data_dir).expanduser().resolve() == default_data_dir().expanduser().resolve())
     # The web version has no launcher and no Quit: one person must never be able to stop the server for everyone.
     launcher_key = None if settings.hosted else launcher.ensure_key(settings.data_dir)
+    # Which code this copy runs, so opening Link after an update can restart an older copy (D56).
+    code_version = None if settings.hosted else launcher.code_version()
     app.state.request_shutdown = lambda: None  # `companion run` replaces this with a real stop
     desktop = notifier or nudges.build_notifier()
     flows = connectors.OAuthFlows()
@@ -1059,7 +1061,7 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
         def launcher_token(request: Request) -> JSONResponse:
             if not launcher_key_ok(request):
                 return JSONResponse({"error": "launcher key required"}, status_code=401)
-            return JSONResponse({"token": security.mint_launch_token()})
+            return JSONResponse({"token": security.mint_launch_token(), "version": code_version})
 
         @app.post("/launcher/quit")
         def launcher_quit(request: Request) -> JSONResponse:

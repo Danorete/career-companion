@@ -124,8 +124,9 @@ def settings_in(tmp_path):
 def test_a_running_link_is_asked_for_a_fresh_link_and_the_browser_opens_it(tmp_path):
     (tmp_path / "launcher.key").write_text("KEY")
     asked, opened = [], []
-    code, message = launcher.launch(settings_in(tmp_path), ask=lambda base, key: asked.append((base, key)) or (200, "TOKEN"),
-                                    spawn=lambda s: pytest.fail("already running"), opener=opened.append)
+    code, message = launcher.launch(settings_in(tmp_path), ask=lambda base, key: asked.append((base, key)) or (200, "TOKEN", "V1"),
+                                    spawn=lambda s: pytest.fail("already running"), opener=opened.append, version=lambda: "V1",
+                                    stop=lambda s: pytest.fail("it runs the code on disk"))
     assert (code, asked, opened) == (0, [(f"http://127.0.0.1:{PORT}", "KEY")], [f"http://127.0.0.1:{PORT}/#t=TOKEN"]) and "Opened" in message
 
 
@@ -146,6 +147,121 @@ def test_another_program_on_the_port_is_never_started_over_or_opened(tmp_path):
     code, message = launcher.launch(settings_in(tmp_path), ask=lambda *a: (401, None), spawn=lambda s: pytest.fail("no start"),
                                     opener=lambda u: pytest.fail("no browser"))
     assert code == 1 and str(PORT) in message
+
+
+# ---- after an update, opening Link runs the new code (decision D56) -----------------------------------------
+
+def test_an_older_running_copy_is_stopped_then_the_new_code_starts_and_opens(tmp_path):
+    answers = iter([(200, "OLD", "V0"), (200, "OLD", "V0"), None, None, (200, "NEW", "V1")])
+    stopped, spawned, opened = [], [], []
+    code, message = launcher.launch(settings_in(tmp_path), ask=lambda *a: next(answers), stop=stopped.append, spawn=spawned.append,
+                                    opener=opened.append, sleep=lambda s: None, version=lambda: "V1")
+    assert code == 0 and len(stopped) == 1 and len(spawned) == 1 and opened == [f"http://127.0.0.1:{PORT}/#t=NEW"]
+    assert message == "Restarted Link with the update and opened it in your browser."
+
+
+def test_a_copy_started_before_this_change_says_no_version_and_counts_as_older(tmp_path):
+    answers = iter([(200, "OLD"), None, (200, "NEW", "V1")])
+    stopped, opened = [], []
+    code, _ = launcher.launch(settings_in(tmp_path), ask=lambda *a: next(answers), stop=stopped.append, spawn=lambda s: None,
+                              opener=opened.append, sleep=lambda s: None, version=lambda: "V1")
+    assert code == 0 and stopped and opened == [f"http://127.0.0.1:{PORT}/#t=NEW"]
+
+
+def test_an_older_copy_that_will_not_stop_is_explained_and_nothing_else_happens(tmp_path):
+    ticks = iter(range(0, 1000, 5))
+    code, message = launcher.launch(settings_in(tmp_path), ask=lambda *a: (200, "OLD", "V0"), stop=lambda s: None,
+                                    spawn=lambda s: pytest.fail("the port is still taken"), opener=lambda u: pytest.fail("no browser"),
+                                    sleep=lambda s: None, clock=lambda: next(ticks), version=lambda: "V1")
+    assert code == 1 and "Quit Link" in message
+
+
+def test_the_running_copy_reports_the_code_it_runs(tmp_path):
+    app, c = make(tmp_path)
+    key = (tmp_path / "d" / "launcher.key").read_text()
+    body = c.get("/launcher/token", headers={KEY_HEADER: key}).json()
+    assert body["token"] and body["version"] == launcher.code_version()
+
+
+def test_the_code_fingerprint_moves_when_a_code_file_changes_and_ignores_the_rest(tmp_path):
+    (tmp_path / "app.py").write_text("one")
+    (tmp_path / "static").mkdir(); (tmp_path / "static" / "page.js").write_text("x")
+    before = launcher.code_version(tmp_path)
+    assert launcher.code_version(tmp_path) == before  # stable while nothing changes
+    (tmp_path / "__pycache__").mkdir(); (tmp_path / "__pycache__" / "app.cpython-313.pyc").write_text("cache")
+    (tmp_path / "notes.txt").write_text("not code")
+    assert launcher.code_version(tmp_path) == before
+    (tmp_path / "static" / "page.js").write_text("xy")  # what a pull does to a file it changes
+    assert launcher.code_version(tmp_path) != before
+
+
+def hooks_in(folder):
+    """A stand-in for `git rev-parse --git-path hooks`."""
+    return lambda cmd, **kw: SimpleNamespace(returncode=0, stdout=str(folder) + "\n")
+
+
+def test_installing_adds_a_pull_hook_that_opens_link_with_the_same_settings(tmp_path):
+    hooks = tmp_path / ".git" / "hooks"
+    env = {"COMPANION_GOOGLE_CLIENT_FILE": "/Users/me/link-private/g.json", "COMPANION_GOOGLE_CLIENT_SECRET": "TOP-SECRET"}
+    said = launcher.install_pull_hook(tmp_path, python="/venv/bin/python", env=env, runner=hooks_in(hooks))
+    hook = hooks / "post-merge"
+    text = hook.read_text()
+    assert "git pull opens Link" in said and launcher.HOOK_MARK in text and text.startswith("#!/bin/sh")
+    assert stat.S_IMODE(hook.stat().st_mode) == 0o755
+    assert 'open "$HOME/Applications/Link.app"' in text and "/venv/bin/python -m companion.cli launch" in text
+    assert "g.json" in text and "TOP-SECRET" not in text
+    import subprocess
+    assert subprocess.run(["sh", "-n", str(hook)]).returncode == 0  # valid shell
+    assert launcher.pull_hook_installed(tmp_path, runner=hooks_in(hooks))
+    assert launcher.install_pull_hook(tmp_path, python="/p", env={}, runner=hooks_in(hooks))  # ours is simply replaced
+    assert launcher.uninstall_pull_hook(tmp_path, runner=hooks_in(hooks)) == "git pull no longer opens Link." and not hook.exists()
+
+
+def test_someone_elses_pull_hook_is_never_replaced_or_removed(tmp_path):
+    hooks = tmp_path / "hooks"; hooks.mkdir()
+    (hooks / "post-merge").write_text("#!/bin/sh\necho mine\n")
+    said = launcher.install_pull_hook(tmp_path, python="/p", env={}, runner=hooks_in(hooks))
+    assert "left alone" in said and (hooks / "post-merge").read_text() == "#!/bin/sh\necho mine\n"
+    assert launcher.uninstall_pull_hook(tmp_path, runner=hooks_in(hooks)) == "" and (hooks / "post-merge").exists()
+    assert not launcher.pull_hook_installed(tmp_path, runner=hooks_in(hooks))
+
+
+def test_a_shared_hooks_folder_outside_the_checkout_is_never_used(tmp_path):
+    shared = tmp_path / "all-my-hooks"
+    said = launcher.install_pull_hook(tmp_path / "checkout", python="/p", env={}, runner=hooks_in(shared))
+    assert "core.hooksPath" in said and not (shared / "post-merge").exists()
+
+
+@pytest.mark.skipif(__import__("shutil").which("git") is None, reason="needs git")
+def test_a_real_git_pull_runs_the_hook(tmp_path):
+    import subprocess
+    env = {**os.environ, "HOME": str(tmp_path), "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
+           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com"}
+    git = lambda *args, cwd=tmp_path: subprocess.run(["git", "-c", "init.defaultBranch=main", *args], cwd=cwd, env=env, check=True,
+                                                    capture_output=True, text=True)
+    git("init", "--bare", "origin.git")
+    git("clone", "origin.git", "theirs"); (tmp_path / "theirs" / "a.txt").write_text("1")
+    git("add", "a.txt", cwd=tmp_path / "theirs"); git("commit", "-m", "one", cwd=tmp_path / "theirs"); git("push", "origin", "HEAD", cwd=tmp_path / "theirs")
+    git("clone", "origin.git", "mine")
+    marker = tmp_path / "launched"
+    fake = tmp_path / "fake-python"  # stands in for the venv's python: records that the hook ran `companion launch`
+    fake.write_text(f'#!/bin/sh\necho "$@" > "{marker}"\n'); fake.chmod(0o755)
+    launcher.install_pull_hook(tmp_path / "mine", python=str(fake), env={},
+                               runner=lambda cmd, **kw: subprocess.run(cmd, env=env, **kw))
+    (tmp_path / "theirs" / "a.txt").write_text("2")
+    git("commit", "-am", "two", cwd=tmp_path / "theirs"); git("push", "origin", "HEAD", cwd=tmp_path / "theirs")
+    out = git("pull", cwd=tmp_path / "mine")
+    assert "Opening Link with the new code" in out.stdout + out.stderr
+    assert marker.read_text().strip() == "-m companion.cli launch"
+
+
+def test_an_installed_package_without_git_gets_no_hook(tmp_path):
+    assert launcher.install_pull_hook(None) == "" and launcher.uninstall_pull_hook(None) == "" and not launcher.pull_hook_installed(None)
+
+
+def test_a_relative_hooks_folder_is_inside_the_checkout(tmp_path):
+    rel = lambda cmd, **kw: SimpleNamespace(returncode=0, stdout=".git/hooks\n")
+    assert launcher.hook_path(tmp_path, runner=rel) == tmp_path / ".git" / "hooks" / "post-merge"
 
 
 def test_background_start_is_detached_and_writes_to_a_log_not_the_screen(tmp_path, monkeypatch):
@@ -188,6 +304,7 @@ def test_a_background_start_prints_no_link_and_closes_the_first_one(tmp_path, mo
 
 def test_the_launch_quit_and_launcher_commands(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("COMPANION_DATA_DIR", str(tmp_path)); monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(launcher, "repo_root", lambda: None)  # never touch this checkout's real hooks
     monkeypatch.setattr(launcher, "launch", lambda settings: (0, "Opened Link in your browser."))
     monkeypatch.setattr(launcher, "quit_running", lambda settings: (0, "Link has stopped."))
     assert main(["launch"]) == 0 and main(["quit"]) == 0
@@ -198,10 +315,13 @@ def test_the_launch_quit_and_launcher_commands(tmp_path, monkeypatch, capsys):
 
 def test_launcher_accepts_install_like_the_nudge_command(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("COMPANION_DATA_DIR", str(tmp_path)); monkeypatch.setenv("HOME", str(tmp_path))
-    calls = []
+    calls, hooked = [], []
     monkeypatch.setattr(launcher, "install", lambda home, data_dir: calls.append(home) or "Installed Link.app.")
+    monkeypatch.setattr(launcher, "repo_root", lambda: tmp_path)
+    monkeypatch.setattr(launcher, "install_pull_hook", lambda root: hooked.append(root) or "From now on, git pull opens Link.")
     assert main(["launcher", "--install"]) == 0 and main(["launcher"]) == 0
-    assert len(calls) == 2 and capsys.readouterr().out.count("Installed Link.app.") == 2
+    out = capsys.readouterr().out
+    assert len(calls) == 2 and out.count("Installed Link.app.") == 2 and hooked == [tmp_path, tmp_path] and "git pull opens Link" in out
     with pytest.raises(SystemExit):
         main(["launcher", "--install", "--uninstall"])
 
