@@ -146,7 +146,7 @@
               btn('Explore ideas with Link', () => enter(() => workflows.open({ mode: 'starting' })), 'quiet start-inline')),
             h('p', { class: 'start-path-more' }, 'Already added someone? Check ',
               btn('People', () => enter(() => go('people')), 'quiet start-inline'), ' or ',
-              btn('Today', () => enter(() => go('today')), 'quiet start-inline'), '.')]),
+              btn('Today', () => enter(() => go('today')), 'quiet start-inline'))]),
           card('see', 'I want to see the whole thing first.',
             'Watch Link walk through every step with a practice person: groundwork, people and notes, then reaching out. Nothing is saved.',
             [btn('Start the walkthrough', startTour, 'primary')]));

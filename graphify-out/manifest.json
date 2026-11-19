@@ -528,9 +528,9 @@
     "semantic_hash": ""
   },
   "scripts/check_companion_browser.py": {
-    "mtime": 1795119125.9694555,
-    "seen": 1795119777.4742472,
-    "ast_hash": "ce23093375a9ca48ccca4d628ac9d876",
+    "mtime": 1795120009.8387249,
+    "seen": 1795120242.7888224,
+    "ast_hash": "e75551bd6bc4b9b3d46b1fe1209e807d",
     "semantic_hash": ""
   },
   "scripts/check_guide_browser.py": {
@@ -576,9 +576,9 @@
     "semantic_hash": ""
   },
   "src/companion/static/link-start.js": {
-    "mtime": 1795118695.679587,
-    "seen": 1795119777.4743395,
-    "ast_hash": "69a6ec98b86312c5e49f45776a04d029",
+    "mtime": 1795120207.2515144,
+    "seen": 1795120242.788904,
+    "ast_hash": "30f8660e2b9e506122f7e304a74a3ea1",
     "semantic_hash": ""
   },
   "src/companion/static/link-walkthrough.js": {

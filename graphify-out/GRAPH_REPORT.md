@@ -1,17 +1,17 @@
 # Graph Report - career-companion  (2026-11-19)
 
 ## Corpus Check
-- 97 files · ~123,735 words
+- 97 files · ~123,744 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 7 file(s) not represented in the graph (top: (none) 2, .woff2 2, .css 2)
 
 ## Summary
 - 1835 nodes · 4864 edges · 100 communities (69 shown, 31 thin omitted)
-- Extraction: 87% EXTRACTED · 13% INFERRED · 0% AMBIGUOUS · INFERRED: 633 edges (avg confidence: 0.78)
+- Extraction: 87% EXTRACTED · 13% INFERRED · 0% AMBIGUOUS · INFERRED: 636 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c5d3e2fe`
+- Built from commit: `f2f0ba3e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -111,7 +111,7 @@
 7. `api()` - 40 edges
 8. `MockAI` - 40 edges
 9. `render()` - 38 edges
-10. `now()` - 34 edges
+10. `act()` - 34 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `D43 — Calendar connect, first slice (2026-11-17)` --references--> `KeyringSecrets`  [INFERRED]
@@ -120,10 +120,10 @@
   PROGRESS.md → src/companion/services.py
 - `Decisions` --references--> `fx()`  [INFERRED]
   DECISIONS.md → src/companion/static/app.js
-- `app()` --calls--> `create_app()`  [INFERRED]
-  tests/conftest.py → src/companion/app.py
-- `test_old_transcripts_are_purged_on_start()` --calls--> `create_app()`  [INFERRED]
-  tests/test_workflows.py → src/companion/app.py
+- `settings()` --calls--> `Settings`  [INFERRED]
+  tests/conftest.py → src/companion/config.py
+- `test_user_version_is_the_default()` --uses--> `Settings`  [INFERRED]
+  tests/test_ui_mode.py → src/companion/config.py
 
 ## Import Cycles
 - None detected.
@@ -415,15 +415,15 @@ Nodes (4): Hide in the user version (18), Plain-language backlog (from the D53 a
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `create_app()` connect `create_app` to `Budget`, `network_imports.py`, `Database`, `test_workflows.py`, `test_validate_and_ranking.py`, `test_launcher.py`, `store.py`, `coaching.py`, `config.py`, `services.py`, `cli.py`, `test_nudges.py`, `Secrets`, `Security`, `encounters.py`, `test_mail.py`, `Settings`, `test_calendar_connect.py`, `web.py`, `test_ai_gateway.py`, `nudges.py`, `cli.py`, `_nudge`, `security.py`, `Database`, `config.py`, `.q`, `launcher.py`, `check_guide_browser.py`, `check_walkthrough_browser.py`, `check_companion_browser.py`, `Pool`, `OAuthFlows`, `journey`, `follow_up_candidates`?**
-  _High betweenness centrality (0.219) - this node is a cross-community bridge._
-- **Are the 13 inferred relationships involving `create_app()` (e.g. with `cancel_sign_ins()` and `Settings`) actually correct?**
-  _`create_app()` has 13 INFERRED edges - model-reasoned connections that need verification._
+  _High betweenness centrality (0.198) - this node is a cross-community bridge._
+- **Are the 15 inferred relationships involving `create_app()` (e.g. with `first_visit()` and `phone_and_people()`) actually correct?**
+  _`create_app()` has 15 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `career-companion`, `npx` to the rest of the system?**
   _2 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Budget` be split into smaller, more focused modules?**
   _Cohesion score 0.08773784355179703 - nodes in this community are weakly interconnected._
 - **Why does `Career Companion: decision record` connect `cli.py` to `Database`?**
-  _High betweenness centrality (0.126) - this node is a cross-community bridge._
+  _High betweenness centrality (0.147) - this node is a cross-community bridge._
 - **Are the 110 inferred relationships involving `Database` (e.g. with `AIClient` and `AIRequest`) actually correct?**
   _`Database` has 110 INFERRED edges - model-reasoned connections that need verification._
 - **Should `test_web.py` be split into smaller, more focused modules?**
