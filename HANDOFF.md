@@ -39,7 +39,7 @@ To try an empty, persistent workspace without opening your real records:
 COMPANION_DATA_DIR="$HOME/Library/Application Support/LinkStudioPreview" COMPANION_AI_MODE=mock .venv/bin/companion run
 ```
 
-Back up or export your data before upgrading. The database is at schema version 5; upgrades are
+Back up or export your data before upgrading. The database is at schema version 7; upgrades are
 additive and don't delete records. Demo mode removes its temporary folder on a normal shutdown; a
 forced kill can leave it behind in the system temporary folder.
 
@@ -60,7 +60,7 @@ In the order it was built (details in `PROGRESS.md`, reasons in `DECISIONS.md` D
 
 ## Checks and what is still unverified
 
-199 Python tests pass on Linux, Python 3.12 (2026-11-13). The browser checks in `scripts/` are
+403 Python tests pass on Linux, Python 3.13 (2026-11-19). The browser checks in `scripts/` are
 described at the end of `README.md`; history of each run is in `VALIDATION.md`.
 
 Never tested: a real call to the AI provider, provider billing against the app's own ledger, macOS,

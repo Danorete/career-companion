@@ -22,7 +22,7 @@ parser=argparse.ArgumentParser()
 parser.add_argument('--output',type=Path,default=Path('/tmp/link-studio-check'))
 args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
-    settings=Settings(data_dir=Path(folder),port=8883,ai_mode='mock')
+    settings=Settings(data_dir=Path(folder),port=8883,ai_mode='mock',ui_mode='dev')
     app=create_app(settings,MockAI());db=app.state.db
     load_demo(db,local_today(settings))
     db.run("INSERT OR REPLACE INTO kv(key,value) VALUES('onboarding_step','2')")
@@ -81,8 +81,10 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             db.run("UPDATE kv SET value='0' WHERE key='onboarding_step'")
             page.goto('http://127.0.0.1:8883/#today')
             page.reload()
-            page.get_by_role('heading',name='Good people. Real possibilities.',exact=True).wait_for()
-            page.get_by_role('button',name='Import my connections',exact=True).click()
+            page.get_by_role('heading',name='Where shall we begin?',exact=True).wait_for()  # one column, one question (D53)
+            # Imports moved off the welcome screen: skip it, then use Import (D53).
+            page.get_by_role('button',name='Skip for now',exact=True).click()
+            page.get_by_role('link',name='Import',exact=True).first.click()
             page.get_by_label('Choose Connections.csv',exact=True).wait_for()
             assert page.get_by_role('link',name='Import',exact=True).first.is_visible()
             # A genuinely empty workspace offers one substantive start, not another import gallery.

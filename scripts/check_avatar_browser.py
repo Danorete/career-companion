@@ -22,7 +22,7 @@ parser=argparse.ArgumentParser()
 parser.add_argument('--output',type=Path,default=Path('/tmp/link-studio-check'))
 args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
-    settings=Settings(data_dir=Path(folder),port=8879,ai_mode='mock')
+    settings=Settings(data_dir=Path(folder),port=8879,ai_mode='mock',ui_mode='dev')
     app=create_app(settings,MockAI());db=app.state.db
     load_demo(db,local_today(settings))
     db.run("INSERT OR REPLACE INTO kv(key,value) VALUES('onboarding_step','2')")
@@ -47,6 +47,9 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             page.get_by_role('button',name='Meet Link: guided walkthrough').click()
             page.get_by_role('heading',name='A colleague, one click away.').wait_for()
             page.get_by_role('button',name='Open Link, your companion',exact=True).click()
+            page.wait_for_timeout(1200)  # the tour waits while the chat is open (D53 review)…
+            assert page.locator('#dock').get_attribute('aria-hidden') == 'false'
+            page.keyboard.press('Escape')  # …and moves on when the person closes it
             page.get_by_role('heading',name='Start with a person.').wait_for()
             page.get_by_role('link',name='People',exact=True).first.click()
             page.get_by_role('heading',name='Context grows over time.').wait_for()

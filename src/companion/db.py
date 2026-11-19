@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 8
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -118,6 +118,25 @@ CREATE TABLE IF NOT EXISTS connection_plans (
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 
 -- Metadata only. Never private content.
+-- People found in a connected calendar (decision D39). One row per event and attendee. Nothing here is a
+-- person until the user keeps it, and an invitation never counts as a conversation.
+CREATE TABLE IF NOT EXISTS encounter_candidates (
+    id INTEGER PRIMARY KEY, source TEXT NOT NULL, event_id TEXT NOT NULL, address TEXT NOT NULL,
+    name TEXT NOT NULL, name_guessed INTEGER NOT NULL DEFAULT 0, title TEXT NOT NULL DEFAULT '',
+    starts_at TEXT NOT NULL, ends_at TEXT NOT NULL DEFAULT '', reason TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'pending', item_id INTEGER REFERENCES items(id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL, decided_at TEXT,
+    checkin_state TEXT NOT NULL DEFAULT 'open', checkin_at TEXT,
+    interaction_id INTEGER REFERENCES interactions(id) ON DELETE SET NULL,
+    UNIQUE(source, event_id, address));
+
+-- People you exchange email with (decision D48): addresses, names, counts and the latest date. No subject, no body.
+CREATE TABLE IF NOT EXISTS email_contacts (
+    id INTEGER PRIMARY KEY, address TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '',
+    sent INTEGER NOT NULL DEFAULT 0, received INTEGER NOT NULL DEFAULT 0, last_at TEXT NOT NULL,
+    last_direction TEXT NOT NULL, state TEXT NOT NULL DEFAULT 'pending',
+    item_id INTEGER REFERENCES items(id) ON DELETE SET NULL, decided_at TEXT, updated_at TEXT NOT NULL);
+
 CREATE TABLE IF NOT EXISTS activity (
     id INTEGER PRIMARY KEY, ts TEXT NOT NULL, event TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '');
 """
@@ -125,6 +144,7 @@ CREATE TABLE IF NOT EXISTS activity (
 USER_TABLES = (
     "kv", "memory", "evidence", "items", "actions", "drafts", "outcomes", "reminders",
     "ideas", "imports", "proposals", "sessions", "messages", "ledger", "activity", "draft_versions", "interactions", "connection_plans",
+    "encounter_candidates", "email_contacts",
 )
 
 
@@ -156,6 +176,12 @@ class Database:
         # Additive migrations for databases created by earlier versions. Existing rows are untouched.
         if "item_id" not in {r["name"] for r in self.conn.execute("PRAGMA table_info(imports)")}:
             self.conn.execute("ALTER TABLE imports ADD COLUMN item_id INTEGER REFERENCES items(id) ON DELETE SET NULL")
+        # Version 7: the post-event check-in (D44). Databases made at version 6 gain the columns; rows are untouched.
+        have = {r["name"] for r in self.conn.execute("PRAGMA table_info(encounter_candidates)")}
+        for column, ddl in (("checkin_state", "TEXT NOT NULL DEFAULT 'open'"), ("checkin_at", "TEXT"),
+                            ("interaction_id", "INTEGER REFERENCES interactions(id) ON DELETE SET NULL")):
+            if column not in have:
+                self.conn.execute(f"ALTER TABLE encounter_candidates ADD COLUMN {column} {ddl}")
         self.conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         try:
             os.chmod(self.path, 0o600)

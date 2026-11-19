@@ -422,13 +422,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   .dock, .dock-pill { background: #f6f9ffd9; backdrop-filter: blur(24px) saturate(130%); }
   .toast { backdrop-filter: blur(20px); }
 }
-@media (min-width: 1001px) and (max-width: 1350px) {
-  body:not(.dock-closed) .writing-spread { grid-template-columns: minmax(0, 1fr); }
-  body:not(.dock-closed) .hero { grid-template-columns: minmax(0, 1fr); }
-  body:not(.dock-closed) .hero-time { grid-column: 1; grid-row: 2; max-width: 250px; }
-  body:not(.dock-closed) .evidence-library { grid-template-columns: minmax(0, 1fr); }
-  body:not(.dock-closed) .workspace-overview { grid-template-columns: minmax(0, 1fr); }
-}
+/* (D53) The chat no longer takes width, so pages no longer reflow when it opens. */
 @media (max-width: 1000px) {
   .shell { padding: 0; }
   .side { padding: 8px; gap: 4px; border-bottom: 1px solid #dce3ef; background: #f4f6fce8; }
@@ -644,7 +638,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   .dock > * { min-width:260px; }
 }
 @media(max-width:1000px) { .writing-spread { grid-template-columns:minmax(0,1fr); } .inspector-divider { display:none; } }
-@media(min-width:1001px) and (max-width:1350px) { body:not(.dock-closed) .inspector-divider { display:none; } }
 .sheet { container-type:inline-size; }
 @container(max-width:730px) {
   .writing-spread { grid-template-columns:minmax(0,1fr); }

@@ -141,3 +141,17 @@ def test_delete_needs_origin_and_csrf_too(app, client):
         c.cookies.set(COOKIE_NAME, sid)
         assert c.delete(f"/api/memory/{mid}").status_code == 403
     assert client.delete(f"/api/memory/{mid}").json()["deleted"]
+
+
+def test_the_database_layer_refuses_unknown_tables_and_odd_column_names(tmp_path):
+    import pytest as _pytest
+    from companion import store
+    from companion.db import Database
+    db = Database(tmp_path / "x.sqlite3")
+    for bad in ("items; DROP TABLE items", "sqlite_master", "Items"):
+        with _pytest.raises(ValueError):
+            store.rows(db, bad)
+    with _pytest.raises(ValueError):
+        store.insert(db, "memory", **{"kind) VALUES('x');--": "goal", "text": "t"})
+    assert db.one("SELECT COUNT(*) AS n FROM memory")["n"] == 0
+    db.close()

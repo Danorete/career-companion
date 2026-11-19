@@ -20,6 +20,7 @@
   applyTheme();
   const draftWorkspaces = new Map();
   window.addEventListener("beforeunload", event => {
+    if (leaving) return;  // the walkthrough reloading the page on purpose (D55)
     if ([...draftWorkspaces.values()].some(w => w.dirty || w.saving)) { event.preventDefault(); event.returnValue = ""; }
   });
   const S = {
@@ -31,6 +32,23 @@
   };
   const NAV = [["today", "Today", "today"], ["people", "People", "me"], ["quicklog", "Quick log", "docplus"], ["sources", "Import", "pasted"]];
   const NAV_MINOR = [["roles", "Roles", "people"], ["evidence", "Evidence", "evidence"], ["drafts", "Drafts", "drafts"], ["me", "About me", "me"], ["pasted", "Pasted material", "pasted"], ["settings", "Settings & data", "settings"]];
+  // Two versions of one app. "dev" keeps the builder's controls and original wording. "user" (the default)
+  // hides spending and AI-mode controls and uses plain words. Set with COMPANION_UI_MODE or `companion run --mode`.
+  const DEV_LABELS = Object.fromEntries(NAV.concat(NAV_MINOR).map(([id, label]) => [id, label]));
+  const USER_LABELS = { quicklog: "Add a note", sources: "Add contacts", roles: "Jobs I’m looking at", evidence: "What I’ve done",
+                        drafts: "My messages", pasted: "Things I pasted", settings: "Settings" };
+  S.mode = "user";
+  const isDev = () => S.mode === "dev";
+  const pick = (dev, user) => (isDev() ? dev : user);
+  // The web version (D50) keeps data on Link's server, so nothing may say "on this Mac" there.
+  const web = () => !!S.hosted;
+  const here = (mac, onWeb) => (web() ? onWeb : mac);
+  function applyMode(mode) {
+    S.mode = mode === "dev" ? "dev" : "user";
+    document.body.dataset.mode = S.mode;
+    NAV.concat(NAV_MINOR).forEach((n) => { n[1] = (isDev() ? DEV_LABELS : { ...DEV_LABELS, ...USER_LABELS })[n[0]]; });
+  }
+  const label = (id) => (NAV.concat(NAV_MINOR).find((n) => n[0] === id) || [id, id])[1];
   const PURPOSES = [["outreach", "First message"], ["follow_up", "Follow-up"], ["profile", "Profile text"],
                     ["application", "Résumé or application text"], ["post", "Post"], ["interview_prep", "Interview answer"]];
   const KIND_TO_PURPOSE = { outreach: "outreach", follow_up: "follow_up", profile_edit: "profile",
@@ -77,7 +95,7 @@
     settings: ["M4 7h10M18 7h2M4 17h2M10 17h10", "M16 5a2 2 0 1 0 0 4a2 2 0 0 0 0-4z", "M8 15a2 2 0 1 0 0 4a2 2 0 0 0 0-4z"],
     chev: ["M9 6l6 6-6 6"], down: ["M6 9l6 6 6-6"], plus: ["M12 5v14M5 12h14"],
     check: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M8 12.5l2.8 2.8L16 9.5"], todo: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z"],
-    collapse: ["M13 6l6 6-6 6M5 6l6 6-6 6"], send: ["M12 19V5M6 11l6-6 6 6"], bookmark: ["M7 3h10v18l-5-4-5 4z"],
+    collapse: ["M13 6l6 6-6 6M5 6l6 6-6 6"], close: ["M6 6l12 12M18 6L6 18"], send: ["M12 19V5M6 11l6-6 6 6"], bookmark: ["M7 3h10v18l-5-4-5 4z"],
     warn: ["M12 3l10 17H2z", "M12 10v4M12 17v.5"], info: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M12 8v5M12 16v.5"],
     help: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17v.5"],
     docplus: ["M6 3h9l4 4v14H6z", "M12 11v6M9 14h6"], clip: ["M7 4h10a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M9 4V3h6v1M9 10h6M9 14h4"],
@@ -91,10 +109,10 @@
   function playIcon() { return sv("svg", { width: 16, height: 16, viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": "true" }, sv("path", { d: "M7 4l13 8-13 8z" })); }
   function orbSvg(size) {
     return sv("svg", {width:size,height:size,viewBox:"0 0 64 64","aria-hidden":"true",class:"link-avatar"},
-      sv("rect",{x:5,y:5,width:54,height:54,rx:22,fill:"var(--accent)"}),
-      sv("path",{d:"M16 30v-3a11 11 0 0 1 22 0v10a7 7 0 0 1-14 0v-8 M48 34v3a11 11 0 0 1-22 0V27a7 7 0 0 1 14 0v8",fill:"none",stroke:"#e7efcf","stroke-width":4,"stroke-linecap":"round"}),
+      sv("rect",{class:"avatar-face",x:5,y:5,width:54,height:54,rx:22,fill:"var(--accent)"}),
+      sv("path",{class:"avatar-lines",d:"M16 30v-3a11 11 0 0 1 22 0v10a7 7 0 0 1-14 0v-8 M48 34v3a11 11 0 0 1-22 0V27a7 7 0 0 1 14 0v8",fill:"none",stroke:"#e7efcf","stroke-width":4,"stroke-linecap":"round"}),
       sv("g",{class:"avatar-eyes",fill:"#fff9e8"},sv("circle",{cx:25,cy:29,r:2}),sv("circle",{cx:39,cy:29,r:2})),
-      sv("path",{d:"M28 43q4 3 8 0",fill:"none",stroke:"#fff9e8","stroke-width":2,"stroke-linecap":"round"}));
+      sv("path",{class:"avatar-lines",d:"M28 43q4 3 8 0",fill:"none",stroke:"#fff9e8","stroke-width":2,"stroke-linecap":"round"}));
   }
 
   function connectionMotif() {
@@ -137,7 +155,13 @@
     return h("header", { class: "page-head" }, h("h2", { text: title }), lead ? h("p", { class: "lead", text: lead }) : null, extra);
   }
 
+  // While the walkthrough runs (D55), every request goes to its sandbox first: reads of practice data are answered
+  // there, and nothing but a read ever reaches the server. Outside the tour, requests go straight to send().
   async function api(method, path, body) {
+    if (S.tour) return S.tour.request(method, path, body, send);
+    return send(method, path, body);
+  }
+  async function send(method, path, body) {
     const opts = { method, headers: {} };
     if (method !== "GET") {
       opts.headers["X-CSRF-Token"] = S.csrf;
@@ -150,7 +174,10 @@
       let msg = data && data.error;
       if (!msg && data && data.detail) msg = typeof data.detail === "string" ? data.detail : "Please check the form: " +
         data.detail.map((d) => (d.loc || []).slice(-1)[0] + " " + d.msg).join("; ");
-      if (resp.status === 401) msg = "This browser session ended. Stop the app and start it again for a new link.";
+      if (resp.status === 401) {
+        msg = S.hosted ? "Your session ended. Taking you to sign in again." : "This browser session ended. Stop the app and start it again for a new link.";
+        if (S.hosted) setTimeout(() => window.location.replace("/"), 1500);
+      }
       const err = new Error(msg || "Request failed (" + resp.status + ")");
       err.status = resp.status;
       throw err;
@@ -211,8 +238,10 @@
     });
     const open = async () => {
       if (dialog.open) { close(); return; }
+      if (window.LinkCompanion && window.LinkCompanion.isOpen()) window.LinkCompanion.close();  // one modal at a time
       trigger = document.activeElement; dialog.showModal(); input.value = ""; input.focus();
       records = NAV.concat(NAV_MINOR).map(([tab,label]) => ({label: "Open " + label, kind: "Section", run: () => go(tab)}));
+      if (!isDev()) records.push({label: "How Link works", kind: "Help", run: () => go("start")}, {label: "Take the tour", kind: "Help", run: takeTour});
       records.push({label: "New draft", kind: "Create", run: () => { S.draft.current = null; S.draft.action_id = null; draftWorkspaces.delete("new:unlinked"); go("drafts"); }},
         {label: "Add evidence", kind: "Create", run: () => { S.evidenceForm = true; go("evidence"); }});
       show();
@@ -232,7 +261,10 @@
   // ---- status, sidebar, session timer ---------------------------------------------------
   async function refreshStatus() {
     const b = await api("GET", "/api/bootstrap");
-    Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup });
+    Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup, journey: b.journey, calendar: b.calendar, hosted: !!b.hosted });
+    document.body.dataset.hosted = S.hosted ? "1" : "";
+    applyMode(b.ui_mode);
+    if (!S.contextItem) $("chat-input").placeholder = chatPlaceholder();
     renderSide(); syncCompanion();
   }
   async function loadToday() {
@@ -257,16 +289,61 @@
         btn("End", endSession, "quiet"));
     }
     fill($("side-main"),
-      h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}), h("small", {text: "Your connection studio"}))),
-      h("div", {class: "nav-caption", text: "Workspace"}), h("div",{class:"primary-nav"},NAV.map((n) => link(n,false))), h("div", { class: "side-spacer" }), disc("career-tools", "Career tools", "Optional", NAV_MINOR.filter(n=>n[0]!=="settings"&&n[0]!=="me").map(n=>link(n,true))), link(["me","About me","me"],true), link(["settings","Settings & data","settings"],true), session);
+      h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}), h("small", {text: pick("Your connection studio", "Remember people. Follow up.")}))),
+      h("div", {class: "nav-caption", text: "Workspace"}), h("div",{class:"primary-nav"},NAV.map((n) => link(n,false))), h("div", { class: "side-spacer" }), disc("career-tools", pick("Career tools", "More tools"), "Optional", NAV_MINOR.filter(n=>n[0]!=="settings"&&n[0]!=="me").map(n=>link(n,true))), link(["me","About me","me"],true), link(["settings",pick("Settings & data","Settings"),"settings"],true), session);
     renderMobileTabs();
     updateSetupCard();
+    if (!isDev()) {
+      // User version: two places to look. Today and People, then Add and Menu. No spending meter or provider detail.
+      const paused = b.level === "hard_stop";
+      const note = paused ? "AI is paused until next month. Everything else still works."
+        : !S.ai.available ? "AI is off. Everything else still works."
+        : S.ai.mode === "mock" ? "Link’s AI isn’t switched on in this version, so answers are samples." : "";
+      fill($("side-main"),
+        h("div", { class: "brand" }, h("img", {src: "/static/link-mark.svg", width: 38, height: 38, alt: ""}), h("span", {}, h("strong", {text: "Link"}))),
+        h("div", { class: "primary-nav" }, NAV.filter((n) => n[0] === "today" || n[0] === "people").map((n) => link(n, false))),
+        h("div", { class: "side-spacer" }), topMenus(note), session);
+      fill($("side-status"));
+      return;
+    }
     fill($("side-status"),
       h("a", { class: "side-status", href: "#settings", title: S.ai.reason || "" },
         h("span", { class: "mode" }, h("span", { class: "dot " + mode[1] }), mode[0]),
-        h("span", { class: "detail muted", text: !S.ai.available ? "Everything else still works." : S.ai.mode === "mock" ? "Canned replies. Nothing leaves this Mac." : "Text you send goes to the AI provider." }),
+        h("span", { class: "detail muted", text: !S.ai.available ? "Everything else still works." : S.ai.mode === "mock" ? here("Canned replies. Nothing leaves this Mac.", "Canned replies. Nothing is sent to an AI company.") : "Text you send goes to the AI provider." }),
         h("span", { class: "detail split" }, h("span", { text: "AI budget" }), h("span", { text: money(b.committed_usd || 0) + " / $" + Math.round(b.hard_stop_usd || 16) })),
         (function () { const m = h("span", { class: "detail meter " + level }, h("span", {})); m.firstChild.style.width = Math.min(100, 100 * (b.committed_usd || 0) / (b.hard_stop_usd || 16)) + "%"; return m; })()));
+  }
+  // The two menus of the user version. Native <details>, closed by a click elsewhere, a choice or Escape.
+  function closeMenus(restoreFocus = false) {
+    document.querySelectorAll(".menu[open]").forEach((m) => { m.removeAttribute("open"); if (restoreFocus) m.querySelector("summary").focus(); });
+  }
+  document.addEventListener("click", (event) => { if (!event.target.closest(".menu")) closeMenus(); });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape" && document.querySelector(".menu[open]")) closeMenus(true); });
+  // Stops Link (decision D47). The page is replaced so nothing looks alive after the server is gone.
+  async function signOut() {
+    if (!(await act(() => api("POST", "/api/signout", {})))) return;
+    window.location.replace("/");
+  }
+  async function quitLink() {
+    if (!(await act(() => api("POST", "/api/quit", {})))) return;
+    document.body.replaceChildren(h("main", { class: "stopped" }, h("h1", { text: "Link has stopped." }),
+      h("p", { text: "You can close this tab. To open Link again, open Link from Spotlight (Cmd+Space), or run companion launch in Terminal." })));
+  }
+  function topMenus(aiNote) {
+    const go2 = (fn) => () => { closeMenus(); fn(); };
+    const page = (id) => h("a", { class: "menu-item", href: "#" + id, onclick: () => closeMenus(), text: label(id) });
+    const cal = S.calendar || {};
+    const add = h("details", { class: "menu menu-add", id: "add-menu" }, h("summary", {}, icon("docplus", 16), "Add"),
+      h("div", { class: "menu-panel" }, h("a", { class: "menu-item", href: "#add", onclick: () => closeMenus(), text: "Add a person" }), page("quicklog"), page("sources"),
+        cal.available ? h("button", { type: "button", class: "menu-item", onclick: go2(() => sources.open("calendar")), text: cal.connected ? "Your calendar" : "Connect your calendar" }) : null));
+    const more = h("details", { class: "menu", id: "more-menu" }, h("summary", {}, "Menu"),
+      h("div", { class: "menu-panel" }, page("me"), page("roles"), page("evidence"), page("drafts"), page("pasted"), page("settings"),
+        h("a", { class: "menu-item", href: "#start", onclick: () => closeMenus(), text: "How Link works" }),
+        h("button", { type: "button", class: "menu-item", onclick: go2(takeTour), text: "Take the tour" }),
+        h("button", { type: "button", class: "menu-item", onclick: go2(web() ? signOut : quitLink), text: web() ? "Sign out" : "Quit Link" }),
+        aiNote ? h("p", { class: "menu-note", text: aiNote }) : null,
+        h("p", { class: "menu-note", text: here("Everything you add stays on this computer.", "Kept on Link’s server during this test. Delete everything removes it.") })));
+    return h("div", { class: "top-menus row" }, add, more);
   }
   // Mobile tab bar adapts the kit's five-item capsule. Utility sections live in More.
   let moreOpen = false;
@@ -293,7 +370,8 @@
     fill($("mobile-more"), NAV_MINOR.map(([id, label, ic]) => h("a", {
       class: "mobile-more-link", href: "#" + id, "aria-current": S.tab === id ? "page" : null,
       onclick: () => closeMore()
-    }, icon(ic, 20), label)));
+    }, icon(ic, 20), label)), isDev() ? null : h("a", { class: "mobile-more-link", href: "#start", "aria-current": S.tab === "start" ? "page" : null,
+      onclick: () => closeMore() }, icon("help", 20), "How Link works"));
   }
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && moreOpen) { closeMore(true); event.stopImmediatePropagation(); }
@@ -352,21 +430,26 @@
   }
 
   // ---- companion ------------------------------------------------------------------------
+  let spriteState = "";
   function syncCompanion() {
     const pending = document.querySelectorAll("#chat-log .proposal").length;
-    let state = "ready", text = S.ai.mode === "mock" ? "Ready · mock replies" : "Ready";
-    if (!S.ai.available) { state = "off"; text = "AI is off. I still keep your place."; }
+    // The user version says only what helps: nothing while idle, "Sample replies" while answers are samples (D53).
+    let state = "ready", text = isDev() ? (S.ai.mode === "mock" ? "Ready · mock replies" : "Ready") : (S.ai.mode === "mock" ? "Sample replies" : "");
+    if (!S.ai.available) { state = "off"; text = isDev() ? "AI is off. I still keep your place." : "I can’t chat right now. Everything else still works."; }
     else if (S.busy > 0) { state = "thinking"; text = "Thinking…"; }
     else if (pending) { state = "waiting"; text = "Waiting for your OK"; }
     for (const el of document.querySelectorAll(".orb")) el.className = "orb is-" + state;
     $("dock-status").textContent = text;
+    const signature = state + ":" + pending;
+    if (signature === spriteState) return;  // rebuild the sprite only when something changed, so its idle motion runs on
+    spriteState = signature;
     fill($("dock-pill"), h("span", { class: "orb is-" + state }, orbSvg(60)), h("span", {class:"avatar-label",text:"Link"}), pending ? h("span", { class: "count", text: String(pending) }) : null);
-    $("dock-pill").setAttribute("aria-label", "Open Link, your companion" + (pending ? ", " + plural(pending, "suggestion", "suggestions") + " waiting" : ""));
+    $("dock-pill").setAttribute("aria-label", pick("Open Link, your companion", "Chat with Link") + (pending ? ", " + plural(pending, "suggestion", "suggestions") + " waiting" : ""));
   }
   function say(role, text) {
     const el = h("div", { class: "msg " + role, text });
     $("chat-log").append(el);
-    el.scrollIntoView({ block: "end" });
+    $("chat-log").scrollTop = $("chat-log").scrollHeight;  // the drawer scrolls, not the page
     fx("motion", ({ animate }) => animate(el, { opacity: [0, 1], transform: ["translateY(6px)", "translateY(0)"] }, { duration: 0.18 }));
     return el;
   }
@@ -385,7 +468,7 @@
       h("div", { text: what + " Nothing is saved until you say so." }),
       h("div", { class: "row" }, btn("Save it", () => decide(true), "dark"), btn("No thanks", () => decide(false))));
     $("chat-log").append(card);
-    card.scrollIntoView({ block: "end" });
+    $("chat-log").scrollTop = $("chat-log").scrollHeight;
     syncCompanion();
   }
   function renderAttach() {
@@ -396,83 +479,159 @@
   async function greet() {
     const view = await loadToday();
     say("companion", view.greeting);
+    const due = view.reminders.length;
+    if (due) tip("today-due", due === 1 ? "One reminder is due today. It’s at the top of Today." : due + " reminders are due today. They’re at the top of Today.");
+    else if (S.ai.available) tipEver("hello", "I’m Link. Tap me anytime you want help with a message or a next step.");
     if (view.reminders.length) say("companion", view.reminders.length === 1 ? "One reminder is due: " + view.reminders[0].text : view.reminders.length + " reminders are due. They're on Today.");
   }
-  let dockMotion = null;
+  // ---- the companion: a floating sprite, short tips and a chat drawer (decision D53) ---------------------------
+  // The drawer slides over the page at every screen size, so opening it never squeezes the page into a column.
+  let dockOpen = false, dockReturn = null, behind = [];
+  // Every sibling of the drawer and of each of its ancestors, except the backdrop and the screen-reader announcer.
+  function outsideDrawer() {
+    const out = [];
+    for (let node = $("dock"); node && node !== document.body; node = node.parentElement)
+      for (const sib of node.parentElement.children)
+        if (sib !== node && blockable(sib)) out.push(sib);
+    return out;
+  }
+  // Not blocked: the backdrop, the announcer, the toast (text only, and it must still be spoken) and native dialogs.
+  const blockable = (el) => el.nodeType === 1 && !["SCRIPT", "STYLE", "LINK", "TEMPLATE", "DIALOG"].includes(el.tagName)
+    && !["dock-scrim", "sprite-live", "toast"].includes(el.id) && !el.inert;
+  // Anything added to the page while the drawer is open (a redrawn tour card, an undo bar) waits too.
+  const lateNodes = new MutationObserver((records) => {
+    for (const r of records) for (const n of r.addedNodes) if (blockable(n)) { n.inert = true; behind.push(n); }
+  });
   function setDock(open) {
-    if (dockMotion) { dockMotion.cancel(); dockMotion = null; }
-    store.set("dockOpen", open);
-    $("dock-pill").setAttribute("aria-expanded",String(open));
-    window.dispatchEvent(new CustomEvent("link:dockchange",{detail:{open}}));
-    const dock = $("dock"), reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    dock.inert = !open;
-    dock.setAttribute("aria-hidden", String(!open));
-    if (!window.matchMedia("(max-width: 1000px)").matches) {
-      const position = $("main").scrollTop;
-      document.body.classList.toggle("dock-closed", !open);
-      $("main").scrollTop = position;
-      if (open) $("chat-input").focus({preventScroll: true}); else $("dock-pill").focus({preventScroll: true});
-      return;
+    if (open === dockOpen) { if (open) $("chat-input").focus({ preventScroll: true }); return; }
+    dockOpen = open;
+    if (open) {
+      hideTip(true);
+      const active = document.activeElement;
+      dockReturn = active && active !== document.body && !$("dock").contains(active) ? active : $("dock-pill");
     }
+    document.body.classList.toggle("dock-closed", !open);
+    $("dock").inert = !open;
+    $("dock").setAttribute("aria-hidden", String(!open));
+    $("dock-scrim").hidden = !open;
+    if (open) { behind = outsideDrawer(); behind.forEach((el) => { el.inert = true; }); lateNodes.observe(document.body, { childList: true }); }
+    else { lateNodes.disconnect(); behind.forEach((el) => { el.inert = false; }); behind = []; }
+    $("dock-pill").setAttribute("aria-expanded", String(open));
+    window.dispatchEvent(new CustomEvent("link:dockchange", { detail: { open } }));
+    if (open) { $("chat-input").focus({ preventScroll: true }); return; }
+    const back = dockReturn && dockReturn.isConnected ? dockReturn : $("dock-pill");
+    dockReturn = null;
+    back.focus({ preventScroll: true });
+  }
 
-    const finish = () => {
-      document.body.classList.toggle("dock-closed", !open);
-      if (open) $("chat-input").focus(); else $("dock-pill").focus();
-    };
-    if (reduced) { finish(); return; }
-    if (open) document.body.classList.remove("dock-closed");
-    const motion = dock.animate(open
-      ? [{opacity: 0, transform: "translateX(24px) scale(.98)"}, {opacity: 1, transform: "translateX(0) scale(1)"}]
-      : [{opacity: 1, transform: "translateX(0) scale(1)"}, {opacity: 0, transform: "translateX(16px) scale(.98)"}],
-      {duration: open ? 360 : 180, easing: "cubic-bezier(.22, 1, .36, 1)"});
-    dockMotion = motion;
-    motion.onfinish = () => { if (dockMotion === motion) { dockMotion = null; finish(); } };
+  // Tips: one or two sentences beside the sprite after something happens. Each shows once per visit, never while
+  // you type, and never while the chat is open. One polite live region speaks them; focus never moves.
+  const TIP_MS = 5500, NUDGES_PER_VISIT = 3, NUDGE_GAP_MS = 30000;
+  const tipsSeen = new Set();
+  let tipTimer = null, tipHideTimer = null, tipLeft = 0, tipSince = 0, nudges = 0, lastNudge = -Infinity;
+  const tipsOn = () => store.get("tipsOn", true) !== false;
+  function syncTipsToggle() {
+    const on = tipsOn();
+    for (const t of document.querySelectorAll("[data-tips-toggle]")) t.setAttribute("aria-checked", String(on));  // a switch: the label stays put
   }
-  function setDockWidth(w) {
-    const max = Math.max(320, Math.min(640, window.innerWidth - 760));
-    const width = Math.round(Math.max(320, Math.min(max, w)));
-    document.documentElement.style.setProperty("--dock-w", width + "px");
-    const r = $("resize");
-    r.setAttribute("aria-valuenow", width); r.setAttribute("aria-valuemin", 320); r.setAttribute("aria-valuemax", max);
-    store.set("dockW", width);
-    return width;
+  function setTipsOn(on) {
+    store.set("tipsOn", on);
+    syncTipsToggle();
+    if (!on) { hideTip(true); $("sprite-live").textContent = "Tips are off. You can turn them back on in Link’s chat or in Settings."; }
   }
+  function typing() {
+    const el = document.activeElement;
+    return !!el && (el.matches("textarea, select, input:not([type=button]):not([type=checkbox]):not([type=radio])") && !$("dock").contains(el));
+  }
+  // kind "nudge": a suggestion, at most once per key, 3 per visit and 30 s apart. kind "confirm": says a save worked,
+  // replacing that save's toast; when it can't show, the caller shows the toast instead. Returns whether it showed.
+  // kind "handoff": a nudge that directly follows the person's own choice, so it skips the 30 s spacing.
+  function tip(key, text, kind = "nudge") {
+    if (!text || S.tour || !tipsOn() || dockOpen || typing()) return false;  // the tour does the talking while it runs
+    if (kind === "nudge" || kind === "handoff") {
+      if (tipsSeen.has(key) || nudges >= NUDGES_PER_VISIT || (kind === "nudge" && Date.now() - lastNudge < NUDGE_GAP_MS)) return false;
+      tipsSeen.add(key); nudges += 1; lastNudge = Date.now();
+    }
+    clearTimeout(tipHideTimer);
+    const bubble = $("sprite-bubble");
+    $("sprite-text").textContent = text;
+    bubble.hidden = false;
+    bubble.classList.remove("is-in", "is-out"); void bubble.offsetWidth; bubble.classList.add("is-in");
+    $("sprite-live").textContent = "Link: " + text;
+    tipLeft = TIP_MS; runTip();
+    return true;
+  }
+  function confirmTip(text, fallback) { if (!tip("confirm", text, "confirm")) toast(fallback || text); }
+  function tipEver(key, text) {
+    const seen = store.get("tipsEver", []);
+    if (Array.isArray(seen) && seen.includes(key)) return;
+    if (tip(key, text)) store.set("tipsEver", [...(Array.isArray(seen) ? seen : []), key].slice(-50));
+  }
+  function runTip() { clearTimeout(tipTimer); tipSince = Date.now(); tipTimer = setTimeout(() => hideTip(), tipLeft); }
+  function pauseTip() { if (!$("sprite-bubble").hidden) { clearTimeout(tipTimer); tipLeft = Math.max(1500, tipLeft - (Date.now() - tipSince)); } }
+  function hideTip(now) {
+    clearTimeout(tipTimer);
+    const bubble = $("sprite-bubble");
+    if (bubble.hidden) return;
+    const done = () => { bubble.hidden = true; bubble.classList.remove("is-in", "is-out"); };
+    if (now || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { clearTimeout(tipHideTimer); done(); return; }
+    bubble.classList.add("is-out");
+    clearTimeout(tipHideTimer);
+    tipHideTimer = setTimeout(done, 180);
+  }
+
   function startDock() {
     $("orb").append(orbSvg(40));
-    $("dock-pill").setAttribute("aria-controls","dock");
-    $("dock-pill").setAttribute("aria-expanded",String(store.get("dockOpen",false)));
-    $("dock-collapse").append(icon("collapse", 18));
+    $("dock-pill").setAttribute("aria-controls", "dock");
+    $("dock-pill").setAttribute("aria-haspopup", "dialog");
+    $("dock-collapse").append(icon("close", 18));  // a dialog closes; it no longer collapses into a column
     $("chat-send").append(icon("send", 18));
     $("dock-collapse").addEventListener("click", () => setDock(false));
-    $("dock-pill").addEventListener("click", () => setDock(true));
-    const narrow = window.matchMedia("(max-width: 1000px)").matches;
-    document.body.classList.toggle("dock-closed", !store.get("dockOpen", false) || narrow);
-    // On a narrow window the panel is a full-screen sheet, so close it when the window shrinks
-    // and put it back the way the user left it when the window widens again.
-    window.matchMedia("(max-width: 1000px)").addEventListener("change", (e) => {
-      document.body.classList.toggle("dock-closed", e.matches || !store.get("dockOpen", false));
-      $("dock").inert = document.body.classList.contains("dock-closed");
-      $("dock").setAttribute("aria-hidden", String($("dock").inert));
-    });
-    $("dock").inert = document.body.classList.contains("dock-closed");
-    $("dock").setAttribute("aria-hidden", String($("dock").inert));
-    let width = setDockWidth(store.get("dockW", 340));
-    const r = $("resize");
-    r.addEventListener("pointerdown", (e) => {
-      r.setPointerCapture(e.pointerId);
-      const move = (ev) => { width = setDockWidth(window.innerWidth - ev.clientX - 18); };
-      const up = () => { r.removeEventListener("pointermove", move); r.removeEventListener("pointerup", up); };
-      r.addEventListener("pointermove", move); r.addEventListener("pointerup", up);
-    });
-    r.addEventListener("keydown", (e) => {
-      const step = { ArrowLeft: 24, ArrowRight: -24, Home: 1000, End: -1000 }[e.key];
-      if (step) { e.preventDefault(); width = setDockWidth(width + step); }
-    });
+    $("dock-pill").addEventListener("click", () => setDock(!dockOpen));
+    $("dock-scrim").addEventListener("click", () => setDock(false));
+    // Always start closed: the drawer is opened on purpose, never left open from an earlier visit.
+    try { localStorage.removeItem("cc.dockOpen"); localStorage.removeItem("cc.dockW"); } catch (e) { /* settings from the old side panel */ }
+    window.LinkCompanion = { open: () => setDock(true), close: () => setDock(false), isOpen: () => dockOpen };
+    document.body.classList.add("dock-closed");
+    $("dock").inert = true;
+    $("dock").setAttribute("aria-hidden", "true");
+    $("dock-pill").setAttribute("aria-expanded", "false");
+    const bubble = $("sprite-bubble");
+    bubble.addEventListener("pointerenter", pauseTip);
+    bubble.addEventListener("pointerleave", () => { if (!bubble.hidden && !bubble.contains(document.activeElement)) runTip(); });
+    bubble.addEventListener("focusin", pauseTip);
+    bubble.addEventListener("focusout", (e) => { if (!bubble.contains(e.relatedTarget)) runTip(); });
+    $("sprite-close").append(icon("close", 14));
+    $("sprite-close").addEventListener("click", () => { hideTip(); $("dock-pill").focus({ preventScroll: true }); });
+    $("sprite-mute").addEventListener("click", () => { setTipsOn(false); $("dock-pill").focus({ preventScroll: true }); });
+    for (const t of document.querySelectorAll("[data-tips-toggle]")) t.addEventListener("click", () => setTipsOn(!tipsOn()));
+    syncTipsToggle();
     const input = $("chat-input");
     input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(140, input.scrollHeight) + "px"; });
     input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("chat-form").requestSubmit(); } });
     $("chat-form").addEventListener("submit", (e) => { e.preventDefault(); const v = input.value.trim(); if (v) submitChat(v); });
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && window.matchMedia("(max-width: 1000px)").matches && !document.body.classList.contains("dock-closed")) setDock(false); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (dockOpen) { e.preventDefault(); setDock(false); }
+      else if (!$("sprite-bubble").hidden) {
+        const held = $("sprite-bubble").contains(document.activeElement);
+        hideTip();
+        if (held) { e.preventDefault(); $("dock-pill").focus({ preventScroll: true }); }  // focus never drops to the page
+      }
+    });
+    const covers = (el) => {
+      const a = el.getBoundingClientRect(), b = $("sprite-bubble").getBoundingClientRect();
+      return a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom;
+    };
+    document.addEventListener("focusin", (e) => {
+      const bubble = $("sprite-bubble");
+      if (bubble.hidden || bubble.contains(e.target) || e.target === $("dock-pill")) return;
+      // Never over what you're typing in or the control you're on. Only real controls count: the page itself takes
+      // focus after every navigation and would otherwise "cover" every tip.
+      const control = e.target.matches && e.target.matches("a[href], button, input, select, textarea, [contenteditable=true]");
+      if (typing() || (control && covers(e.target))) hideTip(true);
+    });
+    document.addEventListener("input", () => { if (!$("sprite-bubble").hidden && typing()) hideTip(true); });
   }
   async function submitChat(text) {
     const input = $("chat-input");
@@ -482,9 +641,10 @@
     S.attachImport = null; renderAttach();
     const r = await thinking(() => act(() => api("POST", "/api/chat", { message: text, context_item_id: S.contextItem ? S.contextItem.id : null, import_id: attached ? attached.id : null })));
     if (!r) return;
-    if (r.reply) say("companion", r.reply); else say("system", r.unavailable + " Your message was saved.");
+    if (r.reply) say("companion", r.reply); else say("system", isDev() ? r.unavailable + " Your message was saved." : "I can’t answer right now. Your message is saved.");
     r.proposals.forEach(proposalCard);
-    if (attached && r.dropped_proposals) say("system", "That reply tried to save something. That's blocked for messages with pasted material.");
+    if (attached && r.dropped_proposals && isDev()) say("system", "That reply tried to save something. That's blocked for messages with pasted material.");
+    if (r.reply && !dockOpen) tip("chat-reply", "I replied to your message. Tap me when you’re ready to read it.", "confirm");
     refreshStatus();
   }
 
@@ -493,7 +653,7 @@
     if (question && !window.confirm(question)) return;
     const out = await act(() => api("POST", "/api/actions/" + action.id + "/state", { state }));
     if (!out) return;
-    if (state === "done") say("companion", "Marked done: " + action.title + ". When you hear back, record it under People & roles.");
+    if (state === "done") say("companion", isDev() ? "Marked done: " + action.title + ". When you hear back, record it under People & roles." : "Done. Nice work.");
     render();
   }
   async function openFor(action) {
@@ -527,12 +687,21 @@
     return "Due " + (days < 7 ? d.toLocaleDateString(undefined, { weekday: "long" }) : d.toLocaleDateString(undefined, { day: "numeric", month: "short" }));
   }
   function sampleNotice() {
-    return S.hasSample && !S.demo ? h("div", { class: "notice warn center" }, icon("info", 18), h("span", { class: "grow", text: "Sample data is loaded. Anything marked [SAMPLE] is fictional." }),
+    return S.hasSample && !S.demo ? h("div", { class: "notice warn center" }, icon("info", 18), h("span", { class: "grow", text: pick("Sample data is loaded. Anything marked [SAMPLE] is fictional.", "These are practice people, not real ones.") }),
       btn("Remove it", async () => { await act(() => api("POST", "/api/sample/remove"), "Sample data removed."); await refreshStatus(); render(); }, "quiet")) : null;
   }
 
   // ---- onboarding: the companion, one question at a time ---------------------------------
-  function renderOnboarding(root) { return workflows.onboard(root); }
+  // A first visit starts on How Link works in the user version (D55); the developer version keeps the Connect welcome.
+  async function renderOnboarding(root) {
+    if (isDev()) {
+      await workflows.onboard(root);
+      setTimeout(() => tipEver("welcome", "Hi, I’m Link. Pick whatever fits. We’ll take it one small step at a time."), 600);
+      return;
+    }
+    await startPage.render(root, { welcome: true });
+    setTimeout(() => tipEver("welcome", "Hi, I’m Link. Read on, or choose Show me how it works and I’ll walk you through it."), 600);
+  }
 
   // ---- Today ----------------------------------------------------------------------------
   function timePicker(disabled) {
@@ -583,34 +752,105 @@
       h('p',{text:'Choose one thoughtful next step. Link helps you prepare; you decide what to do.'})),
       btn('I’m stuck — help me choose',()=>workflows.begin(),'quiet'));
   }
+  // User version: at most one line about getting set up. Adding things lives in the Add menu.
+  function setupLine() {
+    const c = S.calendar || {};
+    if (c.waiting) return h('nav',{class:'daily-shortcuts','aria-label':'Getting set up'}, btn(c.waiting + (c.waiting === 1 ? ' person found in your calendar. Review' : ' people found in your calendar. Review'),()=>sources.open('calendar'),'primary'));
+    if (c.available && !c.connected) return h('nav',{class:'daily-shortcuts','aria-label':'Getting set up'}, btn('Connect your calendar',()=>sources.open('calendar'),'quiet'));
+    return null;
+  }
+  // The first screen for someone with nobody in Link yet: three steps, one button for the one that is next.
+  function startCard() {
+    const c = S.calendar || {};
+    const steps = [
+      c.available ? { title: 'Connect your calendar', text: 'Link looks for people you have met or are about to meet. It only reads, and you choose who to keep.',
+                      done: !!c.connected, button: ['Connect your calendar', () => sources.open('calendar')] }
+                  : { title: 'Add someone you know', text: 'A classmate, a professor or someone you met at an event is enough. A name is all Link needs.',
+                      done: false, button: ['Add someone, step by step', () => guide.open()] },
+      { title: 'Keep one person', text: c.available ? 'Look through the people Link found and keep the ones you want to remember.' : 'Open them to add where you met and what you talked about.',
+        done: false, button: c.available ? [c.waiting ? 'Review ' + c.waiting + (c.waiting === 1 ? ' person found' : ' people found') : 'Check my calendar', () => sources.open('calendar')] : null },
+      { title: 'After a meeting, say how it went', text: 'One tap: Great, Fine or Skip. Link saves a short note, so you never have to remember it all.', done: false, button: null }];
+    const now = steps.findIndex((s) => !s.done);
+    return h('section', { class: 'start-card', 'aria-label': 'Getting started' },
+      h('h1', { text: 'Start with one person.' }),
+      h('p', { text: 'Link helps you remember the people you meet and follow up without the awkwardness.' }),
+      h('ol', { class: 'start-steps' }, steps.map((s, i) => h('li', { class: s.done ? 'is-done' : '', 'aria-current': i === now ? 'step' : null },
+        h('span', { class: 'mark', 'aria-hidden': 'true', text: s.done ? '✓' : String(i + 1) }),
+        h('div', { class: 'stack' }, h('h2', { text: s.title }), i === now ? h('p', { text: s.text }) : null,
+          i === now && s.button ? h('div', { class: 'row' }, btn(s.button[0], s.button[1], 'primary')) : null)))),
+      h('div', { class: 'start-links row' },
+        c.available ? btn('Add someone, step by step', () => guide.open(), 'quiet') : null,
+        btn('I don’t know anyone yet', () => workflows.open({ mode: 'starting' }), 'quiet'),
+        btn(pick('Take a one-minute tour', 'Take the tour'), takeTour, 'quiet')));
+  }
   function dailyShortcuts() {
     return h('nav',{class:'daily-shortcuts','aria-label':'Quick actions'},
       btn('Log a conversation',()=>go('quicklog'),'quiet'),
       btn('Prepare for a conversation',()=>workflows.open({mode:'prepare'}),'quiet'),
-      btn('Import connections',()=>sources.open('connections'),'quiet'));
+      btn(pick('Import connections','Add contacts'),()=>sources.open('connections'),'quiet'),
+      S.calendar && S.calendar.available && !S.calendar.connected ? btn('Connect your calendar',()=>sources.open('calendar'),'quiet') : null,
+      S.calendar && S.calendar.waiting ? btn(S.calendar.waiting + (S.calendar.waiting === 1 ? ' person found in your calendar' : ' people found in your calendar'),()=>sources.open('calendar'),'primary') : null);
   }
   function dailyEmpty(hasPeople) {
     return h('section',{class:'daily-empty'},h('span',{class:'eyebrow',text:'ONE SMALL STEP'}),
       h('h2',{text:hasPeople?'Who’s on your mind?':'You can begin without a contact list.'}),
       h('p',{text:hasPeople?'Open someone’s notes, pick up a conversation, or tell Link what you’d like help with. Nothing needs to be overdue to be worth doing.':'A classmate, someone you met at an event, or a community you’re curious about is enough to start. Link can help you work out an approach.'}),
       h('div',{class:'row'},hasPeople?btn('Choose a person',()=>go('people'),'primary'):btn('I don’t know anyone yet',()=>workflows.open({mode:'starting'}),'primary'),
-        btn('Add someone I know',()=>{S.addPerson=true;go('people');},'quiet')));
+        btn('Add someone I know',()=>guide.open(),'quiet')));
+  }
+  // After a meeting with someone you kept (decision D44): one tap says how it went. No typing needed.
+  async function checkinCard(page) {
+    const due = await api("GET", "/api/checkins");
+    S.calendar = Object.assign({}, S.calendar, { checkins: due.length });
+    if (!due.length) return;
+    const c = due[0];
+    let note = "", promise = "";
+    const day = new Date(c.starts_at);
+    const when = isNaN(day) ? c.starts_at : day.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+    const answer = async (choice) => {
+      const out = await act(() => api("POST", "/api/checkins/" + c.id + "/answer", { answer: choice, note, promise }));
+      if (!out) return;
+      const said = choice === "skip" ? "Skipped. Nothing was saved." : out.next_step ? "Saved a note and a reminder for " + c.name + "." : "Saved a note for " + c.name + ".";
+      if (isDev() || choice === "skip") toast(said); else confirmTip(said);
+      render();
+    };
+    const noteInput = h("textarea", { rows: 2, maxlength: 1000, "aria-label": "A line about how it went (optional)",
+      placeholder: "One line is plenty. For example: we talked about analytics internships.", oninput: (e) => { note = e.target.value; } });
+    const promiseInput = h("input", { type: "text", maxlength: 200, "aria-label": "Something you promised (optional)",
+      placeholder: "For example: send her the article", oninput: (e) => { promise = e.target.value; } });
+    page.append(h("section", { class: "checkin-card stack", "aria-label": "After your meeting" },
+      h("span", { class: "eyebrow", text: "AFTER YOUR MEETING" }),
+      h("h2", { text: "How did it go with " + c.name + "?" }),
+      h("p", { class: "muted", text: (c.title || "Meeting") + " · " + when }),
+      h("div", { class: "row" }, btn("Great", () => answer("great"), "primary"), btn("Fine", () => answer("fine")), btn("Skip", () => answer("skip"), "quiet")),
+      h("details", {}, h("summary", { text: "Add a line or a promise" }), field("A line about it (optional)", noteInput),
+        field("Did you promise something? (optional)", promiseInput),
+        h("p", { class: "muted small", text: "A promise becomes your next step for this person, with a reminder in 3 days. If they already have a next step, it stays and the promise goes in the note." })),
+      due.length > 1 ? h("p", { class: "muted small", text: (due.length - 1) + " more after this one." }) : null,
+      h("p", { class: "muted small", text: "Great or Fine saves a short note dated to the meeting. Skip saves nothing." })));
   }
   async function renderToday(root) {
     const [view, ideas, items] = await Promise.all([loadToday(), api("GET", "/api/ideas"), api("GET", "/api/items")]);
     const all = [view.recommended].concat(view.alternatives).filter(Boolean);
     const options = all.filter((o) => !S.skipped.has(o.action.id));
     const date = new Date(view.today + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
-    const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", {class: "workspace-label", text: "YOUR CONNECTION STUDIO"}), h("span", {text: date})), sampleNotice());
+    const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", {class: "workspace-label", text: pick("YOUR CONNECTION STUDIO", "")}), h("span", {text: date})), sampleNotice());
     root.append(page);
+    if (!isDev() && S.journey && !S.tour) { const track = startPage.compact(S.journey); if (track) page.append(track); }  // how far you've come (D55)
     const hasPeople=items.some(item=>item.kind==='relationship');
-    page.append(todayHeader(hasPeople),dailyShortcuts());
+    if (!isDev() && !hasPeople) { page.append(startCard()); return; }
+    page.append(...[todayHeader(hasPeople), isDev() ? dailyShortcuts() : setupLine()].filter(Boolean));  // append(null) would print "null"
+    await checkinCard(page);
     if (options.length) page.append(hero(options[0], view.today));
     else if (all.length) page.append(h("section", { class: "state" }, h("h2", { text: "That's everything set aside for today." }),
       h("p", { class: "hero-meta", text: "Nothing was changed. Your to-dos are still there." }), h("div", {}, btn("Show them again", () => { S.skipped.clear(); render(); }))));
     else page.append(dailyEmpty(hasPeople));
-    await workflows.todayTools(page,true);
-    await todayPeople(page,items.filter(i=>i.kind==="relationship"));
+    // User version: the hero is the one thing. Everything else waits behind "More for today".
+    const more = isDev() ? null : h("details", { class: "more-today" }, h("summary", { text: "More for today" }));
+    const sink = more || page;
+    if (more) page.append(more);
+    await workflows.todayTools(sink,true);
+    await todayPeople(sink,items.filter(i=>i.kind==="relationship"));
 
     const rest = options.slice(1);
     const tucked = h("section", { class: "section", "aria-label": "Everything else" }, h("div", { class: "eyebrow", text: "Next, at your pace" }));
@@ -631,7 +871,7 @@
         btn("Let it go", async () => { await act(() => api("POST", "/api/ideas/" + i.id + "/drop")); render(); }, "quiet"))))) : null));
     list.append(disc("add", "Add a to-do or reminder", "", actionForm(items), reminderForm()));
     tucked.append(list);
-    page.append(tucked);
+    sink.append(tucked);
   }
   async function todayPeople(page,items) {
     if(!items.length)return;
@@ -707,7 +947,7 @@
   }
   async function renderRoles(root) {
     const [items, actions] = await Promise.all([api("GET", "/api/items"), api("GET", "/api/actions")]);
-    const page = h("div", { class: "page" }, pageHead("Roles", "Who you're talking to, what you're going for, and what happened.",
+    const page = h("div", { class: "page" }, pageHead(label("roles"), "Who you're talking to, what you're going for, and what happened.",
       help("What do outcomes mean?", "One click records what you observed: a reply, an interview, silence.", "It's a record, not proof that any particular wording caused it.")), sampleNotice());
     root.append(page);
     const f = { kind: "opportunity", title: "", org: "", posting: "" };
@@ -771,11 +1011,11 @@
     if (S.contextItem?.id !== person.id) {
       $("chat-log").replaceChildren();
       $("chat-input").value = "";
-      say("companion", "Now discussing " + person.name + ". Tell me what you remember, or log an interaction to build context.");
+      say("companion", isDev() ? "Now discussing " + person.name + ". Tell me what you remember, or log an interaction to build context." : "Ask me anything about " + plainName(person.name).split(/\s+/)[0] + ".");
     }
     S.contextItem = {id: person.id, title: person.name};
     updateContextNote();
-    $("chat-input").placeholder = "Ask about " + person.name;
+    $("chat-input").placeholder = "Ask about " + plainName(person.name);
   }
   function personForm(person, after) {
     const f = {name: person?.name || "", org: person?.org || "", profile_link: person?.profile_link || "", context: person?.context || "", notes: person?.notes || "", category: person?.category || ""};
@@ -819,12 +1059,12 @@
     if(S.selectedPerson && !list.some(person=>person.id===S.selectedPerson))S.selectedPerson=null;
     const page = h('div',{class:'page people-page'},pageHead('Your people.','A little context makes the next conversation easier.'));
     root.append(page);
-    page.append(h('div',{class:'row people-source-entry'},btn('Import connections',()=>go('sources'),'quiet'),h('span',{class:'muted small',text:'Bring a LinkedIn export; choose what to keep.'})));
+    page.append(h('div',{class:'row people-source-entry'},btn(pick('Import connections','Add contacts'),()=>go('sources'),'quiet'),h('span',{class:'muted small',text:'Bring a LinkedIn export; choose what to keep.'})));
     const frame = h('div',{class:'people-studio'});
     const directory = h('aside',{class:'people-directory','aria-label':'People directory'});
     const workspace = h('section',{class:'person-workspace','aria-label':'Selected person'});
     page.append(frame);frame.append(directory,workspace);
-    directory.append(h('div',{class:'row spread'},h('span',{class:'eyebrow',text:plural(list.length,'person','people')}),btn('Add person',()=>{S.addPerson=true;render();},'primary')));
+    directory.append(h('div',{class:'row spread'},h('span',{class:'eyebrow',text:plural(list.length,'person','people')}),h('div',{class:'row'},btn('Quick form',()=>{S.addPerson=true;render();},'quiet'),btn('Add person',()=>guide.open({fresh:true}),'primary'))));
     const search=h('input',{type:'search',placeholder:'Find someone…','aria-label':'Search people',value:S.peopleSearch||''});
     let category=S.peopleCategory||'all';
     const rows=h('div',{class:'people-rows'});
@@ -845,11 +1085,12 @@
       buttons[next].focus();
     });
     directory.append(search,field('Group',select([['all','All people'],...CATEGORY],category,value=>{category=value;S.peopleCategory=value;draw();})),rows,
-      h('div',{class:'directory-footer'},btn('Capture a moment',()=>go('quicklog'),'quiet'),btn('Find a starting point',()=>workflows.open(),'quiet')));
+      h('div',{class:'directory-footer'},btn(pick('Capture a moment','Add a note'),()=>go('quicklog'),'quiet'),btn('Find a starting point',()=>workflows.open(),'quiet')));
     draw();
     if(S.addPerson){workspace.append(h('div',{class:'studio-person-form'},h('span',{class:'eyebrow',text:'One person is a beginning'}),h('h2',{text:'Who’s on your mind?'}),h('p',{class:'muted',text:'A name is enough. Add the rest as your connection develops.'}),personForm(null)));return;}
-    if(!S.selectedPerson){workspace.append(h('div',{class:'people-welcome'},connectionMotif(),h('span',{class:'eyebrow',text:'Your connection studio'}),h('h2',{text:list.length?'Pick up a conversation.':'Good connections start somewhere.'}),h('p',{text:list.length?'Choose someone to see what you remember, what you’ve learned, and what might come next.':'Link can help you find a starting point, even before you know who to approach.'}),h('div',{class:'row'},btn('Help me get started',()=>workflows.open(),'primary'),btn('Log someone you met',()=>go('quicklog')))));return;}
+    if(!S.selectedPerson){workspace.append(h('div',{class:'people-welcome'},connectionMotif(),h('span',{class:'eyebrow',text:pick('Your connection studio','Your people')}),h('h2',{text:list.length?'Pick up a conversation.':'Good connections start somewhere.'}),h('p',{text:list.length?'Choose someone to see what you remember, what you’ve learned, and what might come next.':'Link can help you find a starting point, even before you know who to approach.'}),h('div',{class:'row'},btn('Help me get started',()=>workflows.open(),'primary'),btn('Log someone you met',()=>go('quicklog')))));return;}
     const person=await api('GET','/api/people/'+S.selectedPerson);scopePerson(person);
+    if(S.ai.available)tip('person-open','Want help writing to '+plainName(person.name).split(/\s+/)[0]+'? Tap me and say what you’d like to send.');
     const importedSource=await api('GET','/api/network/people/'+person.id+'/source');
     workspace.append(h('div',{class:'person-heading'},h('div',{class:'person-avatar',text:person.name.slice(0,1).toUpperCase()}),h('div',{class:'grow'},h('span',{class:'eyebrow',text:'A connection, in context'}),h('h2',{text:person.name}),person.org?h('p',{class:'muted',text:person.org}):null),btn('← All people',()=>{S.selectedPerson=null;S.contextItem=null;document.getElementById('chat-log').replaceChildren();render();},'quiet')));
     if(importedSource.source)workspace.append(h('details',{class:'import-provenance'},h('summary',{text:'LinkedIn snapshot · source details'}),h('p',{class:'muted small',text:'Role at export: '+(importedSource.position||'Not supplied')+' · Connected on: '+(importedSource.connected_on||'Not supplied')}),h('p',{class:'muted small',text:'Imported '+importedSource.imported_at.slice(0,10)+'. This is not a current employment check or a recorded conversation.'})));
@@ -876,6 +1117,7 @@
         h('div',{class:'row person-primary-actions'},btn('Log interaction',()=>{S.logPerson=person.id;go('quicklog');},'primary'),btn('Prepare a message',()=>workflows.open({mode:'prepare',item_id:person.id})),btn('Think with Link',()=>{scopePerson(person);setDock(true);},'quiet')),
         h('section',{class:'person-next-summary'},h('span',{class:'eyebrow',text:'Next, when you’re ready'}),h('p',{text:person.next_action?.title||'No step chosen. There’s no need to invent one.'}),btn(person.next_action?'Review next step':'Choose a next step',()=>{S.personSection='next';render();},'quiet')));
       await workflows.personTools(panel,person);
+      if(person.email){const e=person.email,d=new Date(e.last_at);panel.append(h('p',{class:'muted small email-last',text:(e.last_direction==='sent'?'You last wrote them ':'They last wrote you ')+(isNaN(d)?'':'on '+d.toLocaleDateString(undefined,{month:'short',day:'numeric'}))+'. From your email dates only.'}));}
       panel.append(h('div',{class:'section-title'},h('h3',{text:'Recent moments'}),btn('See conversations',()=>{S.personSection='conversations';render();},'quiet')),
         h('div',{class:'recent-moments'},person.timeline.length?person.timeline.slice(0,2).map(entry=>h('article',{class:'moment-preview'},h('span',{class:'eyebrow',text:whenLabel(entry)}),h('p',{text:entry.summary||entry.note||entry.original_label||'Recorded interaction'}))):h('p',{class:'muted small',text:'Nothing recorded yet. A few fragments are enough.'})));
     }else if(section==='conversations'){
@@ -884,7 +1126,7 @@
     }else{
       panel.append(personNextStep(person));
       if(S.undoAction?.personId===person.id)panel.append(btn('Undo task completion',async()=>{if(await act(()=>restoreNext(person.id,S.undoAction.previous))){S.undoAction=null;render();}},'quiet'));
-      if(person.next_action?.other_open)panel.append(h('p',{class:'muted small',text:person.next_action.other_open+' other open steps are preserved in Career tools.'}));
+      if(person.next_action?.other_open)panel.append(h('p',{class:'muted small',text:person.next_action.other_open+' other open steps are saved under '+pick('Career tools','More tools')+'.'}));
     }
     workspace.append(disc('edit-person','Person details','Edit as context grows',personForm(person),btn(person.category==='paused'?'Resume connection':'Pause connection',async()=>{if(await act(()=>api('PUT','/api/people/'+person.id,{...personFields(person),category:person.category==='paused'?'': 'paused'}))){offerUndo('Connection group changed. History is kept.',()=>api('PUT','/api/people/'+person.id,personFields(person)));render();}},'quiet'),btn('Permanently delete person',async()=>{if(!confirm('Delete this person? Quick logs remain unassigned; historical outcomes are deleted.'))return;await act(()=>api('DELETE','/api/items/'+person.id));$('undo-bar')?.remove();S.selectedPerson=null;S.contextItem=null;render();},'quiet danger')));
     if(section==='overview')workspace.append(disc('quick-message-'+person.id,'Quick message editor','Optional',messageComposer(person)));
@@ -933,11 +1175,11 @@
     if(!quickDirty)return quickWrite;
     const value=structuredClone(quickWorkspace);quickDirty=false;quickPending++;
     quickWrite=quickWrite.catch(()=>{}).then(()=>api('PUT','/api/workspace/quicklog',value)).then(()=>{
-      const status=$('quick-draft-status');if(status&&!quickDirty&&quickPending===1)status.textContent='Draft saved on this Mac';
+      const status=$('quick-draft-status');if(status&&!quickDirty&&quickPending===1)status.textContent=S.tour?'Tour: nothing you type here is saved.':here('Draft saved on this Mac','Draft saved');
     }).catch(()=>{quickDirty=true;const status=$('quick-draft-status');if(status)status.textContent='Draft not saved — keep this page open and try again.';}).finally(()=>{quickPending--;});
     return quickWrite;
   }
-  window.addEventListener('beforeunload',e=>{if(quickDirty||quickTimer||quickPending){e.preventDefault();e.returnValue='';}});
+  window.addEventListener('beforeunload',e=>{if(!leaving&&(quickDirty||quickTimer||quickPending)){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)writeQuickWorkspace();});
   function offerUndo(message,restore) {
     let bar=$('undo-bar');if(!bar){bar=h('section',{id:'undo-bar',class:'undo-bar','aria-label':'Last change'});document.body.append(bar);}
@@ -950,16 +1192,16 @@
     const page=h("div",{class:"page quicklog-page"},pageHead("Keep the moment.","A name, a thought, a rough memory. Start there."));root.append(page);
     let person=quickWorkspace.item_id||S.logPerson||"",kind=quickWorkspace.when?.kind||"unknown",exact=quickWorkspace.when?.date||"",rough=quickWorkspace.when?.text||"",keep=quickWorkspace.keep_exchange||false;
     if(person&&!people.some(p=>p.id===Number(person)))person="";
-    const draftStatus=h('p',{id:'quick-draft-status',class:'muted small',role:'status',text:quickWorkspace.note?'Draft saved on this Mac':'Your unfinished recap is saved locally as you type.'});
+    const draftStatus=h('p',{id:'quick-draft-status',class:'muted small',role:'status',text:S.tour?'Tour: nothing you type here is saved.':quickWorkspace.note?here('Draft saved on this Mac','Draft saved'):here('Your unfinished recap is saved locally as you type.','Your unfinished recap is saved as you type.')});
     const note=h("textarea",{rows:4,maxlength:8000,value:quickWorkspace.note||"",required:false,placeholder:"Met someone at an event last week. Talked about…","aria-label":"What do you remember?"});
     const exchange=h("textarea",{rows:4,maxlength:12000,value:quickWorkspace.exchange||"","aria-label":"Optional pasted exchange"});
     const exactField=field("Date",h("input",{type:"date",value:exact,oninput:e=>exact=e.target.value})); exactField.hidden=kind!=="date";
     const roughField=field("Roughly when, in your own words",h("input",{maxlength:80,value:rough,placeholder:"Last week, sometime in October…",oninput:e=>rough=e.target.value}));roughField.hidden=kind!=="approx";
-    const remember=()=>{quickWorkspace={note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:keep?exchange.value:'',keep_exchange:keep};quickDirty=true;draftStatus.textContent='Saving draft…';clearTimeout(quickTimer);quickTimer=setTimeout(writeQuickWorkspace,280);};
-    const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),"Saved. No tasks were created.");if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();}}},
+    const remember=()=>{quickWorkspace={note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:keep?exchange.value:'',keep_exchange:keep};quickDirty=true;draftStatus.textContent=S.tour?'Tour: nothing you type here is saved.':'Saving draft…';clearTimeout(quickTimer);quickTimer=setTimeout(writeQuickWorkspace,280);};
+    const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),isDev()?"Saved. No tasks were created.":null);if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();if(!isDev())confirmTip(S.ai.available?'Saved. Tap me if you’d like help turning it into a next step.':'Saved.','Saved.');}}},
       field("What do you remember?",note),draftStatus,workflows.quickPrompts(note),h("div",{class:"grid2"},field("Person (optional)",select([["","Not sure / choose later"],...people.map(p=>[p.id,p.name])],person,v=>person=v)),
       field("When (optional)",select([["unknown","Not sure"],["today","Today"],["yesterday","Yesterday"],["approx","Approximately"],["date","Exact date"]],kind,v=>{kind=v;exactField.hidden=v!=="date";roughField.hidden=v!=="approx";}))),exactField,roughField,
-      disc("paste-log","Paste an exchange instead","Optional",exchange,h("label",{class:"check"},h("input",{type:"checkbox",checked:keep,onchange:e=>keep=e.target.checked}),"Keep the original exchange on this Mac"),h("p",{class:"muted small",text:"Unchecked: only your written recap is saved. To retain an exchange without a recap, explicitly check this box."})),
+      disc("paste-log","Paste an exchange instead","Optional",exchange,h("label",{class:"check"},h("input",{type:"checkbox",checked:keep,onchange:e=>keep=e.target.checked}),here("Keep the original exchange on this Mac","Keep the original exchange in Link")),h("p",{class:"muted small",text:"Unchecked: only your written recap is saved. To retain an exchange without a recap, explicitly check this box."})),
       h("button",{type:"submit",class:"btn primary"},"Save quick log"),btn('Discard unfinished note',async()=>{if(!confirm('Discard this unfinished note?'))return;clearTimeout(quickTimer);quickTimer=null;quickDirty=false;await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};S.logPerson=null;render();},'quiet'),h("p",{class:"muted small",text:"Saving stays local and works without AI. Organizing with Link sends the selected log to your configured provider in live mode."}));
     form.addEventListener('input',remember);form.addEventListener('change',remember);page.append(form);
     page.append(h("section",{class:"section"},h("h3",{text:"Recent logs"}),logs.length?logs.map(log=>h("div",{},h("h4",{text:log.person||"Unassigned · associate when ready"}),timelineCard(log,people))):h("p",{class:"muted",text:"A name, a moment, a few details. That's enough to begin."})));
@@ -1032,7 +1274,7 @@
   }
   async function renderEvidence(root) {
     const list = await api("GET", "/api/evidence");
-    const page = h("div", { class: "page" }, pageHead("Evidence", "What you can truthfully say about your work. Every claim in a draft points here.",
+    const page = h("div", { class: "page" }, pageHead(label("evidence"), "What you can truthfully say about your work. Every claim in a draft points here.",
       help("How is this used?", "A draft can only state facts that link to an entry here. Numbers are checked against the value and unit you record.",
         "“Verified” means you've noted where the proof is. “Do not claim” entries are never sent to drafting. Confidential entries aren't either.")), sampleNotice());
     root.append(page);
@@ -1122,10 +1364,10 @@
     if (D.current) D.current = drafts.find(d => d.id === D.current.id) || D.current;
     const action = actions.find((a) => a.id === D.action_id) || null;
     if (!D.current && action) D.current = drafts.find((d) => d.action_id === action.id) || null;
-    const page = h("div", { class: "page" }, pageHead("Drafts", "Write it yourself or with Link. Either way, every save is checked against your evidence.",
+    const page = h("div", { class: "page" }, pageHead(label("drafts"), "Write it yourself or with Link. Either way, every save is checked against your evidence.",
       help("What can drafting see?", "Only this page: the evidence you tick, your voice notes for the audience, and what you type here.",
         "It never sees your private planning notes, your goals, or the chat.",
-        S.ai.available && S.ai.mode === "live" ? "In live mode, those three things are sent to the AI provider." : "In mock mode nothing leaves this Mac.")));
+        S.ai.available && S.ai.mode === "live" ? "In live mode, those three things are sent to the AI provider." : here("In mock mode nothing leaves this Mac.", "In sample mode nothing is sent to an AI company."))));
     root.append(page);
     if (!S.ai.available) page.append(h("div", { class: "notice warn" }, icon("info", 18), "AI drafting is off right now. You can still write, save, and check drafts yourself."));
 
@@ -1268,7 +1510,7 @@
   // ---- Pasted material ------------------------------------------------------------------
   async function renderPasted(root) {
     const list = await api("GET", "/api/imports");
-    const page = h("div", { class: "page" }, pageHead("Pasted material", "Job descriptions, messages, or your profile text, kept as reference.",
+    const page = h("div", { class: "page" }, pageHead(label("pasted"), "Job descriptions, messages, or your profile text, kept as reference.",
       help("Is pasting safe?", "Pasted text is treated as reference only. Nothing in it can change what Link remembers or does, and a chat message with pasted text attached can't save anything.",
         "This app never fetches web pages and never opens LinkedIn. You paste; it reads.")));
     root.append(page);
@@ -1340,28 +1582,84 @@
   }
 
   // ---- Settings & data ------------------------------------------------------------------
+  // Reminders outside Link (decision D46): one generic desktop reminder a day, never a name.
+  async function nudgeSection() {
+    let n = await api("GET", "/api/nudges"), message = "";
+    const box = h("section", { class: "section", id: "nudges" });
+    const refresh = async () => { n = await api("GET", "/api/nudges"); draw(); };
+    const save = async (change) => { if (await act(() => api("PUT", "/api/nudges", Object.assign({}, n.settings, change)), "Saved.")) message = ""; await refresh(); };
+    const tell = async (path, body, say) => { const out = await act(() => api("POST", path, body)); if (out) message = say(out); await refresh(); };
+    const clock = (hhmm) => new Date("2000-01-01T" + hhmm).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    function draw() {
+      const s = n.settings;
+      const time = h("input", { type: "time", value: s.time, "aria-label": "Time of day", onchange: (e) => save({ time: e.target.value }) });
+      const quietFrom = h("input", { type: "time", value: s.quiet_start, "aria-label": "Quiet hours start", onchange: (e) => save({ quiet_start: e.target.value }) });
+      const quietTo = h("input", { type: "time", value: s.quiet_end, "aria-label": "Quiet hours end", onchange: (e) => save({ quiet_end: e.target.value }) });
+      fill(box,
+        h("h3", { text: "Reminders outside Link" }),
+        h("p", { text: "Link can show one reminder a day on your computer when a follow-up is due. It says how many, never who. Nothing is sent anywhere." }),
+        n.supported ? null : h("p", { class: "notice", text: n.reason }),
+        field("Remind me", select([["off", "Never"], ["on", "Once a day"]], s.enabled ? "on" : "off", (v) => save({ enabled: v === "on" }))),
+        field("Time of day", time),
+        h("details", {}, h("summary", { text: "Quiet hours: " + clock(s.quiet_start) + " to " + clock(s.quiet_end) }), field("From", quietFrom), field("Until", quietTo)),
+        n.supported && s.enabled ? h("p", { class: "muted small", text: n.helper_installed ? "The helper is installed, so reminders can appear when Link is closed." : "To get reminders while Link is closed, run this once in Terminal:" }) : null,
+        n.supported && s.enabled && !n.helper_installed ? h("p", {}, h("code", { text: "companion nudge --install" })) : null,
+        n.would_mention ? h("p", { class: "muted small", text: "Right now a reminder would say: " + n.would_mention + (n.would_mention === 1 ? " follow-up" : " follow-ups") + " due." }) : null,
+        n.paused_people ? h("p", { class: "muted small", text: plural(n.paused_people, "person is", "people are") + " set aside because two reminders in a row led nowhere. They still show in Link." }) : null,
+        h("div", { class: "row" },
+          btn("Send a test reminder", () => tell("/api/nudges/test", {}, (o) => o.sent ? "Sent. Look for it on your screen. If you don’t see it, check Notifications in System Settings." : o.reason), "quiet"),
+          n.snooze_until ? btn("Resume reminders (paused until " + n.snooze_until + ")", () => tell("/api/nudges/resume", {}, () => "Reminders are back on."), "quiet")
+            : btn("Pause for 3 days", () => tell("/api/nudges/pause", { days: 3 }, (o) => "Paused until " + o.snooze_until + "."), "quiet"),
+          n.paused_people ? btn("Bring those people back", () => tell("/api/nudges/resume", {}, () => "Those people will be in reminders again."), "quiet") : null),
+        message ? h("p", { class: "notice", role: "status", text: message }) : null,
+        h("p", { class: "muted small", text: "If you delete everything, also run “companion nudge --uninstall” to remove the helper." }));
+    }
+    draw();
+    return box;
+  }
   async function renderSettings(root) {
     const [b, activity] = await Promise.all([api("GET", "/api/budget"), api("GET", "/api/activity")]);
     const s = b.status, level = s.level === "hard_stop" ? "bad" : s.level === "warn" ? "warn" : "";
-    const page = h("div", { class: "page" }, pageHead("Settings & data", "Setup, AI mode, spending, and everything stored on this Mac."));
+    const page = h("div", { class: "page" }, pageHead(pick("Settings & data", "Settings"), pick(here("Setup, AI mode, spending, and everything stored on this Mac.", "Setup, AI mode, spending, and everything stored in your account."), "Your data, and how the AI works.")));
     root.append(page);
-    page.append(h("section",{class:"section"},h("h3",{text:"Your networking sources"}),h("p",{text:"Import a LinkedIn snapshot, choose conversation excerpts or prepare from a calendar file."}),btn("Open Sources & imports",()=>go("sources"),"quiet")));
-    page.append(h("section", {class:"section"}, h("h3",{text:"Meet Link"}), btn("Take the guided walkthrough",()=>window.LinkGuide.start(),"quiet")));
+    page.append(h("section",{class:"section"},h("h3",{text:pick("Your networking sources","Add contacts")}),h("p",{text:pick("Import a LinkedIn snapshot, choose conversation excerpts or prepare from a calendar file.","Bring in your LinkedIn contacts file, messages you choose, or a calendar file.")}),btn(pick("Open Sources & imports","Add contacts"),()=>go("sources"),"quiet")));
+    page.append(h("section", {class:"section"}, h("h3",{text:"Meet Link"}), isDev() ? btn("Take the guided walkthrough",()=>window.LinkGuide.start(),"quiet")
+      : h("div", {class:"row"}, btn("How Link works", () => go("start"), "quiet"), btn("Take the tour", takeTour, "quiet"))));
+    if (web()) {
+      page.append(h("section", { class: "section" }, h("h3", { text: "Signing out" }),
+        h("p", { text: "Signing out ends this session. Your information stays in your account until you delete it, or until 30 days pass without signing in." }),
+        h("div", { class: "row" }, btn("Sign out", signOut, "quiet"))));
+    } else {
+      page.append(h("section", { class: "section" }, h("h3", { text: "Starting and stopping Link" }),
+        h("p", { text: "To open Link with one click on a Mac, run this once in Terminal. After that, open Link from Spotlight (Cmd+Space) or drag it to your Dock." }),
+        h("p", {}, h("code", { text: "companion launcher --install" })), h("div", { class: "row" }, btn("Quit Link", quitLink, "quiet"))));
+      page.append(await nudgeSection());  // Mac notifications; the web version will send email reminders instead
+    }
+    page.append(h("section", {class: "section"}, h("h3", {text: "Tips from Link"}),
+      h("p", {class: "muted small", text: "Short tips beside Link after you do something. They never interrupt typing."}),
+      h("button", {type: "button", role: "switch", class: "tips-toggle", "data-tips-toggle": "", "aria-checked": String(tipsOn()), onclick: () => setTipsOn(!tipsOn()), text: "Show tips"})));
     page.append(h("section", {class: "section"}, h("h3", {text: "Appearance"}),
       field("Color theme", select([["system","Follow system"],["light","Light"],["dark","Dark"]], store.get("theme", "light"), value => { store.set("theme", value); applyTheme(); })),
       h("p", {class: "muted small", text: "Your theme is remembered on this browser. Motion follows your device's reduced-motion setting."})));
     page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Setup" }), setupPanel(),
       S.setup.complete ? h("label", { class: "check" }, h("input", { type: "checkbox", checked: store.get("setupPinned", false),
         onchange: (e) => { store.set("setupPinned", e.target.checked); renderSide(); } }), "Keep the setup card in the sidebar") : null));
+    if (!isDev()) {
+      const aiText = s.level === "hard_stop" ? "AI is paused until next month. Everything else still works."
+        : !b.ai.available ? "AI is off. Everything else works: people, notes, reminders and your data."
+        : b.ai.mode === "mock" ? here("In this version Link shows sample answers. They are examples, not advice written for you. Nothing you type leaves this computer.", "In this version Link shows sample answers. They are examples, not advice written for you. Nothing you type is sent to an AI company.")
+        : "Link sends what you type in chat, and the details you choose for a draft, to the AI provider. It never sends messages for you.";
+      page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "About the AI" }), h("p", { text: aiText })));
+    }
     const meter = h("div", { class: "meter " + level }, h("span", {}));
     meter.firstChild.style.width = Math.min(100, 100 * s.committed_usd / s.hard_stop_usd) + "%";
-    page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "AI" }),
+    if (isDev()) page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "AI" }),
       h("div", { class: "row" }, h("h3", { text: !b.ai.available ? "AI is off" : b.ai.mode === "mock" ? "Mock AI" : "Live AI" }), chip(b.ai.mode === "mock" ? "Canned replies" : b.ai.available ? "Real replies" : "Unavailable", b.ai.available ? (b.ai.mode === "mock" ? "warn" : "ok") : "bad")),
       h("p", { text: b.ai.reason }),
-      help("What leaves this Mac?", "In mock mode, nothing.", "In live mode, chat sends your planning context and recent conversation to the AI provider. Drafting and comparison send only the evidence you tick, your voice notes, and what you type in the form.",
+      help(here("What leaves this Mac?", "What is sent to an AI company?"), "In mock mode, nothing.", "In live mode, chat sends your planning context and recent conversation to the AI provider. Drafting and comparison send only the evidence you tick, your voice notes, and what you type in the form.",
         "To switch modes, set COMPANION_AI_MODE when starting the app. The README has the steps for a first live call.")));
     const amount = h("input", { type: "number", step: "0.01", min: 0, placeholder: "e.g. 3.42", "aria-label": "Month-to-date total from the provider Console" });
-    page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Spending this month" }),
+    if (isDev()) page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Spending this month" }),
       h("h3", { text: money(s.committed_usd) + " of " + money(s.hard_stop_usd) }), meter,
       h("p", { class: level ? "notice " + level : "", text: s.level === "hard_stop" ? "The limit is reached. New AI calls are paused until next month. Your saved work is unaffected."
         : money(s.remaining_before_stop_usd) + " left before new AI calls pause. Your monthly budget is " + money(s.monthly_budget_usd) + "." }),
@@ -1400,17 +1698,18 @@
     } });
     const phrase = h("input", { placeholder: "DELETE EVERYTHING", "aria-label": "Type DELETE EVERYTHING to confirm" });
     page.append(h("section", { class: "section" }, h("div", { class: "eyebrow", text: "Your data" }),
-      h("p", { text: "Everything is in one file on this Mac. Chat transcripts are removed after 30 days." }),
+      h("p", { text: here("Everything is in one file on this Mac. Chat transcripts are removed after 30 days.", "Everything is in one file on Link’s server, separate from everyone else’s. It’s deleted when you click Delete everything, or after 30 days without signing in. Chat transcripts are removed after 30 days.") }),
       h("div", { class: "row" }, h("a", { class: "btn", href: "/api/export", download: "career-companion-export.json" }, "Export everything"),
         S.hasSample ? btn("Remove sample data", async () => { await act(() => api("POST", "/api/sample/remove"), "Removed."); await refreshStatus(); render(); })
           : btn("Load labelled sample data", async () => { await act(() => api("POST", "/api/sample/load"), "Loaded."); await refreshStatus(); render(); })),
       disc("starter", "Import a starter file", "add your projects, goals and to-dos in one step",
-        h("p", { class: "small muted", text: "A starter file is a .json file prepared for you. Choose it, check the preview, then add it. The file is read on this Mac only." }), picker, preview),
-      help("Delete everything", "This removes the database files. It can't reach Time Machine or other backups, exports you saved, or copies the AI provider keeps for up to 30 days. It isn't forensic erasure.",
+        h("p", { class: "small muted", text: "A starter file is a .json file prepared for you. Choose it, check the preview, then add it. " + here("The file is read on this Mac only.", "The file is read by Link only and isn’t shared with anyone.") }), picker, preview),
+      help("Delete everything", here("This removes the database files. It can't reach Time Machine or other backups, exports you saved, or copies the AI provider keeps for up to 30 days. It isn't forensic erasure.", "This deletes your account, everything Link stored for you on its server, and your Google connections, then signs you out. It can't reach exports you saved. There are no backups during this test."),
         h("form", { class: "row", onsubmit: async (e) => {
           e.preventDefault();
           await writeQuickWorkspace();
           if (!(await act(() => api("POST", "/api/wipe", { confirm: phrase.value }), "Everything was deleted."))) return;
+          if (web()) { window.location.replace("/"); return; }  // the account is gone; back to the sign-in page
           quickWorkspace={};quickDirty=false;clearTimeout(quickTimer);quickTimer=null;$("undo-bar")?.remove();
           $("chat-log").replaceChildren();
           Object.assign(S.draft, { current: null, action_id: null }); S.draft.evidence_ids.clear(); S.session = null; S.skipped.clear();
@@ -1434,18 +1733,41 @@
   }
 
   // ---- shell: routing, loading and error states -----------------------------------------
-  const workflows = window.LinkWorkflows.create({h,btn,field,select,disc,api,act,S,go,render,toast,orbSvg,connectionMotif,openSource:kind=>sources.open(kind)});
+  const guide = window.LinkConnectionGuide.create({h,btn,field,api,S,go,orbSvg});
+  const workflows = window.LinkWorkflows.create({h,btn,field,select,disc,api,act,S,go,render,toast,orbSvg,connectionMotif,openSource:kind=>sources.open(kind),tip,
+    whereToStart:()=>startPage.showWhere()});
   const sources = window.LinkSources.create({h,btn,field,select,api,act,S,go,render,workflows});
-  const RENDERERS = { sources:root=>sources.start(root), connect: root=>workflows.start(root), today: renderToday, people: renderPeople, quicklog: renderQuickLog, roles: renderRoles, evidence: renderEvidence, drafts: renderDrafts, me: renderMe, pasted: renderPasted, settings: renderSettings };
+  // How Link works, its tracker, and the walkthrough (D55). The developer version keeps the original tour (LinkGuide).
+  const startPage = window.LinkStart.create({h,btn,api,act,S,go,here,orbSvg,workflows,guide,tip,store,walkthrough:()=>({start:takeTour})});
+  let leaving = false;  // set just before the tour reloads the page, so the unsaved-changes prompt doesn't stop it
+  const walkthrough = window.LinkWalkthrough.create({h,btn,S,go,here,orbSvg,tracker:startPage.tracker,hooks:{
+    guidePrefill:(values,at)=>guide.prefill(values,at), guideReset:()=>guide.reset(),
+    connectBegin:()=>workflows.begin(), connectResume:(inputs,plan)=>workflows.resume(inputs,plan),
+    openDisc:(key)=>S.open.add(key), closeDisc:(key)=>S.open.delete(key),
+    closeMenus:()=>{closeMenus();closeMore();}, clearPerson:()=>{S.selectedPerson=null;S.addPerson=false;},
+    closeCompanion:()=>{setDock(false);hideTip(true);},
+    flushQuick:()=>writeQuickWorkspace().catch(()=>{}),
+    resetQuick:()=>{clearTimeout(quickTimer);quickTimer=null;quickDirty=false;quickWorkspace=null;},
+    oriented:()=>send("POST","/api/journey/oriented",{}),
+    // Back to the top first: a reload restores the scroll position, and the next page should start at its beginning.
+    reload:(tab)=>{leaving=true;window.scrollTo(0,0);$("main").scrollTop=0;history.replaceState(null,"","#"+tab);window.location.reload();}}});
+  function takeTour() {
+    if (isDev()) { window.LinkGuide.start(); return; }
+    // The tour ends by reloading the page, so a message with unsaved changes is saved first, by the person.
+    if ([...draftWorkspaces.values()].some((w) => w.dirty || w.saving)) { toast("Save your message in My messages first, so the tour can’t lose it."); return; }
+    walkthrough.start();
+  }
+  const RENDERERS = { start: root=>startPage.render(root), add: root=>guide.render(root), sources:root=>sources.start(root), connect: root=>workflows.start(root), today: renderToday, people: renderPeople, quicklog: renderQuickLog, roles: renderRoles, evidence: renderEvidence, drafts: renderDrafts, me: renderMe, pasted: renderPasted, settings: renderSettings };
   function skeleton() {
     const bar = (w, ht) => { const s = h("span", {}); s.style.width = w; s.style.height = ht + "px"; return s; };
     return h("div", { class: "skeleton", "aria-busy": "true" }, h("span", { class: "sr", text: "Loading" }), bar("30%", 12), bar("85%", 40), bar("60%", 40), bar("70%", 16), bar("100%", 56), bar("45%", 56));
   }
   function errorView(err) {
     return h("section", { class: "state", role: "alert" }, h("span", { class: "notice bad" }, icon("warn", 20), "Something went wrong"),
-      h("h1", { text: "Couldn't load this." }), h("p", { class: "hero-meta", text: "Your saved work is fine. This usually means the app stopped running." }),
+      h("h1", { text: "Couldn't load this." }), h("p", { class: "hero-meta", text: S.hosted ? "Your saved work is fine. This usually means the connection dropped for a moment." : "Your saved work is fine. This usually means the app stopped running." }),
       h("div", { class: "row" }, btn("Try again", () => render(), "dark")),
-      help("What to check", "Is the terminal window that started the app still open and running?", "If you restarted the app, use the new link it printed. The old page can't reconnect.", "Details: " + err.message));
+      S.hosted ? help("What to check", "Check your internet connection, then choose Try again.", "If it keeps happening, sign out and sign in again.", "Details: " + err.message)
+        : help("What to check", "Is the terminal window that started the app still open and running?", "If you restarted the app, use the new link it printed. The old page can't reconnect.", "Details: " + err.message));
   }
   const STUDIO_CONTEXT = {
     sources: ["Bring context, keep control.", "File previews stay local. Choose the people, excerpts or meeting you want to work with; nothing is fetched from LinkedIn."],
@@ -1453,14 +1775,27 @@
     today: ["A little progress, every day.", "Choose one action worth your attention. Link can help you work through it."],
     people: ["Build context, one moment at a time.", "Open a person to review your history or prepare a thoughtful next step."],
     quicklog: ["Fragments are enough.", "Save what you remember. Uncertain details stay uncertain; suggestions never become tasks on their own."],
-    roles: ["Career tools.", "Your saved opportunities remain available here."],
+    get roles() { return pick(["Career tools.", "Your saved opportunities remain available here."], ["Jobs I’m looking at.", "The roles you saved are here."]); },
     evidence: ["Good stories start with proof.", "Record your claims and sources here. Verification stays in your hands."],
     drafts: ["Sound like yourself.", "Choose the evidence and context you approve before asking Link to draft. Private planning notes stay out."],
     me: ["A working portrait of you.", "Your goals guide planning. Your voice notes guide writing. You control both."],
     pasted: ["Bring your own context.", "Reference material stays separate from instructions and approved evidence."],
     settings: ["Your workspace, your rules.", "Manage AI mode, spending and your local data here."]
   };
+  const plainName = (name) => String(name || "").replace(/^\[SAMPLE\]\s*/, "");
+  const chatPlaceholder = () => pick("Talk it through…", "What’s on your mind?");
   function updateContextNote() {
+    if (!isDev()) {  // the user version shows only what is relevant now: who you're talking about, if anyone
+      const name = S.contextItem ? plainName(S.contextItem.title) : "";
+      // With live AI, the person's notes go to the AI provider with each message, so the chip says so (consent).
+      const live = S.ai && S.ai.available && S.ai.mode === "live";
+      fill($("studio-context"), S.contextItem ? h("div", { class: "context-now" }, h("p", { text: (live ? "Using your notes on " : "About ") + name }),
+        h("button", { type: "button", class: "context-stop", "aria-label": "Stop talking about " + name, onclick: () => {
+          S.contextItem = null; updateContextNote(); $("chat-input").placeholder = chatPlaceholder(); $("chat-input").focus(); } }, icon("close", 14))) : null);
+      $("studio-context").hidden = !S.contextItem;
+      return;
+    }
+    $("studio-context").hidden = false;
     const context = STUDIO_CONTEXT[S.tab] || STUDIO_CONTEXT.today;
     fill($("studio-context"), h("div", {class: "eyebrow", text: "A LITTLE CLARITY"}), h("h3", {text: context[0]}), h("p", {text: context[1]}),
       S.contextItem ? h("div", {class: "stack"}, h("p", {text: "Discussing: " + S.contextItem.title + ". Its private notes are available to this planning conversation."}),
@@ -1474,12 +1809,12 @@
     const page = root.querySelector(".page");
     if (!page) return;
     page.classList.add("studio-" + S.tab);
-    page.append(iconCredit());
-    const sectionName = S.tab === "connect" ? "Build a connection" : NAV.concat(NAV_MINOR).find(([id]) => id === S.tab)[1];
-    if(S.demo) page.prepend(h("div",{class:"demo-label",text:"Demo workspace · fictional people · mock AI"}));
+    if (S.tab === "settings") page.append(iconCredit());  // the CC BY credit stays reachable without sitting under every page
+    const sectionName = S.tab === "connect" ? "Build a connection" : S.tab === "add" ? "Add a person" : S.tab === "start" ? "How Link works" : (NAV.concat(NAV_MINOR).find(([id]) => id === S.tab) || [, "Link"])[1];
+    if(S.demo) page.prepend(h("div",{class:"demo-label",text:pick("Demo workspace · fictional people · mock AI","Demo with sample people")}));
     page.prepend(h("div", {class: "workspace-toolbar"},
       h("span", {class: "toolbar-breadcrumb"}, "Link", h("span", {"aria-hidden": "true", text: "/"}), h("strong", {text: sectionName})),
-      h("span", {class: "row"}, btn("Quick log",()=>go("quicklog"),"quiet"), h("button", {class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)", text: "Search ⌘K"}), h("span", {class: "local-indicator"}, h("span", {class: "dot"}), "Local workspace"))));
+      h("span", {class: "row"}, btn(label("quicklog"),()=>go("quicklog"),"quiet"), h("button", {class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)", text: "Search ⌘K"}), h("span", {class: "local-indicator"}, h("span", {class: "dot"}), "Local workspace"))));
 
     updateContextNote();
     if (S.tab === "drafts") {
@@ -1533,14 +1868,17 @@
     }
   }
   let renderSeq = 0;
+  // The walkthrough (D55) waits for this to know a page is on screen.
+  const rendered = () => window.dispatchEvent(new CustomEvent("link:rendered", { detail: { tab: S.tab } }));
   async function render() {
     const seq = ++renderSeq, main = $("main");
     if (!S.onboarding.done) {
       document.body.classList.add("onboarding");
       const fresh = h("div", {});
       await renderOnboarding(fresh);
-      fresh.append(iconCredit());
+      // the welcome screen carries no credit line; it is in Settings
       main.replaceChildren(...fresh.childNodes);
+      rendered();
       return;
     }
     renderSide();
@@ -1554,6 +1892,7 @@
       if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
         const page=main.querySelector('.page');if(page)page.animate([{opacity:.35,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:220,easing:'cubic-bezier(.22,1,.36,1)'});
       }
+      rendered();
     }
   }
   function route() {
@@ -1561,7 +1900,7 @@
     const tab = window.location.hash.replace("#", "");
     S.tab = RENDERERS[tab] ? tab : "today";
     closeMore();
-    document.title = "Link — Connection Studio";
+    document.title = "Link · Remember the people you meet";  // says what Link is for, not an internal name
     // Moving focus to the new page lets keyboard and screen-reader users land in it directly.
     render().then(() => {
       if (!S.onboarding.done) return;

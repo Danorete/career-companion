@@ -22,7 +22,7 @@ parser=argparse.ArgumentParser()
 parser.add_argument('--output',type=Path,default=Path('/tmp/link-studio-check'))
 args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
-    settings=Settings(data_dir=Path(folder),port=8880,ai_mode='mock')
+    settings=Settings(data_dir=Path(folder),port=8880,ai_mode='mock',ui_mode='dev')
     app=create_app(settings,MockAI());db=app.state.db
     load_demo(db,local_today(settings))
     db.run("INSERT OR REPLACE INTO kv(key,value) VALUES('onboarding_step','2')")
@@ -63,7 +63,7 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             assert note.input_value().startswith('Person from the career fair')
             assert db.one('SELECT COUNT(*) AS n FROM interactions')['n'] == 3
             page.get_by_role('link',name='People',exact=True).first.click()
-            page.get_by_role('button',name='Add person',exact=True).click()
+            page.get_by_role('button',name='Quick form',exact=True).click()  # Add person opens the step-by-step guide (D52)
             page.get_by_label('Name',exact=True).fill('Maya')
             page.get_by_role('button',name='Open Maya Lindqvist · Example Health',exact=True).click()
             page.locator('.person-heading h2').filter(has_text='Maya Lindqvist').wait_for()

@@ -22,7 +22,7 @@ parser=argparse.ArgumentParser()
 parser.add_argument('--output',type=Path,default=Path('/tmp/link-studio-check'))
 args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
 with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
-    settings=Settings(data_dir=Path(folder),port=8878,ai_mode='mock')
+    settings=Settings(data_dir=Path(folder),port=8878,ai_mode='mock',ui_mode='dev')
     app=create_app(settings,MockAI());db=app.state.db
     load_demo(db,local_today(settings))
     db.run("INSERT OR REPLACE INTO kv(key,value) VALUES('onboarding_step','2')")
@@ -73,16 +73,19 @@ with tempfile.TemporaryDirectory(prefix='link-studio-') as folder:
             page.get_by_role('button',name='Think with Link',exact=True).click()
             page.get_by_label('Message Link',exact=True).wait_for()
             assert page.locator('#dock').get_attribute('aria-hidden') == 'false'
-            old=page.locator('#dock').bounding_box()['width']
-            page.get_by_role('separator',name='Resize companion panel',exact=True).focus()
-            page.keyboard.press('ArrowLeft')
-            assert page.locator('#dock').bounding_box()['width'] > old
+            # The chat is a drawer over the page (D53): no resize handle, and the page behind waits while it is open.
+            assert page.locator('#dock').get_attribute('role') == 'dialog' and page.evaluate("document.getElementById('main').inert")
+            assert page.get_by_role('separator',name='Resize companion panel').count() == 0
             page.locator('#main').evaluate('(el)=>el.scrollTop=0')
             page.screenshot(path=str(args.output/'people-with-link.png'))
-            page.get_by_role('button',name='Collapse companion panel',exact=True).click()
+            page.get_by_role('button',name='Close chat',exact=True).click()
             page.locator('#main').evaluate('(el)=>el.scrollTop=0')
             page.screenshot(path=str(args.output/'people.png'))
+            # The icon credit (CC BY) lives in Settings now, not under every page (D53).
+            page.goto('http://127.0.0.1:8878/#settings')
+            page.get_by_text('Appearance').first.wait_for()
             assert page.locator('a[href="https://www.streamlinehq.com/icons/guidance"]').count() > 0
+            page.goto('http://127.0.0.1:8878/#people')
             page.evaluate("localStorage.setItem('cc.theme',JSON.stringify('dark'))")
             page.reload()
             page.locator('.person-row').filter(has_text='Maya Lindqvist').click()

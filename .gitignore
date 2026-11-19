@@ -8,6 +8,25 @@ data/
 *.sqlite3-wal
 *.sqlite3-shm
 export-*.json
+career-companion-export*.json
+link.log
+launcher.key
+.env
+.env.*
+# LinkedIn and calendar exports people import into Link
+Connections*.csv
+messages*.csv
+*.ics
+Basic_LinkedInDataExport*
+Complete_LinkedInDataExport*
 
 # Graphify cache
 graphify-out/cache/
+# Graphify's dated backups of the previous graph (git history already keeps it)
+graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
+
+# Google sign-in settings downloaded from the Cloud Console. Never commit these.
+client_secret*.json
+google-client*.json
+google-web-client*.json
+*.apps.googleusercontent.com.json

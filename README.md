@@ -8,7 +8,9 @@ keep your information in place. This is a local desktop-browser workflow. The **
 
 Start with Link's guided onboarding even if you have no contacts or résumé. It proposes a plan;
 you review what becomes a person, log, task, or preference. Existing career tools are still available.
-Link never browses or operates LinkedIn and never sends messages for you.
+Link never signs in to LinkedIn, browses it or operates it, and never sends messages for you. LinkedIn data
+comes only from files you export yourself. Calendar and email connections, and nudges outside the app, are
+decided but not built yet (D39 to D41 in `DECISIONS.md`).
 
 Version one, single user. Decisions are in `DECISIONS.md`; build status is in `PROGRESS.md`.
 
@@ -35,9 +37,111 @@ Your data lives in `~/Library/Application Support/CareerCompanion/`, outside thi
 | Setting | Environment variable | Default |
 |---|---|---|
 | AI mode | `COMPANION_AI_MODE` (`mock`, `live`, `off`) | `mock` |
+| Version | `COMPANION_UI_MODE` or `companion run --mode` (`user`, `dev`) | `user` |
+| Google Calendar sign-in | `COMPANION_GOOGLE_CLIENT_FILE`, or `COMPANION_GOOGLE_CLIENT_ID` and `COMPANION_GOOGLE_CLIENT_SECRET` | unset (calendar connection off) |
 | Port | `COMPANION_PORT` | `8765` |
 | Data folder | `COMPANION_DATA_DIR` | see above |
 | Time zone for the daily cap | `COMPANION_TIMEZONE` | `America/New_York` |
+
+## Two versions
+
+`companion run` opens the **user version**: everyday words ("Add a note", "Add contacts"), no spending meter or AI
+settings, and one plain line when the AI is off or showing sample answers. `companion run --mode dev` opens the
+**developer version**: the original wording, the AI budget, the mock/live switch and spending details. The browser
+checks in `scripts/` run the developer version, except `check_user_mode_browser.py`, which checks both. See D42.
+
+## Connect Google Calendar (optional)
+
+Link can read your Google Calendar to find people you have met or are about to meet. It is read-only: it never adds,
+changes or deletes an event, and it never reads event descriptions, places or notes. Nothing is saved as a person
+until you click Keep, and an invitation is never treated as a conversation. Decision D43 has the details.
+
+After a meeting with someone you kept, Today asks "How did it go with ...?" about an hour after it ends. Great or
+Fine saves a short note dated to the meeting, an optional line adds to it, and an optional promise becomes your
+next step with a reminder in three days. Skip saves nothing, and an unanswered question quietly goes away after a
+week (decision D44).
+
+In `--demo` mode this works with a fictional sample calendar and needs no Google account.
+
+To connect your own calendar you need your own Google sign-in settings. This is the part to do once:
+
+1. In the Google Cloud Console, create a project and turn on the **Google Calendar API**. For email, also turn on the **Gmail API**.
+2. Under the OAuth consent screen, choose **External**, keep it in **Testing**, add your own Google address as a test
+   user, and add the read-only calendar scope (`.../auth/calendar.readonly`). For email, also add `.../auth/gmail.metadata`
+   (names, addresses and dates only; Link never reads a subject or body).
+3. Create an **OAuth client ID** of type **Desktop app**. Copy the client ID and secret.
+4. Download the client's JSON file, move it somewhere outside this repository, and make it private:
+
+```
+mkdir -p ~/.config/link && mv ~/Downloads/client_secret_*.json ~/.config/link/google-client.json && chmod 600 ~/.config/link/google-client.json
+```
+
+   Then start Link with `COMPANION_GOOGLE_CLIENT_FILE` pointing at it:
+
+```
+COMPANION_GOOGLE_CLIENT_FILE=~/.config/link/google-client.json .venv/bin/companion run
+```
+
+   `COMPANION_GOOGLE_CLIENT_ID` and `COMPANION_GOOGLE_CLIENT_SECRET` also work and override the file. Git ignores
+   `client_secret*.json`, but keep the file out of the repository anyway. The file must be a **Desktop app** client.
+   `companion status` shows whether Link found sign-in settings, without printing them.
+
+5. Open **Add contacts**, then the calendar tab, then **Connect Google Calendar**. Your browser opens Google; after you
+   approve, it returns to Link on `http://127.0.0.1:<port>`. The sign-in is stored in your system keychain, never in the
+   database, an export or a log. **Disconnect** removes it, and Delete everything removes it too.
+
+Not yet verified: this has been tested against stand-ins only. No real Google sign-in has been tried. As far as I know,
+an app in Testing mode is limited to listed test users and Google may expire its sign-in after about a week; school
+Google accounts may need an administrator's approval. Check Google's current rules before you rely on it.
+
+## Open Link with one click (Mac)
+
+Run this once in Terminal, from the same settings you normally start Link with (the same `COMPANION_DATA_DIR`, and
+a `COMPANION_GOOGLE_CLIENT_FILE` if you use one):
+
+```
+.venv/bin/companion launcher --install
+```
+
+It builds `~/Applications/Link.app`. Open it from Spotlight (Cmd+Space, then "Link") or drag it to your Dock. If Link is
+already running, it opens a fresh one-time sign-in link in your browser. If not, it starts Link quietly in the background
+first. **Quit Link** in the Menu (or `companion quit`) stops it. `companion launch` does the same thing from Terminal,
+and `companion launcher --uninstall` removes the app. Link stays running in the background until you quit it, listening only
+on this computer. Its log is `link.log` in your data folder. Decision D47 has the details.
+
+**After an update** (decision D56): `git pull` downloads new code, and opening Link then starts the new code. If an older
+copy is still running, opening Link stops it and starts the new one ("Restarted Link with the update"). The same install
+command also adds a git hook in this folder, so `git pull` opens Link by itself whenever it brings changes. Run
+`companion launcher --status` to check it, and `companion launcher --uninstall` to remove it with the app. If your git
+uses a shared hooks folder (`core.hooksPath`), the hook is skipped, and you open Link after pulling.
+
+The builder installed and opened `Link.app` on a real Mac (see PROGRESS, 2026-11-17). The launcher itself, including the
+restart after an update, was run end to end against a real background server on Linux.
+
+## Reminders outside Link (optional, Mac)
+
+Link can show one desktop reminder a day when a follow-up is due: a meeting you kept that needs a "How did it go?",
+or a reminder that has come due. It says how many and never who, because a notification appears on a lock screen
+and is stored by the operating system. Quiet hours (9 pm to 8 am by default) are always respected, and after two
+reminders in a row that lead nowhere for the same person, Link stops reminding you about them (decision D46).
+
+1. Open **Menu**, then **Settings**, then **Reminders outside Link**. Choose **Once a day** and a time.
+2. Click **Send a test reminder** to check that macOS shows it. If it doesn't, open System Settings, then Notifications,
+   and allow notifications for Script Editor.
+3. To get reminders while Link is closed, run this once in Terminal. It installs a small login agent that checks every
+   15 minutes and reads only Link's own data:
+
+```
+.venv/bin/companion nudge --install
+```
+
+   Remove it with `companion nudge --uninstall`. Delete everything does not remove it. `companion nudge --dry-run`
+   shows what it would do, and `companion nudge --status` says whether it is installed. Its log, in your data folder,
+   holds counts only.
+
+Verified once: the builder's test reminder appeared on a real Mac. Not yet verified: the login agent (`--install`) has only
+been tested with stand-ins, and no real reminder for a due follow-up has been shown. A reminder cannot open Link by itself,
+so you still start Link yourself.
 
 ## Loading your information in one step
 
@@ -108,7 +212,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`199 passed` on Linux, Python 3.12, 2026-11-13. Not yet run on macOS. Coverage by acceptance criterion:
+`403 passed` on Linux, Python 3.13, 2026-11-19. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -130,6 +234,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 | LinkedIn CSV, message and calendar imports | `test_network_imports.py` |
 | Private advice is not an evidence audit | `test_conversation_scope.py`, `test_record_context.py` |
 | The companion identifies as Link | `test_identity.py` |
+| Progress tracker counts real records only, in any order | `test_journey.py` (11 tests) |
 
 Browser checks are in `scripts/check_*_browser.py`; see "Running the browser checks" at the end of this file.
 
@@ -310,8 +415,13 @@ it in headless Chromium, and writes screenshots to the `--output` folder:
 | `check_studio_browser.py` | People directory and tabs by keyboard, next-step undo, Link panel, both themes |
 | `check_people_browser.py` | People, Quick log, approximate dates, review, search, narrow layout |
 | `check_connection_browser.py` | Guided onboarding, preparation, rehearsal, drafting, resume after reload |
+| `check_calendar_browser.py` | Sample calendar: connect, find people, keep, never suggest, disconnect; the page's connection label stays true |
+| `check_launcher_end_to_end.py` | Not a browser check: starts a real background Link, signs in with a minted link, checks no link reaches the log, and quits it |
+| `check_nudges_browser.py` | Settings: turn reminders on, quiet hours, test reminder, pause and resume, and the message on a computer that cannot show one |
+| `check_user_mode_browser.py` | User version uses plain words and hides spending and AI-mode controls; developer version keeps them |
 | `check_qol_browser.py` | Quick log recovery, undo, duplicate-name suggestions, reminders, reduced motion |
-| `check_avatar_browser.py` | Link character and the Meet Link walkthrough |
+| `check_avatar_browser.py` | Link character and the Meet Link walkthrough (developer version) |
+| `check_walkthrough_browser.py` | How Link works as the first screen, the progress tracker, every walkthrough step on practice data with nothing written, leaving, real progress, why-we-ask lines, phone (D55) |
 
 They need the Python `playwright` package (`.venv/bin/pip install playwright`), which is not part of
 `.[dev]`. Every script launches Chromium from `/usr/bin/chromium`, which suits the Linux machines they
@@ -325,3 +435,56 @@ were written on. On a Mac, change `executable_path` in the script to your browse
 
 The first four in the table were re-run on Linux on 2026-11-13 and passed with no JavaScript errors.
 The other three last passed in the sessions recorded in `VALIDATION.md`.
+
+## Link, the floating companion
+
+Decision D53. Link is the round button in the bottom-right corner. Click it to chat; the chat opens over the page and
+closes with Escape or a click outside it. After you do something, Link may show a one- or two-sentence tip beside the
+button. Turn tips off with **Turn off tips** on any tip, or with the **Tips** switch in the chat or in Settings.
+
+## Adding a person, step by step
+
+Decision D52. Choose **Add a person** on How Link works or in the Add menu, or **Add person** on the People page. Link asks four short questions (who, how you met, what you remember, one next step), shows what it
+will save as you answer, and saves everything at once. Only the name is required. **Quick form** on the People page
+keeps the one-screen form.
+
+## How Link works, your progress, and the walkthrough
+
+Decision D55. A first visit opens **How Link works**: what Link is for, where your information is kept, why answers are
+samples in this version, three ways to begin when you don't know where to start, and why Link asks each question. The
+bar at the top, **How far you've come**, has four stages (Start here, Groundwork, People & notes, Reaching out) and fills
+in only from what you add yourself. It also sits at the top of Today until every stage is done.
+
+**Show me how it works** starts a walkthrough of about three minutes: Link moves through the real app with a practice
+person, typing and clicking for you and saying why each question is there. Nothing is saved and nobody is contacted.
+Pause, Back, Next, Replay step and Skip to the app work at any time; Esc leaves. Find the page again in Menu (More on a
+phone) or Settings, and replay the walkthrough from Menu with **Take the tour**.
+
+## The web version (for remote testers)
+
+Decision D50. The same app, behind a front door that signs people in with Google. Only addresses on an invite list get
+in, and each person's data is in its own database file. The Mac app above is unchanged.
+
+To try it on your own Mac before it goes online (quit the Mac app first; both use port 8765):
+
+1. In Google Cloud, create an OAuth client of type **Web application** with the redirect URI
+   `http://localhost:8765/connect/google/callback`, and add the scopes `openid` and `.../auth/userinfo.email`.
+   Save its JSON file as `~/link-private/google-web-client.json` (`chmod 600`).
+2. Install the extra piece the web version needs, and make a secret key once. Keep the key: a new key means everyone's
+   account and saved Google connections stop working.
+
+```
+.venv/bin/pip install -e '.[web]'
+python3 -c "import secrets; print(secrets.token_urlsafe(48))" > ~/link-private/web-secret-key && chmod 600 ~/link-private/web-secret-key
+```
+
+3. Start it, with your own address on the invite list (separate several with commas):
+
+```
+LINK_PUBLIC_URL=http://localhost:8765 LINK_DATA_ROOT=~/link-web-test LINK_SECRET_KEY="$(cat ~/link-private/web-secret-key)" COMPANION_GOOGLE_CLIENT_FILE=~/link-private/google-web-client.json LINK_INVITES=you@gmail.com .venv/bin/companion web
+```
+
+Settings, all read from environment variables: `LINK_PUBLIC_URL` (the site's address; https except on localhost),
+`LINK_DATA_ROOT` (where accounts live), `LINK_SECRET_KEY` (at least 32 characters; encrypts saved Google sign-ins and
+scrambles email addresses), `LINK_INVITES`, the Google Web client (`COMPANION_GOOGLE_CLIENT_FILE`, or
+`COMPANION_GOOGLE_CLIENT_ID` and `COMPANION_GOOGLE_CLIENT_SECRET`), `PORT`, and `LINK_TRUST_PROXY=1` behind a host's proxy.

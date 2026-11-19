@@ -8,6 +8,7 @@ malware running as the same macOS user, which can read the database file directl
 from __future__ import annotations
 
 import secrets
+import time
 from typing import Awaitable, Callable
 
 from starlette.requests import Request
@@ -16,8 +17,10 @@ from starlette.responses import JSONResponse, Response
 COOKIE_NAME = "cc_session"
 CSRF_HEADER = "x-csrf-token"
 MAX_BODY_BYTES = 1_000_000
+OAUTH_CALLBACK_PATH = "/connect/google/callback"
 SAFE_METHODS = {"GET", "HEAD"}
 MAX_FAILED_EXCHANGES = 5
+MINTED_TOKEN_SECONDS = 300
 
 SECURITY_HEADERS = {
     "Content-Security-Policy": (
@@ -41,18 +44,37 @@ class Security:
         self._token_used = False
         self._failed = 0
         self._sessions: dict[str, str] = {}  # session id -> CSRF token
+        self._minted: dict[str, float] = {}  # one-time links handed to the launcher -> expiry
 
     def exchange(self, token: str) -> tuple[str, str] | None:
         """Trade the single-use launch token for a browser session."""
-        if self._token_used or self._failed >= MAX_FAILED_EXCHANGES:
+        if self._failed >= MAX_FAILED_EXCHANGES:
             return None
-        if not secrets.compare_digest(token.encode(), self.launch_token.encode()):
-            self._failed += 1
-            return None
-        self._token_used = True
+        if self._token_used and secrets.compare_digest(token.encode(), self.launch_token.encode()):
+            return None  # the first link was already used
+        now = time.monotonic()
+        self._minted = {t: exp for t, exp in self._minted.items() if exp > now}
+        if not self._token_used and secrets.compare_digest(token.encode(), self.launch_token.encode()):
+            self._token_used = True
+        else:
+            match = next((t for t in self._minted if secrets.compare_digest(token.encode(), t.encode())), None)
+            if match is None:
+                self._failed += 1
+                return None
+            del self._minted[match]  # a minted link works once, like the first one
         sid, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
         self._sessions[sid] = csrf
         return sid, csrf
+
+    def mint_launch_token(self) -> str:
+        """A fresh one-time link for the launcher. Works once and expires after five minutes."""
+        token = secrets.token_urlsafe(32)
+        self._minted[token] = time.monotonic() + MINTED_TOKEN_SECONDS
+        return token
+
+    def revoke_initial_token(self) -> None:
+        """Background start: nobody gets a printed link, so the first one is closed."""
+        self._token_used = True
 
     def csrf_for(self, sid: str | None) -> str | None:
         return self._sessions.get(sid) if sid else None
@@ -84,7 +106,10 @@ def make_guard(security: Security) -> Callable[[Request, Callable[[Request], Awa
         if origin is not None and origin not in security.allowed_origins:
             return _deny(403, "origin not allowed")
         fetch_site = request.headers.get("sec-fetch-site")
-        if fetch_site is not None and fetch_site not in {"same-origin", "none"}:
+        # One exception: Google sends the browser back to the sign-in callback, which is a cross-site navigation by
+        # design. That route accepts GET only and trusts nothing but a single-use, expiring `state` value (D43).
+        callback = method == "GET" and request.url.path == OAUTH_CALLBACK_PATH
+        if fetch_site is not None and fetch_site not in {"same-origin", "none"} and not callback:
             return _deny(403, "cross-site request")
 
         mutating = method not in SAFE_METHODS

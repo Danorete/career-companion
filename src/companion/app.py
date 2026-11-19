@@ -4,21 +4,24 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
+import threading
 from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
-from . import services, store, people, coaching, network_imports
+from . import services, store, people, coaching, network_imports, encounters, connectors, nudges, nudge_agent, launcher, mailbook, guide
 from .ai import AIClient, AIUnavailable, CompanionTurn, Gateway, build_client
 from .budget import Budget
-from .config import Settings
+from .config import Settings, default_data_dir
 from .db import Database, now
 from .validate import validate_draft
-from .security import COOKIE_NAME, Security, make_guard
+from .keys import FolderSecrets, KeyringSecrets
+from .security import COOKIE_NAME, OAUTH_CALLBACK_PATH, Security, make_guard
 
 STATIC = Path(__file__).parent / "static"
 log = logging.getLogger("companion")
@@ -290,11 +293,59 @@ class StarterIn(In):
     actions: list[StarterAction] = Field(default_factory=list, max_length=60)
 
 
+class KeepIn(In):
+    name: str | None = Field(default=None, max_length=120)
+    person_id: int | None = None
+
+
+class NudgeSettingsIn(In):
+    enabled: bool
+    time: str = Field(max_length=5)
+    quiet_start: str = Field(max_length=5)
+    quiet_end: str = Field(max_length=5)
+
+
+class PauseIn(In):
+    days: int = Field(ge=1, le=nudges.MAX_PAUSE_DAYS)
+
+
+class CheckinIn(In):
+    answer: Literal["great", "fine", "skip"]
+    note: str = Field(default="", max_length=1000)
+    promise: str = Field(default="", max_length=200)
+
+
+class GuideSourceIn(In):
+    kind: Literal["calendar", "email"]
+    id: int = Field(gt=0)
+
+
+class GuideIn(In):
+    """The step-by-step guide's answers (D52). Only the name is required."""
+    name: str = Field(min_length=1, max_length=120)
+    org: str = Field(default="", max_length=200)
+    context: str = Field(default="", max_length=200)
+    when: WhenIn = Field(default_factory=WhenIn)
+    memory: str = Field(default="", max_length=2000)
+    next_step: str = Field(default="", max_length=200)
+    remind_in_days: int | None = Field(default=None, ge=0, le=60)
+    source: GuideSourceIn | None = None
+
+
+class MailDismissIn(In):
+    scope: Literal["later", "never"] = "later"
+
+
+class DismissIn(In):
+    scope: Literal["event", "person"] = "event"
+
+
 class WipeIn(In):
     confirm: Literal["DELETE EVERYTHING"]
 
 
-def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI:
+def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=None, secret_store=None, notifier=None, mail=None,
+               google_transport=None) -> FastAPI:
     db = Database(settings.db_path)
     store.purge_old_messages(db, settings.transcript_days)
     security = Security(settings.port)
@@ -304,13 +355,65 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
     else:
         client, reason = build_client(settings)
     if client is not None and client.name == "mock":
-        reason = "Mock AI: replies are canned and nothing leaves this Mac."
+        reason = "Mock AI: replies are canned." if settings.hosted else "Mock AI: replies are canned and nothing leaves this Mac."
     gateway = Gateway(db, budget, client, reason)
 
     app = FastAPI(title="Career Companion", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.db, app.state.security, app.state.budget, app.state.gateway = db, security, budget, gateway
     app.state.settings = settings
-    app.middleware("http")(make_guard(security))
+    # Each data folder has its own keychain entries (D49); your usual folder adopts a sign-in saved before that.
+    if settings.hosted and secret_store is None:
+        raise ValueError("A hosted copy needs its encrypted sign-in store; the keychain is never used on a server.")
+    secrets_store = secret_store or FolderSecrets(KeyringSecrets(), settings.data_dir,
+                                                  adopt_legacy=Path(settings.data_dir).expanduser().resolve() == default_data_dir().expanduser().resolve())
+    # The web version has no launcher and no Quit: one person must never be able to stop the server for everyone.
+    launcher_key = None if settings.hosted else launcher.ensure_key(settings.data_dir)
+    # Which code this copy runs, so opening Link after an update can restart an older copy (D56).
+    code_version = None if settings.hosted else launcher.code_version()
+    app.state.request_shutdown = lambda: None  # `companion run` replaces this with a real stop
+    desktop = notifier or nudges.build_notifier()
+    flows = connectors.OAuthFlows()
+    app.state.secrets, app.state.flows = secrets_store, flows
+
+    def calendar_provider():
+        """The injected provider (tests), the sample calendar (demo), Google when configured, otherwise nothing."""
+        if calendar is not None:
+            return calendar
+        if db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'"):
+            return connectors.SampleCalendar()
+        if settings.google_client_id:
+            if not hasattr(app.state, "google"):
+                app.state.google = connectors.GoogleCalendar(settings.google_client_id, settings.google_client_secret, secrets_store,
+                                                             transport=google_transport)
+            return app.state.google
+        return None
+
+    def mail_provider():
+        """The injected provider (tests), the sample mailbox (demo), Google when configured, otherwise nothing."""
+        if mail is not None:
+            return mail
+        if db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'"):
+            return connectors.SampleMail()
+        if settings.google_client_id:
+            if not hasattr(app.state, "google_mail"):
+                app.state.google_mail = connectors.GoogleMail(settings.google_client_id, settings.google_client_secret, secrets_store,
+                                                               transport=google_transport)
+            return app.state.google_mail
+        return None
+
+    def redirect_uri() -> str:
+        if settings.hosted:
+            return settings.public_url.rstrip("/") + OAUTH_CALLBACK_PATH
+        return f"http://127.0.0.1:{settings.port}{OAUTH_CALLBACK_PATH}"
+
+    def csrf_of(request: Request) -> str | None:
+        """Hosted: the web front door has already checked the session and passes its CSRF token along (D50)."""
+        if settings.hosted:
+            return request.scope.get("link.csrf")
+        return security.csrf_for(request.cookies.get(COOKIE_NAME))
+
+    if not settings.hosted:  # hosted copies sit behind the web front door, which applies its own guard
+        app.middleware("http")(make_guard(security))
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
     @app.exception_handler(store.RuleError)
@@ -330,24 +433,35 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
     # ---- shell and sign-in ------------------------------------------------------------
     @app.get("/")
     def index(request: Request) -> Response:
-        signed_in = security.csrf_for(request.cookies.get(COOKIE_NAME)) is not None
+        signed_in = csrf_of(request) is not None
         return FileResponse(STATIC / ("index.html" if signed_in else "login.html"))
 
-    @app.post("/auth/exchange")
-    def exchange(body: TokenIn) -> Response:
-        pair = security.exchange(body.token)
-        if not pair:
-            return JSONResponse({"error": "That link was already used or is wrong. Restart the app for a new one."},
-                                status_code=403)
-        resp = JSONResponse({"ok": True})
-        resp.set_cookie(COOKIE_NAME, pair[0], httponly=True, samesite="strict", path="/")
-        return resp
+    if not settings.hosted:
+        @app.post("/auth/exchange")
+        def exchange(body: TokenIn) -> Response:
+            pair = security.exchange(body.token)
+            if not pair:
+                return JSONResponse({"error": "That link was already used or is wrong. Restart the app for a new one."},
+                                    status_code=403)
+            resp = JSONResponse({"ok": True})
+            resp.set_cookie(COOKIE_NAME, pair[0], httponly=True, samesite="strict", path="/")
+            return resp
+
+    def calendar_status() -> dict:
+        provider = calendar_provider()
+        state = encounters.status(db)
+        connected = bool(state) and (provider is not None and provider.has_token())
+        return {"available": provider is not None, "demo": bool(provider and provider.demo), "connected": connected,
+                "last_sync": state.get("last_sync") if state else None,
+                "waiting": db.one("SELECT COUNT(*) AS n FROM encounter_candidates WHERE state='pending'")["n"] if connected else 0,
+                "checkins": len(encounters.due_checkins(db)), "email": mail_status()}
 
     @app.get("/api/bootstrap")
     def bootstrap(request: Request) -> dict:
-        return {"demo": bool(db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'")), "csrf": security.csrf_for(request.cookies.get(COOKIE_NAME)), "ai": gateway.availability(),
+        return {"demo": bool(db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'")), "ui_mode": settings.ui_mode, "calendar": calendar_status(),
+                "hosted": settings.hosted, "csrf": csrf_of(request), "ai": gateway.availability(),
                 "budget": budget.status(), "onboarding": services.onboarding_state(db),
-                "setup": services.setup_progress(db),
+                "setup": services.setup_progress(db), "journey": services.journey(db),
                 "has_sample": bool(db.one("SELECT 1 FROM evidence WHERE is_sample=1 UNION SELECT 1 FROM actions WHERE is_sample=1")),
                 "enums": {"memory_private": store.PRIVATE_MEMORY_KINDS, "memory_public": store.PUBLIC_VOICE_KINDS,
                           "uses": store.USES, "evidence_statuses": store.EVIDENCE_STATUSES,
@@ -513,6 +627,16 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
         db.run("INSERT INTO kv(key,value) VALUES('onboarding_step','2') ON CONFLICT(key) DO UPDATE SET value='2'")
         return services.onboarding_state(db)
 
+    # The starting page and its tracker (D55). Only real records count; the tour writes nothing.
+    @app.get("/api/journey")
+    def journey() -> dict:
+        return services.journey(db)
+
+    @app.post("/api/journey/oriented")
+    def journey_oriented() -> dict:
+        services.mark_oriented(db)
+        return services.journey(db)
+
     # One local unfinished recap; never used as coaching memory or drafting context.
     @app.get("/api/workspace/quicklog")
     def quicklog_workspace() -> dict:
@@ -571,11 +695,15 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
 
     @app.get("/api/people/{pid}")
     def person_get(pid: int) -> dict:
-        return people.person_detail(db, pid)
+        return {**people.person_detail(db, pid), "email": mailbook.person_summary(db, pid)}
 
     @app.put("/api/people/{pid}")
     def person_edit(pid: int, body: PersonIn) -> dict:
         return people.save_person(db, pid, body.model_dump())
+
+    @app.post("/api/guide/connection")
+    def guide_save(body: GuideIn) -> dict:
+        return guide.save_connection(db, body.model_dump(), services.local_today(settings))
 
     @app.post("/api/people/{pid}/next")
     def person_next(pid: int, body: NextIn) -> dict:
@@ -831,8 +959,207 @@ def create_app(settings: Settings, ai_client: AIClient | None = None) -> FastAPI
             store.check_evidence({**e, "status": "unverified_user_claim"})
         return services.import_starter(db, data)
 
+    # ---- calendar connection (decision D39) ---------------------------------------------
+    @app.get("/api/connectors/calendar")
+    def calendar_info() -> dict:
+        return calendar_status()
+
+    @app.post("/api/connectors/calendar/start")
+    def calendar_start() -> dict:
+        provider = calendar_provider()
+        if provider is None:
+            raise store.RuleError("Calendar sign-in isn't set up in this copy of Link yet.")
+        if provider.demo:
+            encounters.mark_connected(db, demo=True)
+            return {"connected": True, "demo": True}
+        state, challenge = flows.begin()
+        try:
+            return {"connected": False, "url": provider.authorize_url(redirect_uri(), state, challenge)}
+        except connectors.ConnectorError as exc:
+            raise store.RuleError(str(exc))
+
+    @app.get(OAUTH_CALLBACK_PATH)
+    def calendar_callback(code: str = "", state: str = "", error: str = "") -> HTMLResponse:
+        # Cross-site by design, so it trusts only a live single-use `state`. It serves a page rather than a redirect,
+        # because the browser withholds the session cookie from a redirect that began on another site.
+        found = flows.take_with_kind(state)
+        verifier, kind = found if found else (None, "calendar")
+        provider = mail_provider() if kind == "mail" else calendar_provider()
+        label = "email" if kind == "mail" else "calendar"
+        message = f"Your {label} is connected. Taking you back to Link."
+        if provider is None or verifier is None:
+            message = "That sign-in link was already used or has expired. Go back to Link and try again."
+        elif error or not code:
+            message = f"Google didn't connect your {label}. Go back to Link and try again."
+        else:
+            try:
+                provider.complete(code, verifier, redirect_uri())
+                (mailbook if kind == "mail" else encounters).mark_connected(db)
+            except connectors.ConnectorError as exc:
+                message = str(exc)
+        return HTMLResponse('<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Link</title>'
+                            '<meta http-equiv="refresh" content="1;url=/#sources"></head>'
+                            f'<body><p>{message}</p><p><a href="/#sources">Back to Link</a></p></body></html>')
+
+    @app.post("/api/connectors/calendar/sync")
+    def calendar_sync() -> dict:
+        provider = calendar_provider()
+        if provider is None or not encounters.status(db):
+            raise store.RuleError("Connect your calendar first.")
+        try:
+            return encounters.sync(db, provider)
+        except connectors.ConnectorError as exc:
+            raise store.RuleError(str(exc))
+
+    @app.get("/api/encounters")
+    def encounters_pending() -> list[dict]:
+        return encounters.pending(db)
+
+    @app.post("/api/encounters/{cid}/keep")
+    def encounter_keep(cid: int, body: KeepIn) -> dict:
+        return encounters.keep(db, cid, body.name, body.person_id)
+
+    @app.post("/api/encounters/{cid}/dismiss")
+    def encounter_dismiss(cid: int, body: DismissIn) -> dict:
+        return encounters.dismiss(db, cid, body.scope)
+
+    # ---- reminders outside the app (decision D46) ------------------------------------------
+    @app.get("/api/nudges")
+    def nudges_info() -> dict:
+        state = nudges.get_state(db)
+        return {"settings": nudges.get_settings(db), "supported": desktop.supported, "reason": desktop.reason,
+                "helper_installed": nudge_agent.is_installed(Path.home()), "snooze_until": state["snooze_until"],
+                "last_date": state["last_date"], **nudges.preview(db, nudges.local_now(settings))}
+
+    @app.put("/api/nudges")
+    def nudges_save(body: NudgeSettingsIn) -> dict:
+        return nudges.save_settings(db, body.enabled, body.time, body.quiet_start, body.quiet_end)
+
+    @app.post("/api/nudges/pause")
+    def nudges_pause(body: PauseIn) -> dict:
+        return {"snooze_until": nudges.pause(db, body.days, nudges.local_now(settings).date())["snooze_until"]}
+
+    @app.post("/api/nudges/resume")
+    def nudges_resume() -> dict:
+        nudges.resume(db)
+        return {"resumed": True}
+
+    @app.post("/api/nudges/test")
+    def nudges_test() -> dict:
+        sent = desktop.send("Link", "This is a test reminder. Nothing is due.")
+        return {"sent": sent, "reason": "" if sent else (desktop.reason or "macOS did not show the notification. Check Notifications in System Settings.")}
+
+    # ---- one-click start and quit (decision D47) --------------------------------------------
+    def stop_soon() -> None:
+        threading.Timer(0.4, lambda: app.state.request_shutdown()).start()
+
+    if not settings.hosted:  # no launcher and no Quit on the web (D50)
+        def launcher_key_ok(request: Request) -> bool:
+            return secrets.compare_digest(request.headers.get("x-launcher-key", "").encode(), launcher_key.encode())
+
+        @app.get("/launcher/token")
+        def launcher_token(request: Request) -> JSONResponse:
+            if not launcher_key_ok(request):
+                return JSONResponse({"error": "launcher key required"}, status_code=401)
+            return JSONResponse({"token": security.mint_launch_token(), "version": code_version})
+
+        @app.post("/launcher/quit")
+        def launcher_quit(request: Request) -> JSONResponse:
+            if not launcher_key_ok(request):
+                return JSONResponse({"error": "launcher key required"}, status_code=401)
+            stop_soon()
+            return JSONResponse({"stopping": True})
+
+        @app.post("/api/quit")
+        def quit_link() -> dict:
+            stop_soon()
+            return {"stopping": True}
+
+    # ---- email connection (decision D48) ------------------------------------------------
+    def mail_status() -> dict:
+        provider = mail_provider()
+        state = mailbook.status(db)
+        connected = bool(state) and (provider is not None and provider.has_token())
+        return {"available": provider is not None, "demo": bool(provider and provider.demo), "connected": connected,
+                "last_sync": state.get("last_sync") if state else None,
+                "waiting": db.one("SELECT COUNT(*) AS n FROM email_contacts WHERE state='pending'")["n"] if connected else 0}
+
+    @app.get("/api/connectors/email")
+    def email_info() -> dict:
+        return mail_status()
+
+    @app.post("/api/connectors/email/start")
+    def email_start() -> dict:
+        provider = mail_provider()
+        if provider is None:
+            raise store.RuleError("Email sign-in isn't set up in this copy of Link yet.")
+        if provider.demo:
+            mailbook.mark_connected(db, demo=True)
+            return {"connected": True, "demo": True}
+        state, challenge = flows.begin("mail")
+        try:
+            return {"connected": False, "url": provider.authorize_url(redirect_uri(), state, challenge)}
+        except connectors.ConnectorError as exc:
+            raise store.RuleError(str(exc))
+
+    @app.post("/api/connectors/email/sync")
+    def email_sync() -> dict:
+        provider = mail_provider()
+        if provider is None or not mailbook.status(db):
+            raise store.RuleError("Connect your email first.")
+        try:
+            return mailbook.sync(db, provider)
+        except connectors.ConnectorError as exc:
+            raise store.RuleError(str(exc))
+
+    @app.get("/api/email-contacts")
+    def email_contacts_pending() -> list[dict]:
+        return mailbook.pending(db)
+
+    @app.post("/api/email-contacts/{cid}/keep")
+    def email_contact_keep(cid: int, body: KeepIn) -> dict:
+        return mailbook.keep(db, cid, body.name, body.person_id)
+
+    @app.post("/api/email-contacts/{cid}/dismiss")
+    def email_contact_dismiss(cid: int, body: MailDismissIn) -> dict:
+        return mailbook.dismiss(db, cid, body.scope)
+
+    @app.delete("/api/connectors/email")
+    def email_disconnect(remove_data: bool = False) -> dict:
+        provider = mail_provider()
+        if provider is None:
+            return {"disconnected": True, "removed_data": False}
+        return mailbook.disconnect(db, provider, remove_data)
+
+    @app.get("/api/checkins")
+    def checkins_due() -> list[dict]:
+        return encounters.due_checkins(db)
+
+    @app.post("/api/checkins/{cid}/answer")
+    def checkin_answer(cid: int, body: CheckinIn) -> dict:
+        return encounters.answer_checkin(db, cid, body.answer, body.note, body.promise)
+
+    @app.delete("/api/connectors/calendar")
+    def calendar_disconnect(remove_data: bool = False) -> dict:
+        provider = calendar_provider()
+        if provider is None:
+            return {"disconnected": True, "removed_data": False}
+        return encounters.disconnect(db, provider, remove_data)
+
+    def cancel_sign_ins() -> None:
+        """Cancel the calendar and email sign-ins with Google and forget them. They live outside the database files."""
+        provider = calendar_provider()
+        if provider is not None:
+            provider.disconnect()
+        mail_to_cancel = mail_provider()
+        if mail_to_cancel is not None:
+            mail_to_cancel.disconnect()
+
+    app.state.cancel_sign_ins = cancel_sign_ins
+
     @app.post("/api/wipe")
     def wipe(body: WipeIn) -> dict:
+        cancel_sign_ins()
         # Spend already committed this month survives the wipe, so deleting data can't reset the cap.
         carried = budget.month_committed()
         db.wipe()

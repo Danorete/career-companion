@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F5F5F7">
+  <title>Link — sign in</title>
+  <link rel="icon" href="/static/link-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/studio.css">
+</head>
+<body class="login connection-studio">
+  <main class="login-box signin-box">
+    <h1>Link</h1>
+    <p>Remember the people you meet. Follow up without the awkwardness.</p>
+    <a id="signin" class="signin-button" href="/signin">Sign in with Google</a>
+    <p class="small muted">This is an invite-only test. Signing in shares only your email address with Link, and Link
+      keeps a scrambled version of it, not the address itself. Connecting your calendar or email is a separate, optional
+      step inside Link.</p>
+    <section class="signin-note" aria-labelledby="data-heading">
+      <h2 id="data-heading">Where your information goes</h2>
+      <p>During this test, Link keeps your information on Link’s server so your follow-ups work between visits.
+        It’s deleted when you click <strong>Delete everything</strong>, or automatically after 30 days without signing in.</p>
+      <p>The person running this test could technically see what’s stored. A future version will keep everything on
+        your own device.</p>
+    </section>
+  </main>
+  <script src="/static/signin.js"></script>
+</body>
+</html>
