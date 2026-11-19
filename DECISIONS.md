@@ -334,3 +334,27 @@ Must be true before any tester signs in, each with a test:
 11. **Re-check before sharing.** The full check from 2026-11-18 is run again against the deployed site, plus a header and TLS scan of the live address, before the LinkedIn post goes out.
 
 Not possible to promise: perfect security. These are layered defenses, each tested, reviewed by the same tool that wrote them. An independent review has not been done.
+
+## D51 — Idea: two ways to start, with an optional guided start that doubles as research (2026-11-19)
+Status: idea from the builder, noted only. Not decided, not built.
+
+The idea: a new person picks how to begin.
+- **Start from zero.** The app as it is now.
+- **Walk me through it.** A guide helps them log their first connection, step by step. Along the way it asks a few
+  questions like the ones in the Google feedback form. One flow does two jobs: setting up their first connection, and
+  showing the builder who is using Link and how, so updates follow real use.
+
+Promised with it: this is declared up front, and only data that belongs to the study is used.
+
+Points to settle when it is designed (not decisions yet):
+- Agreeing to answer study questions is a separate, optional choice from using Link. Saying no still gives the full
+  guided start, just without the questions.
+- Study answers are kept apart from the person's contacts and notes, never include a contact's details, and say in
+  the disclosure what is collected, why, for how long, and that Delete everything removes them.
+- Only what the study needs: their answers and simple counts (for example, finished the first connection: yes/no).
+- If the findings are used for a class, a paper or anything published, check first whether the school's research
+  ethics board (IRB) needs to review it. Product feedback alone usually doesn't.
+- The web version runs with sample AI for now, so the guide would follow a fixed script rather than live AI, unless
+  live AI is turned on with a spending cap.
+- It builds on what exists: the welcome screen ("What do you need help with?"), the guided walkthrough, and the
+  planned feedback button and usage counts (D50).
