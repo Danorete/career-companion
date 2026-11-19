@@ -25,7 +25,7 @@ def check(mode, page, app, port, finished):
     page.goto(f'http://127.0.0.1:{port}/#t={app.state.security.launch_token}')
     if not finished:
         page.get_by_role('button', name=('I just met someone' if mode == 'user' else 'Make sense of an encounter'), exact=True).wait_for()
-        heading = 'Remember the people you meet. Follow up without the awkwardness.' if mode == 'user' else 'Good people. Real possibilities.'
+        heading = 'What do you need help with?' if mode == 'user' else 'Where shall we begin?'  # one column, one question (D53)
         page.get_by_role('heading', name=heading, exact=True).wait_for()
         return
     page.locator('#side').wait_for()

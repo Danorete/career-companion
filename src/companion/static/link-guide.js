@@ -41,8 +41,9 @@
   }
   const launcher=node('button','Meet Link','guide-launcher');launcher.type='button';launcher.setAttribute('aria-label','Meet Link: guided walkthrough');launcher.onclick=()=>window.LinkGuide.start();document.body.append(launcher);
   if(state.step&&!state.done)launcher.textContent='Resume tour';
-  window.LinkGuide={start(){state={step:state.done?0:(state.step||0),active:true,done:false};save();if(state.step===0&&$('#dock').getAttribute('aria-hidden')==='false')$('#dock-collapse').click();draw();card.querySelector('button').focus();}};
-  window.addEventListener('link:dockchange',e=>{if(state.active&&steps[state.step]?.event==='dock'&&e.detail.open)setTimeout(advance,100);});
+  window.LinkGuide={start(){state={step:state.done?0:(state.step||0),active:true,done:false};save();if(state.step===0)window.LinkCompanion?.close();draw();card.querySelector('button').focus();}};
+  // The chat opens as a drawer that holds focus (D53), so once it has been seen it is tucked away before the next step.
+  window.addEventListener('link:dockchange',e=>{if(state.active&&steps[state.step]?.event==='dock'&&e.detail.open)setTimeout(()=>{window.LinkCompanion?.close();advance();},900);});
   window.addEventListener('hashchange',()=>setTimeout(()=>{if(!state.active)return;const step=steps[state.step];if(step?.route===location.hash.slice(1))advance();else draw();},100));
   document.addEventListener('input',e=>{if(state.active&&steps[state.step]?.event==='input'&&e.target.matches('#main textarea')&&e.target.value.trim())advance();});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state.active){e.preventDefault();pause();}});

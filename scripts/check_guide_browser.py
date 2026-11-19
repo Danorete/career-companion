@@ -78,10 +78,11 @@ def first_run(port):
                 page.goto(f'http://127.0.0.1:{port}/#t={app.state.security.launch_token}')
 
                 # Two ways to begin (D51).
-                page.get_by_role('button', name='Walk me through it').wait_for()
-                assert page.get_by_role('button', name='Start on my own').count() == 1
+                # Two ways to begin (D51), now as the welcome screen's cards (D53): the guide, or Skip for now.
+                page.get_by_role('button', name='I just met someone', exact=True).wait_for()
+                assert page.get_by_role('button', name='Skip for now').count() == 1
                 shot(page, '0_welcome')
-                page.get_by_role('button', name='Walk me through it').click()
+                page.get_by_role('button', name='I just met someone', exact=True).click()
 
                 # 1. Who. Continue waits for a name; the preview answers as you type.
                 question(page, 'Who did you meet?')

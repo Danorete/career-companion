@@ -428,6 +428,12 @@ were written on. On a Mac, change `executable_path` in the script to your browse
 The first four in the table were re-run on Linux on 2026-11-13 and passed with no JavaScript errors.
 The other three last passed in the sessions recorded in `VALIDATION.md`.
 
+## Link, the floating companion
+
+Decision D53. Link is the round button in the bottom-right corner. Click it to chat; the chat opens over the page and
+closes with Escape or a click outside it. After you do something, Link may show a one- or two-sentence tip beside the
+button. Turn tips off with **Turn off tips** on any tip, or with the **Tips** switch in the chat or in Settings.
+
 ## Adding a person, step by step
 
 Decision D52. Choose **Walk me through it** on the welcome screen, **Add a person** in the Add menu, or **Add person**

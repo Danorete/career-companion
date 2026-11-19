@@ -35,7 +35,7 @@ try:
   page.reload()
   page.wait_for_timeout(800)
   assert not errors, errors
-  page.get_by_role('button',name='Explore the workspace first',exact=True).click()
+  page.get_by_role('button',name='Skip for now',exact=True).click()  # the welcome screen's skip (D53)
   page.get_by_role('link',name='People',exact=True).first.click()
   page.get_by_role('button',name='Quick form',exact=True).click()  # Add person opens the step-by-step guide (D52)
   page.get_by_label('Name',exact=True).fill('Maya Example')

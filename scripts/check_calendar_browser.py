@@ -74,7 +74,7 @@ with tempfile.TemporaryDirectory(prefix='link-calendar-') as folder:
             page.get_by_text('Add a line or a promise').click()
             page.get_by_label('Something you promised (optional)').fill('send her the article')
             page.get_by_role('button', name='Great', exact=True).click()
-            page.get_by_text('Saved a note and a reminder for Maya Lindqvist.').wait_for()
+            page.get_by_text('Saved a note and a reminder for Maya Lindqvist.').first.wait_for()  # shown in a tip and spoken by its live region
             expect(page.locator('.checkin-card')).to_have_count(0)
             [log] = db.q("SELECT * FROM interactions WHERE source='calendar_checkin'")
             assert 'Went well.' in log['note'] and 'send her the article' in log['note']

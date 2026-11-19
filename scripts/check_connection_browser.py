@@ -35,7 +35,7 @@ with tempfile.TemporaryDirectory(prefix='link-guided-') as folder:
             page=browser.new_page(viewport={'width':1470,'height':956},reduced_motion='reduce')
             page.on('pageerror',lambda e:errors.append(str(e)))
             page.goto('http://127.0.0.1:8877/#t='+app.state.security.launch_token)
-            page.get_by_role('heading',name='Good people. Real possibilities.',exact=True).wait_for()
+            page.get_by_role('heading',name='Where shall we begin?',exact=True).wait_for()  # one column, one question (D53)
             page.screenshot(path=str(args.output/'onboarding.png'))
             page.get_by_role('button',name='Find a starting point',exact=True).click()
             page.get_by_label('Tell Link',exact=True).fill("I'm a recent graduate working full time. No campus access, and I'm curious about analytics.")

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#F5F5F7">
   <title>Link — Connection Studio</title>
   <link rel="icon" href="/static/link-mark.svg" type="image/svg+xml">
@@ -18,28 +18,37 @@
       <div id="side-status" class="contents"></div>
     </nav>
     <main id="main" class="sheet" tabindex="-1"></main>
-    <div id="resize" class="resize" role="separator" aria-orientation="vertical" aria-label="Resize companion panel" tabindex="0"></div>
-    <aside id="dock" class="dock" aria-label="Link, your companion">
+    <aside id="dock" class="dock" role="dialog" aria-modal="true" aria-labelledby="dock-title">
       <header class="dock-head">
         <span id="orb" class="orb is-ready"></span>
         <div class="dock-id">
-          <div class="dock-name">Link</div>
+          <div id="dock-title" class="dock-name">Link</div>
           <div id="dock-status" class="dock-status" role="status">Ready</div>
         </div>
-        <button id="dock-collapse" type="button" class="icon-btn" aria-label="Collapse companion panel"></button>
+        <button type="button" role="switch" class="tips-toggle" data-tips-toggle aria-checked="true">Tips</button>
+        <button id="dock-collapse" type="button" class="icon-btn" aria-label="Close chat"></button>
       </header>
-      <section id="studio-context" class="studio-context" aria-label="Current workspace guidance"></section>
+      <section id="studio-context" class="studio-context" aria-label="Who this chat is about"></section>
       <div id="chat-log" class="chat-log" role="log" aria-live="polite" aria-label="Conversation with Link"></div>
       <div id="chat-attach" class="chat-attach"></div>
       <form id="chat-form" class="composer">
         <label class="sr" for="chat-input">Message Link</label>
-        <textarea id="chat-input" autocomplete="off" rows="1" maxlength="4000" placeholder="Talk it through…"></textarea>
+        <textarea id="chat-input" autocomplete="off" rows="1" maxlength="4000" placeholder="What’s on your mind?"></textarea>
         <button id="chat-send" type="submit" class="send" aria-label="Send message"></button>
       </form>
     </aside>
   </div>
   <nav id="mobile-tabs" class="mobile-tabs" aria-label="Main navigation"></nav>
   <nav id="mobile-more" class="mobile-more hidden" aria-label="More sections"></nav>
+  <div id="dock-scrim" class="dock-scrim" hidden></div>
+  <div id="sprite-bubble" class="sprite-bubble" hidden>
+    <p id="sprite-text" class="sprite-text"></p>
+    <div class="sprite-bubble-actions">
+      <button id="sprite-mute" type="button" class="sprite-mute">Turn off tips</button>
+      <button id="sprite-close" type="button" class="sprite-close" aria-label="Hide this tip"></button>
+    </div>
+  </div>
+  <p id="sprite-live" class="sr" aria-live="polite"></p>
   <button id="dock-pill" type="button" class="dock-pill"></button>
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="/static/connection-workflows.js"></script>

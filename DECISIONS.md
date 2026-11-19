@@ -395,3 +395,59 @@ Feedback and motion, from research:
 Found and fixed while building it: the page label crashed on any page not in the navigation list; the error screen
 and the expired-session message said "terminal window" on the web version; the duplicate-name hint missed people
 added earlier in the same visit.
+
+## D53 — A calm, one-column start and a floating companion (2026-11-19)
+Status: built and tested (a new browser check, older checks updated, an adversarial review). People keeps its two-panel
+layout for now.
+
+Why: a coworker who saw the demo found it too much for a first-time user. Measured before the change at 1280 to 1440
+wide: #connect showed 193 words in three competing columns (a marketing panel, the question, and the companion panel);
+at 1024 the marketing panel clipped its own headline ("Rememb…", "awkwar…"); Today printed a stray "null".
+
+What changed:
+- **#connect is one question and three cards** in a centered 640px column: "What do you need help with?", then "I don’t
+  know where to start" (No contacts needed), "Reach out to someone" (We’ll help you find the words), "I just met
+  someone" (Write down what you remember; opens the step-by-step guide, D52, in the user version). A first visit adds a
+  quiet "Skip for now" (the second way to begin, D51). Visible words on first paint: 193 to 60 in the app (69% fewer),
+  166 to 59 on the first-visit welcome (64% fewer). Imports live in Add; the privacy note and the CC BY icon credit
+  live in Settings.
+- **One question at a time after a card.** One box, one button that waits for words, and the promise "Nobody gets
+  contacted. You decide what to keep." stays on the page (not only in a tip, since tips can be turned off). Extra
+  fields sit under "Add more detail".
+- **Save in one tap.** The review shows the suggested step and name prefilled and "Keep my note with them" ticked, all
+  visible and editable before Save; everything else is under "More options". Sample (mock) answers say so in plain
+  words. The developer version keeps the original form, labels and the AI encounter flow for "Make sense of an
+  encounter".
+- **The companion is a floating sprite.** A 64px button bottom-right (56px on phones, above the tab bar) that breathes
+  very slightly when idle. The chat opens as a drawer over the page at every width (a bottom sheet on phones): a
+  dialog that takes focus, makes everything outside it unreachable, closes on Escape or an outside click, and returns
+  focus to where it came from. Nothing about the page's layout changes when it opens. The old column, resize handle
+  and stored panel width are gone.
+- **Tips.** One or two sentences beside the sprite after something happens. Confirmations ("Saved. Your next step is
+  waiting on Today.") replace that save's toast and fall back to the toast when they can't show, so each save is
+  confirmed once. Suggestions ("Want help writing to Priya?") show at most once each, 3 per visit and 30 s apart. No tip
+  appears while typing or while the chat is open; each hides after 5.5 s, pauses on hover or focus, has "Turn off tips"
+  and a close button, and is spoken by one polite live region without moving focus. A switch (role=switch, fixed
+  label) in the chat header and in Settings turns tips on and off; the choice is remembered in this browser.
+- **Technical states hidden in the user version.** No "Ready · mock replies" (the chat says "Sample replies" only while
+  answers are samples), no "A little clarity" panel, no "Clear record context" (a chip "About Priya ×" instead), no
+  "Your saved preparation" list (one "Pick up where you left off →" line). The sample banner says "These are practice
+  people".
+- **Fixed along the way:** the stray "null" on Today; the sprite's face disappearing in dark mode (its colors now come
+  from the theme); class-name collisions between the tour and the guide; chat replies scrolling the whole page; the
+  tour getting stuck behind the modal drawer (it now closes the drawer through `window.LinkCompanion`); iPhone zoom on
+  13px inputs (16px on touch screens); missing safe-area insets (`viewport-fit=cover`).
+
+Research and review:
+- The ui-ux-pro-max design-system search (variance 2, motion 2, density 2) pointed to minimal, spacious, subtle motion;
+  its palette and web fonts were not adopted (the forest-green theme stays, and the security policy allows only local
+  fonts). Its UX guidance set the details: visible 2px focus, focus never hidden under floating UI (WCAG 2.4.11),
+  transient messages of a few seconds, at most one or two animated elements per view, reduced motion honored,
+  balanced headline wrapping with a bounded measure.
+- A four-lens audit (copy, layout, companion behavior, technical labels) ran before building; its copy, companion and
+  layout findings are applied above. Its 58 remaining plain-language fixes outside these screens are listed in
+  `docs/plain-language-backlog.md`.
+
+Not done here: People as a single column (it still uses a directory and a workspace with an inner scroller); server-side
+text such as "[MOCK]" tags in sample answers and the ranking wording in Today's greeting ("With 20 minutes, I'd do one
+thing…"); the backlog file above.

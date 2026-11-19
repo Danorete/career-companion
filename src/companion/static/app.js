@@ -94,7 +94,7 @@
     settings: ["M4 7h10M18 7h2M4 17h2M10 17h10", "M16 5a2 2 0 1 0 0 4a2 2 0 0 0 0-4z", "M8 15a2 2 0 1 0 0 4a2 2 0 0 0 0-4z"],
     chev: ["M9 6l6 6-6 6"], down: ["M6 9l6 6 6-6"], plus: ["M12 5v14M5 12h14"],
     check: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M8 12.5l2.8 2.8L16 9.5"], todo: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z"],
-    collapse: ["M13 6l6 6-6 6M5 6l6 6-6 6"], send: ["M12 19V5M6 11l6-6 6 6"], bookmark: ["M7 3h10v18l-5-4-5 4z"],
+    collapse: ["M13 6l6 6-6 6M5 6l6 6-6 6"], close: ["M6 6l12 12M18 6L6 18"], send: ["M12 19V5M6 11l6-6 6 6"], bookmark: ["M7 3h10v18l-5-4-5 4z"],
     warn: ["M12 3l10 17H2z", "M12 10v4M12 17v.5"], info: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M12 8v5M12 16v.5"],
     help: ["M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18z", "M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17v.5"],
     docplus: ["M6 3h9l4 4v14H6z", "M12 11v6M9 14h6"], clip: ["M7 4h10a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", "M9 4V3h6v1M9 10h6M9 14h4"],
@@ -108,10 +108,10 @@
   function playIcon() { return sv("svg", { width: 16, height: 16, viewBox: "0 0 24 24", fill: "currentColor", "aria-hidden": "true" }, sv("path", { d: "M7 4l13 8-13 8z" })); }
   function orbSvg(size) {
     return sv("svg", {width:size,height:size,viewBox:"0 0 64 64","aria-hidden":"true",class:"link-avatar"},
-      sv("rect",{x:5,y:5,width:54,height:54,rx:22,fill:"var(--accent)"}),
-      sv("path",{d:"M16 30v-3a11 11 0 0 1 22 0v10a7 7 0 0 1-14 0v-8 M48 34v3a11 11 0 0 1-22 0V27a7 7 0 0 1 14 0v8",fill:"none",stroke:"#e7efcf","stroke-width":4,"stroke-linecap":"round"}),
+      sv("rect",{class:"avatar-face",x:5,y:5,width:54,height:54,rx:22,fill:"var(--accent)"}),
+      sv("path",{class:"avatar-lines",d:"M16 30v-3a11 11 0 0 1 22 0v10a7 7 0 0 1-14 0v-8 M48 34v3a11 11 0 0 1-22 0V27a7 7 0 0 1 14 0v8",fill:"none",stroke:"#e7efcf","stroke-width":4,"stroke-linecap":"round"}),
       sv("g",{class:"avatar-eyes",fill:"#fff9e8"},sv("circle",{cx:25,cy:29,r:2}),sv("circle",{cx:39,cy:29,r:2})),
-      sv("path",{d:"M28 43q4 3 8 0",fill:"none",stroke:"#fff9e8","stroke-width":2,"stroke-linecap":"round"}));
+      sv("path",{class:"avatar-lines",d:"M28 43q4 3 8 0",fill:"none",stroke:"#fff9e8","stroke-width":2,"stroke-linecap":"round"}));
   }
 
   function connectionMotif() {
@@ -255,6 +255,7 @@
     Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup, calendar: b.calendar, hosted: !!b.hosted });
     document.body.dataset.hosted = S.hosted ? "1" : "";
     applyMode(b.ui_mode);
+    if (!S.contextItem) $("chat-input").placeholder = chatPlaceholder();
     renderSide(); syncCompanion();
   }
   async function loadToday() {
@@ -418,21 +419,26 @@
   }
 
   // ---- companion ------------------------------------------------------------------------
+  let spriteState = "";
   function syncCompanion() {
     const pending = document.querySelectorAll("#chat-log .proposal").length;
-    let state = "ready", text = S.ai.mode === "mock" ? "Ready · mock replies" : "Ready";
-    if (!S.ai.available) { state = "off"; text = "AI is off. I still keep your place."; }
+    // The user version says only what helps: nothing while idle, "Sample replies" while answers are samples (D53).
+    let state = "ready", text = isDev() ? (S.ai.mode === "mock" ? "Ready · mock replies" : "Ready") : (S.ai.mode === "mock" ? "Sample replies" : "");
+    if (!S.ai.available) { state = "off"; text = isDev() ? "AI is off. I still keep your place." : "I can’t chat right now. Everything else still works."; }
     else if (S.busy > 0) { state = "thinking"; text = "Thinking…"; }
     else if (pending) { state = "waiting"; text = "Waiting for your OK"; }
     for (const el of document.querySelectorAll(".orb")) el.className = "orb is-" + state;
     $("dock-status").textContent = text;
+    const signature = state + ":" + pending;
+    if (signature === spriteState) return;  // rebuild the sprite only when something changed, so its idle motion runs on
+    spriteState = signature;
     fill($("dock-pill"), h("span", { class: "orb is-" + state }, orbSvg(60)), h("span", {class:"avatar-label",text:"Link"}), pending ? h("span", { class: "count", text: String(pending) }) : null);
-    $("dock-pill").setAttribute("aria-label", "Open Link, your companion" + (pending ? ", " + plural(pending, "suggestion", "suggestions") + " waiting" : ""));
+    $("dock-pill").setAttribute("aria-label", pick("Open Link, your companion", "Chat with Link") + (pending ? ", " + plural(pending, "suggestion", "suggestions") + " waiting" : ""));
   }
   function say(role, text) {
     const el = h("div", { class: "msg " + role, text });
     $("chat-log").append(el);
-    el.scrollIntoView({ block: "end" });
+    $("chat-log").scrollTop = $("chat-log").scrollHeight;  // the drawer scrolls, not the page
     fx("motion", ({ animate }) => animate(el, { opacity: [0, 1], transform: ["translateY(6px)", "translateY(0)"] }, { duration: 0.18 }));
     return el;
   }
@@ -451,7 +457,7 @@
       h("div", { text: what + " Nothing is saved until you say so." }),
       h("div", { class: "row" }, btn("Save it", () => decide(true), "dark"), btn("No thanks", () => decide(false))));
     $("chat-log").append(card);
-    card.scrollIntoView({ block: "end" });
+    $("chat-log").scrollTop = $("chat-log").scrollHeight;
     syncCompanion();
   }
   function renderAttach() {
@@ -462,83 +468,132 @@
   async function greet() {
     const view = await loadToday();
     say("companion", view.greeting);
+    const due = view.reminders.length;
+    if (due) tip("today-due", due === 1 ? "One reminder is due today. It’s at the top of Today." : due + " reminders are due today. They’re at the top of Today.");
+    else tipEver("hello", "I’m Link. Tap me anytime you want help with a message or a next step.");
     if (view.reminders.length) say("companion", view.reminders.length === 1 ? "One reminder is due: " + view.reminders[0].text : view.reminders.length + " reminders are due. They're on Today.");
   }
-  let dockMotion = null;
+  // ---- the companion: a floating sprite, short tips and a chat drawer (decision D53) ---------------------------
+  // The drawer slides over the page at every screen size, so opening it never squeezes the page into a column.
+  let dockOpen = false, dockReturn = null, behind = [];
+  // Every sibling of the drawer and of each of its ancestors, except the backdrop and the screen-reader announcer.
+  function outsideDrawer() {
+    const out = [];
+    for (let node = $("dock"); node && node !== document.body; node = node.parentElement)
+      for (const sib of node.parentElement.children)
+        if (sib !== node && !["SCRIPT", "STYLE", "LINK", "TEMPLATE"].includes(sib.tagName) && !["dock-scrim", "sprite-live"].includes(sib.id) && !sib.inert) out.push(sib);
+    return out;
+  }
   function setDock(open) {
-    if (dockMotion) { dockMotion.cancel(); dockMotion = null; }
-    store.set("dockOpen", open);
-    $("dock-pill").setAttribute("aria-expanded",String(open));
-    window.dispatchEvent(new CustomEvent("link:dockchange",{detail:{open}}));
-    const dock = $("dock"), reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    dock.inert = !open;
-    dock.setAttribute("aria-hidden", String(!open));
-    if (!window.matchMedia("(max-width: 1000px)").matches) {
-      const position = $("main").scrollTop;
-      document.body.classList.toggle("dock-closed", !open);
-      $("main").scrollTop = position;
-      if (open) $("chat-input").focus({preventScroll: true}); else $("dock-pill").focus({preventScroll: true});
-      return;
+    if (open === dockOpen) { if (open) $("chat-input").focus({ preventScroll: true }); return; }
+    dockOpen = open;
+    if (open) {
+      hideTip(true);
+      const active = document.activeElement;
+      dockReturn = active && active !== document.body && !$("dock").contains(active) ? active : $("dock-pill");
     }
+    document.body.classList.toggle("dock-closed", !open);
+    $("dock").inert = !open;
+    $("dock").setAttribute("aria-hidden", String(!open));
+    $("dock-scrim").hidden = !open;
+    if (open) { behind = outsideDrawer(); behind.forEach((el) => { el.inert = true; }); }  // a modal drawer: the page waits
+    else { behind.forEach((el) => { el.inert = false; }); behind = []; }
+    $("dock-pill").setAttribute("aria-expanded", String(open));
+    window.dispatchEvent(new CustomEvent("link:dockchange", { detail: { open } }));
+    if (open) { $("chat-input").focus({ preventScroll: true }); return; }
+    const back = dockReturn && dockReturn.isConnected ? dockReturn : $("dock-pill");
+    dockReturn = null;
+    back.focus({ preventScroll: true });
+  }
 
-    const finish = () => {
-      document.body.classList.toggle("dock-closed", !open);
-      if (open) $("chat-input").focus(); else $("dock-pill").focus();
-    };
-    if (reduced) { finish(); return; }
-    if (open) document.body.classList.remove("dock-closed");
-    const motion = dock.animate(open
-      ? [{opacity: 0, transform: "translateX(24px) scale(.98)"}, {opacity: 1, transform: "translateX(0) scale(1)"}]
-      : [{opacity: 1, transform: "translateX(0) scale(1)"}, {opacity: 0, transform: "translateX(16px) scale(.98)"}],
-      {duration: open ? 360 : 180, easing: "cubic-bezier(.22, 1, .36, 1)"});
-    dockMotion = motion;
-    motion.onfinish = () => { if (dockMotion === motion) { dockMotion = null; finish(); } };
+  // Tips: one or two sentences beside the sprite after something happens. Each shows once per visit, never while
+  // you type, and never while the chat is open. One polite live region speaks them; focus never moves.
+  const TIP_MS = 5500, NUDGES_PER_VISIT = 3, NUDGE_GAP_MS = 30000;
+  const tipsSeen = new Set();
+  let tipTimer = null, tipLeft = 0, tipSince = 0, nudges = 0, lastNudge = -Infinity;
+  const tipsOn = () => store.get("tipsOn", true) !== false;
+  function syncTipsToggle() {
+    const on = tipsOn();
+    for (const t of document.querySelectorAll("[data-tips-toggle]")) t.setAttribute("aria-checked", String(on));  // a switch: the label stays put
   }
-  function setDockWidth(w) {
-    const max = Math.max(320, Math.min(640, window.innerWidth - 760));
-    const width = Math.round(Math.max(320, Math.min(max, w)));
-    document.documentElement.style.setProperty("--dock-w", width + "px");
-    const r = $("resize");
-    r.setAttribute("aria-valuenow", width); r.setAttribute("aria-valuemin", 320); r.setAttribute("aria-valuemax", max);
-    store.set("dockW", width);
-    return width;
+  function setTipsOn(on) {
+    store.set("tipsOn", on);
+    syncTipsToggle();
+    if (!on) { hideTip(true); $("sprite-live").textContent = "Tips are off. You can turn them back on in Link’s chat or in Settings."; }
   }
+  function typing() {
+    const el = document.activeElement;
+    return !!el && (el.matches("textarea, select, input:not([type=button]):not([type=checkbox]):not([type=radio])") && !$("dock").contains(el));
+  }
+  // kind "nudge": a suggestion, at most once per key, 3 per visit and 30 s apart. kind "confirm": says a save worked,
+  // replacing that save's toast; when it can't show, the caller shows the toast instead. Returns whether it showed.
+  function tip(key, text, kind = "nudge") {
+    if (!text || !tipsOn() || dockOpen || typing()) return false;
+    if (kind === "nudge") {
+      if (tipsSeen.has(key) || nudges >= NUDGES_PER_VISIT || Date.now() - lastNudge < NUDGE_GAP_MS) return false;
+      tipsSeen.add(key); nudges += 1; lastNudge = Date.now();
+    }
+    const bubble = $("sprite-bubble");
+    $("sprite-text").textContent = text;
+    bubble.hidden = false;
+    bubble.classList.remove("is-in"); void bubble.offsetWidth; bubble.classList.add("is-in");
+    $("sprite-live").textContent = "Link: " + text;
+    tipLeft = TIP_MS; runTip();
+    return true;
+  }
+  function confirmTip(text, fallback) { if (!tip("confirm", text, "confirm")) toast(fallback || text); }
+  function tipEver(key, text) {
+    const seen = store.get("tipsEver", []);
+    if (Array.isArray(seen) && seen.includes(key)) return;
+    if (tip(key, text)) store.set("tipsEver", [...(Array.isArray(seen) ? seen : []), key].slice(-50));
+  }
+  function runTip() { clearTimeout(tipTimer); tipSince = Date.now(); tipTimer = setTimeout(() => hideTip(), tipLeft); }
+  function pauseTip() { if (!$("sprite-bubble").hidden) { clearTimeout(tipTimer); tipLeft = Math.max(1500, tipLeft - (Date.now() - tipSince)); } }
+  function hideTip(now) {
+    clearTimeout(tipTimer);
+    const bubble = $("sprite-bubble");
+    if (bubble.hidden) return;
+    const done = () => { bubble.hidden = true; bubble.classList.remove("is-in", "is-out"); };
+    if (now || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { done(); return; }
+    bubble.classList.add("is-out");
+    setTimeout(done, 180);
+  }
+
   function startDock() {
     $("orb").append(orbSvg(40));
-    $("dock-pill").setAttribute("aria-controls","dock");
-    $("dock-pill").setAttribute("aria-expanded",String(store.get("dockOpen",false)));
-    $("dock-collapse").append(icon("collapse", 18));
+    $("dock-pill").setAttribute("aria-controls", "dock");
+    $("dock-pill").setAttribute("aria-haspopup", "dialog");
+    $("dock-collapse").append(icon("close", 18));  // a dialog closes; it no longer collapses into a column
     $("chat-send").append(icon("send", 18));
     $("dock-collapse").addEventListener("click", () => setDock(false));
-    $("dock-pill").addEventListener("click", () => setDock(true));
-    const narrow = window.matchMedia("(max-width: 1000px)").matches;
-    document.body.classList.toggle("dock-closed", !store.get("dockOpen", false) || narrow);
-    // On a narrow window the panel is a full-screen sheet, so close it when the window shrinks
-    // and put it back the way the user left it when the window widens again.
-    window.matchMedia("(max-width: 1000px)").addEventListener("change", (e) => {
-      document.body.classList.toggle("dock-closed", e.matches || !store.get("dockOpen", false));
-      $("dock").inert = document.body.classList.contains("dock-closed");
-      $("dock").setAttribute("aria-hidden", String($("dock").inert));
-    });
-    $("dock").inert = document.body.classList.contains("dock-closed");
-    $("dock").setAttribute("aria-hidden", String($("dock").inert));
-    let width = setDockWidth(store.get("dockW", 340));
-    const r = $("resize");
-    r.addEventListener("pointerdown", (e) => {
-      r.setPointerCapture(e.pointerId);
-      const move = (ev) => { width = setDockWidth(window.innerWidth - ev.clientX - 18); };
-      const up = () => { r.removeEventListener("pointermove", move); r.removeEventListener("pointerup", up); };
-      r.addEventListener("pointermove", move); r.addEventListener("pointerup", up);
-    });
-    r.addEventListener("keydown", (e) => {
-      const step = { ArrowLeft: 24, ArrowRight: -24, Home: 1000, End: -1000 }[e.key];
-      if (step) { e.preventDefault(); width = setDockWidth(width + step); }
-    });
+    $("dock-pill").addEventListener("click", () => setDock(!dockOpen));
+    $("dock-scrim").addEventListener("click", () => setDock(false));
+    // Always start closed: the drawer is opened on purpose, never left open from an earlier visit.
+    try { localStorage.removeItem("cc.dockOpen"); localStorage.removeItem("cc.dockW"); } catch (e) { /* settings from the old side panel */ }
+    window.LinkCompanion = { open: () => setDock(true), close: () => setDock(false), isOpen: () => dockOpen };
+    document.body.classList.add("dock-closed");
+    $("dock").inert = true;
+    $("dock").setAttribute("aria-hidden", "true");
+    $("dock-pill").setAttribute("aria-expanded", "false");
+    const bubble = $("sprite-bubble");
+    bubble.addEventListener("pointerenter", pauseTip);
+    bubble.addEventListener("pointerleave", () => { if (!bubble.hidden && !bubble.contains(document.activeElement)) runTip(); });
+    bubble.addEventListener("focusin", pauseTip);
+    bubble.addEventListener("focusout", (e) => { if (!bubble.contains(e.relatedTarget)) runTip(); });
+    $("sprite-close").append(icon("close", 14));
+    $("sprite-close").addEventListener("click", () => { hideTip(); $("dock-pill").focus({ preventScroll: true }); });
+    $("sprite-mute").addEventListener("click", () => { setTipsOn(false); $("dock-pill").focus({ preventScroll: true }); });
+    for (const t of document.querySelectorAll("[data-tips-toggle]")) t.addEventListener("click", () => setTipsOn(!tipsOn()));
+    syncTipsToggle();
     const input = $("chat-input");
     input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = Math.min(140, input.scrollHeight) + "px"; });
     input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("chat-form").requestSubmit(); } });
     $("chat-form").addEventListener("submit", (e) => { e.preventDefault(); const v = input.value.trim(); if (v) submitChat(v); });
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && window.matchMedia("(max-width: 1000px)").matches && !document.body.classList.contains("dock-closed")) setDock(false); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (dockOpen) { e.preventDefault(); setDock(false); }
+      else if (!$("sprite-bubble").hidden) hideTip();
+    });
   }
   async function submitChat(text) {
     const input = $("chat-input");
@@ -548,9 +603,10 @@
     S.attachImport = null; renderAttach();
     const r = await thinking(() => act(() => api("POST", "/api/chat", { message: text, context_item_id: S.contextItem ? S.contextItem.id : null, import_id: attached ? attached.id : null })));
     if (!r) return;
-    if (r.reply) say("companion", r.reply); else say("system", r.unavailable + " Your message was saved.");
+    if (r.reply) say("companion", r.reply); else say("system", isDev() ? r.unavailable + " Your message was saved." : "I can’t answer right now. Your message is saved.");
     r.proposals.forEach(proposalCard);
-    if (attached && r.dropped_proposals) say("system", "That reply tried to save something. That's blocked for messages with pasted material.");
+    if (attached && r.dropped_proposals && isDev()) say("system", "That reply tried to save something. That's blocked for messages with pasted material.");
+    if (r.reply && !dockOpen) tip("chat-reply", "I replied to your message. Tap me when you’re ready to read it.", "confirm");
     refreshStatus();
   }
 
@@ -559,7 +615,7 @@
     if (question && !window.confirm(question)) return;
     const out = await act(() => api("POST", "/api/actions/" + action.id + "/state", { state }));
     if (!out) return;
-    if (state === "done") say("companion", "Marked done: " + action.title + ". When you hear back, record it under People & roles.");
+    if (state === "done") say("companion", isDev() ? "Marked done: " + action.title + ". When you hear back, record it under People & roles." : "Done. Nice work.");
     render();
   }
   async function openFor(action) {
@@ -593,12 +649,15 @@
     return "Due " + (days < 7 ? d.toLocaleDateString(undefined, { weekday: "long" }) : d.toLocaleDateString(undefined, { day: "numeric", month: "short" }));
   }
   function sampleNotice() {
-    return S.hasSample && !S.demo ? h("div", { class: "notice warn center" }, icon("info", 18), h("span", { class: "grow", text: "Sample data is loaded. Anything marked [SAMPLE] is fictional." }),
+    return S.hasSample && !S.demo ? h("div", { class: "notice warn center" }, icon("info", 18), h("span", { class: "grow", text: pick("Sample data is loaded. Anything marked [SAMPLE] is fictional.", "These are practice people, not real ones.") }),
       btn("Remove it", async () => { await act(() => api("POST", "/api/sample/remove"), "Sample data removed."); await refreshStatus(); render(); }, "quiet")) : null;
   }
 
   // ---- onboarding: the companion, one question at a time ---------------------------------
-  function renderOnboarding(root) { return workflows.onboard(root); }
+  async function renderOnboarding(root) {
+    await workflows.onboard(root);
+    setTimeout(() => tipEver("welcome", "Hi, I’m Link. Pick whatever fits. We’ll take it one small step at a time."), 600);
+  }
 
   // ---- Today ----------------------------------------------------------------------------
   function timePicker(disabled) {
@@ -707,7 +766,8 @@
     const answer = async (choice) => {
       const out = await act(() => api("POST", "/api/checkins/" + c.id + "/answer", { answer: choice, note, promise }));
       if (!out) return;
-      toast(choice === "skip" ? "Skipped. Nothing was saved." : out.next_step ? "Saved a note and a reminder for " + c.name + "." : "Saved a note for " + c.name + ".");
+      const said = choice === "skip" ? "Skipped. Nothing was saved." : out.next_step ? "Saved a note and a reminder for " + c.name + "." : "Saved a note for " + c.name + ".";
+      if (isDev() || choice === "skip") toast(said); else confirmTip(said);
       render();
     };
     const noteInput = h("textarea", { rows: 2, maxlength: 1000, "aria-label": "A line about how it went (optional)",
@@ -734,7 +794,7 @@
     root.append(page);
     const hasPeople=items.some(item=>item.kind==='relationship');
     if (!isDev() && !hasPeople) { page.append(startCard()); return; }
-    page.append(todayHeader(hasPeople), isDev() ? dailyShortcuts() : setupLine());
+    page.append(...[todayHeader(hasPeople), isDev() ? dailyShortcuts() : setupLine()].filter(Boolean));  // append(null) would print "null"
     await checkinCard(page);
     if (options.length) page.append(hero(options[0], view.today));
     else if (all.length) page.append(h("section", { class: "state" }, h("h2", { text: "That's everything set aside for today." }),
@@ -906,11 +966,11 @@
     if (S.contextItem?.id !== person.id) {
       $("chat-log").replaceChildren();
       $("chat-input").value = "";
-      say("companion", "Now discussing " + person.name + ". Tell me what you remember, or log an interaction to build context.");
+      say("companion", isDev() ? "Now discussing " + person.name + ". Tell me what you remember, or log an interaction to build context." : "Ask me anything about " + plainName(person.name).split(/\s+/)[0] + ".");
     }
     S.contextItem = {id: person.id, title: person.name};
     updateContextNote();
-    $("chat-input").placeholder = "Ask about " + person.name;
+    $("chat-input").placeholder = "Ask about " + plainName(person.name);
   }
   function personForm(person, after) {
     const f = {name: person?.name || "", org: person?.org || "", profile_link: person?.profile_link || "", context: person?.context || "", notes: person?.notes || "", category: person?.category || ""};
@@ -985,6 +1045,7 @@
     if(S.addPerson){workspace.append(h('div',{class:'studio-person-form'},h('span',{class:'eyebrow',text:'One person is a beginning'}),h('h2',{text:'Who’s on your mind?'}),h('p',{class:'muted',text:'A name is enough. Add the rest as your connection develops.'}),personForm(null)));return;}
     if(!S.selectedPerson){workspace.append(h('div',{class:'people-welcome'},connectionMotif(),h('span',{class:'eyebrow',text:pick('Your connection studio','Your people')}),h('h2',{text:list.length?'Pick up a conversation.':'Good connections start somewhere.'}),h('p',{text:list.length?'Choose someone to see what you remember, what you’ve learned, and what might come next.':'Link can help you find a starting point, even before you know who to approach.'}),h('div',{class:'row'},btn('Help me get started',()=>workflows.open(),'primary'),btn('Log someone you met',()=>go('quicklog')))));return;}
     const person=await api('GET','/api/people/'+S.selectedPerson);scopePerson(person);
+    tip('person-open','Want help writing to '+person.name.split(/\s+/)[0]+'? Tap me and say what you’d like to send.');
     const importedSource=await api('GET','/api/network/people/'+person.id+'/source');
     workspace.append(h('div',{class:'person-heading'},h('div',{class:'person-avatar',text:person.name.slice(0,1).toUpperCase()}),h('div',{class:'grow'},h('span',{class:'eyebrow',text:'A connection, in context'}),h('h2',{text:person.name}),person.org?h('p',{class:'muted',text:person.org}):null),btn('← All people',()=>{S.selectedPerson=null;S.contextItem=null;document.getElementById('chat-log').replaceChildren();render();},'quiet')));
     if(importedSource.source)workspace.append(h('details',{class:'import-provenance'},h('summary',{text:'LinkedIn snapshot · source details'}),h('p',{class:'muted small',text:'Role at export: '+(importedSource.position||'Not supplied')+' · Connected on: '+(importedSource.connected_on||'Not supplied')}),h('p',{class:'muted small',text:'Imported '+importedSource.imported_at.slice(0,10)+'. This is not a current employment check or a recorded conversation.'})));
@@ -1092,7 +1153,7 @@
     const exactField=field("Date",h("input",{type:"date",value:exact,oninput:e=>exact=e.target.value})); exactField.hidden=kind!=="date";
     const roughField=field("Roughly when, in your own words",h("input",{maxlength:80,value:rough,placeholder:"Last week, sometime in October…",oninput:e=>rough=e.target.value}));roughField.hidden=kind!=="approx";
     const remember=()=>{quickWorkspace={note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:keep?exchange.value:'',keep_exchange:keep};quickDirty=true;draftStatus.textContent='Saving draft…';clearTimeout(quickTimer);quickTimer=setTimeout(writeQuickWorkspace,280);};
-    const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),"Saved. No tasks were created.");if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();}}},
+    const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),isDev()?"Saved. No tasks were created.":null);if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();if(!isDev())confirmTip('Saved. Tap me if you’d like help turning it into a next step.','Saved.');}}},
       field("What do you remember?",note),draftStatus,workflows.quickPrompts(note),h("div",{class:"grid2"},field("Person (optional)",select([["","Not sure / choose later"],...people.map(p=>[p.id,p.name])],person,v=>person=v)),
       field("When (optional)",select([["unknown","Not sure"],["today","Today"],["yesterday","Yesterday"],["approx","Approximately"],["date","Exact date"]],kind,v=>{kind=v;exactField.hidden=v!=="date";roughField.hidden=v!=="approx";}))),exactField,roughField,
       disc("paste-log","Paste an exchange instead","Optional",exchange,h("label",{class:"check"},h("input",{type:"checkbox",checked:keep,onchange:e=>keep=e.target.checked}),here("Keep the original exchange on this Mac","Keep the original exchange in Link")),h("p",{class:"muted small",text:"Unchecked: only your written recap is saved. To retain an exchange without a recap, explicitly check this box."})),
@@ -1528,6 +1589,9 @@
         h("p", {}, h("code", { text: "companion launcher --install" })), h("div", { class: "row" }, btn("Quit Link", quitLink, "quiet"))));
       page.append(await nudgeSection());  // Mac notifications; the web version will send email reminders instead
     }
+    page.append(h("section", {class: "section"}, h("h3", {text: "Tips from Link"}),
+      h("p", {class: "muted small", text: "Short tips beside Link after you do something. They never interrupt typing."}),
+      h("button", {type: "button", role: "switch", class: "tips-toggle", "data-tips-toggle": "", "aria-checked": String(tipsOn()), onclick: () => setTipsOn(!tipsOn()), text: "Show tips"})));
     page.append(h("section", {class: "section"}, h("h3", {text: "Appearance"}),
       field("Color theme", select([["system","Follow system"],["light","Light"],["dark","Dark"]], store.get("theme", "light"), value => { store.set("theme", value); applyTheme(); })),
       h("p", {class: "muted small", text: "Your theme is remembered on this browser. Motion follows your device's reduced-motion setting."})));
@@ -1624,7 +1688,7 @@
 
   // ---- shell: routing, loading and error states -----------------------------------------
   const guide = window.LinkConnectionGuide.create({h,btn,field,api,S,go,orbSvg});
-  const workflows = window.LinkWorkflows.create({h,btn,field,select,disc,api,act,S,go,render,toast,orbSvg,connectionMotif,openSource:kind=>sources.open(kind)});
+  const workflows = window.LinkWorkflows.create({h,btn,field,select,disc,api,act,S,go,render,toast,orbSvg,connectionMotif,openSource:kind=>sources.open(kind),tip});
   const sources = window.LinkSources.create({h,btn,field,select,api,act,S,go,render,workflows});
   const RENDERERS = { add: root=>guide.render(root), sources:root=>sources.start(root), connect: root=>workflows.start(root), today: renderToday, people: renderPeople, quicklog: renderQuickLog, roles: renderRoles, evidence: renderEvidence, drafts: renderDrafts, me: renderMe, pasted: renderPasted, settings: renderSettings };
   function skeleton() {
@@ -1651,7 +1715,18 @@
     pasted: ["Bring your own context.", "Reference material stays separate from instructions and approved evidence."],
     settings: ["Your workspace, your rules.", "Manage AI mode, spending and your local data here."]
   };
+  const plainName = (name) => String(name || "").replace(/^\[SAMPLE\]\s*/, "");
+  const chatPlaceholder = () => pick("Talk it through…", "What’s on your mind?");
   function updateContextNote() {
+    if (!isDev()) {  // the user version shows only what is relevant now: who you're talking about, if anyone
+      const name = S.contextItem ? plainName(S.contextItem.title) : "";
+      fill($("studio-context"), S.contextItem ? h("div", { class: "context-now" }, h("p", { text: "About " + name }),
+        h("button", { type: "button", class: "context-stop", "aria-label": "Stop talking about " + name, onclick: () => {
+          S.contextItem = null; updateContextNote(); $("chat-input").placeholder = chatPlaceholder(); $("chat-input").focus(); } }, icon("close", 14))) : null);
+      $("studio-context").hidden = !S.contextItem;
+      return;
+    }
+    $("studio-context").hidden = false;
     const context = STUDIO_CONTEXT[S.tab] || STUDIO_CONTEXT.today;
     fill($("studio-context"), h("div", {class: "eyebrow", text: "A LITTLE CLARITY"}), h("h3", {text: context[0]}), h("p", {text: context[1]}),
       S.contextItem ? h("div", {class: "stack"}, h("p", {text: "Discussing: " + S.contextItem.title + ". Its private notes are available to this planning conversation."}),
@@ -1665,9 +1740,9 @@
     const page = root.querySelector(".page");
     if (!page) return;
     page.classList.add("studio-" + S.tab);
-    page.append(iconCredit());
+    if (S.tab === "settings") page.append(iconCredit());  // the CC BY credit stays reachable without sitting under every page
     const sectionName = S.tab === "connect" ? "Build a connection" : S.tab === "add" ? "Add a person" : (NAV.concat(NAV_MINOR).find(([id]) => id === S.tab) || [, "Link"])[1];
-    if(S.demo) page.prepend(h("div",{class:"demo-label",text:"Demo workspace · fictional people · mock AI"}));
+    if(S.demo) page.prepend(h("div",{class:"demo-label",text:pick("Demo workspace · fictional people · mock AI","Demo with sample people")}));
     page.prepend(h("div", {class: "workspace-toolbar"},
       h("span", {class: "toolbar-breadcrumb"}, "Link", h("span", {"aria-hidden": "true", text: "/"}), h("strong", {text: sectionName})),
       h("span", {class: "row"}, btn(label("quicklog"),()=>go("quicklog"),"quiet"), h("button", {class: "btn quiet open-command", type: "button", "aria-label": "Search Link (Command or Control K)", text: "Search ⌘K"}), h("span", {class: "local-indicator"}, h("span", {class: "dot"}), "Local workspace"))));
@@ -1730,7 +1805,7 @@
       document.body.classList.add("onboarding");
       const fresh = h("div", {});
       await renderOnboarding(fresh);
-      fresh.append(iconCredit());
+      // the welcome screen carries no credit line; it is in Settings
       main.replaceChildren(...fresh.childNodes);
       return;
     }

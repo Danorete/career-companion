@@ -54,7 +54,7 @@ def sign_in(page):
     page.goto(PUBLIC + '/')
     page.get_by_role('link', name='Sign in with Google').click()
     expect(page.locator('body')).to_have_attribute('data-hosted', '1')  # the app has loaded, as the web version
-    explore = page.get_by_role('button', name='Explore the workspace first')
+    explore = page.get_by_role('button', name='Skip for now')  # the welcome screen's skip (D53)
     page.wait_for_timeout(500)
     if explore.count():  # a brand-new account starts on the welcome screen
         no_mac_words(page, 'welcome screen')
