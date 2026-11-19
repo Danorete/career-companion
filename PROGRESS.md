@@ -10,12 +10,13 @@ This project moved here from a folder in `Danorete/spotify-listening-bi` on 2026
   2026-11-13 were only delivered as ZIP archives, because pushes from those sessions were refused.
   Notes below that say "no GitHub push performed" or "GitHub writes returned 403" describe those
   sessions; they no longer apply.
-- 381 Python tests pass on Linux, Python 3.13. Schema version 8. Mock AI only. The Google Calendar sign-in has been tried once for real by the builder; the check-in has not.
+- 392 Python tests pass on Linux, Python 3.13. Schema version 8. Mock AI only. The Google Calendar sign-in has been tried once for real by the builder; the check-in has not.
 - `claude/connections-redesign` is a separate People/Quick log implementation built in parallel; it is
   not merged. `claude/less-friction` is included in this build.
 - `graphify-out/` was rebuilt from code on 2026-11-13.
 - Still unverified: a real provider call, billing reconciliation, macOS, Safari, Keychain.
 - Entries below are a dated log; their test counts were correct when written.
+- 2026-11-19 (How Link works, D55): after a tester's feedback, a first visit opens How Link works: what Link is, where things are kept, why answers are samples, three concrete ways to begin, and why each question is asked. A four-stage "How far you've come" tracker fills only from real records (server-side; on that page and on Today). A 33-step walkthrough runs over the real app with a practice person, in a sandbox that writes nothing; with Back, Pause/Play, Replay, Next and Skip. Reach out explains each question. 11 new tests and `scripts/check_walkthrough_browser.py`; the older browser checks were updated for the new first screen.
 - 2026-11-19 (first screen, D54): a one-line description of Link under the question, card lines that say what each choice leads to, a clearer Skip, and a plain browser-tab title.
 - 2026-11-19 (beginner layout, D53): #connect is one question and three cards (69% fewer words on first paint); the companion is a floating sprite with tips and a chat drawer over the page; technical labels hidden in the user version; stray "null" on Today and the dark-mode sprite face fixed. A four-lens audit before and an adversarial review after; remaining copy fixes in docs/plain-language-backlog.md.
 - 2026-11-19 (step-by-step guide, D52): adding a person is now four short questions with a live preview, visible progress and a confirmed save; offered on the welcome screen, Add menu, People page and start card. Works in the Mac app and the web version.

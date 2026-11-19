@@ -64,23 +64,19 @@ def first_visit(port):
                 page.on('pageerror', lambda e: errors.append(str(e)))
                 page.goto(f'http://127.0.0.1:{port}/#t={app.state.security.launch_token}')
 
-                # One question, three cards, a quiet skip. Nothing else competes.
-                page.get_by_role('heading', name='What do you need help with?').wait_for()
-                cards = page.locator('.connect-card')
-                expect(cards).to_have_count(3)
-                assert [c.locator('strong').inner_text() for c in cards.all()] == ['I don’t know where to start', 'Reach out to someone', 'I just met someone']
-                assert page.get_by_role('button', name='Skip for now', exact=True).count() == 1
-                # A brand-new user learns what Link is for, what each card leads to, and where Skip goes (D54).
-                expect(page.locator('.connect-lede')).to_have_text('Link remembers who you met, what you talked about, and what to say next.')
-                lede = page.locator('.connect-lede').bounding_box()
-                assert lede['height'] < 30, 'the value line fits on one line on a laptop'
-                helpers = [c.locator('small').inner_text() for c in cards.all()]
-                assert helpers[0].startswith('No contacts needed.') and 'first message' in helpers[1] and 'nothing is sent' in helpers[1] and 'remember them later' in helpers[2], helpers
-                skip_btn = page.get_by_role('button', name='Skip for now', exact=True)
-                assert skip_btn.get_attribute('aria-describedby') == 'connect-skip-note'
-                expect(page.locator('#connect-skip-note')).to_have_text('Goes straight to Today, your home screen.')
+                # A brand-new user starts on How Link works (D55): what Link is, where things are kept, how far they've come,
+                # and two clear ways on: the walkthrough, or straight into the app.
+                page.get_by_role('heading', name='Welcome to Link.').wait_for()
+                expect(page.locator('.start-lede')).to_contain_text('remember the people you meet')
+                assert page.locator('.start-trust li').count() == 3
+                assert page.locator('.journey [role=progressbar]').get_attribute('aria-valuenow') == '0'
+                expect(page.locator('.journey [aria-current=step]')).to_contain_text('Start here')
+                assert page.get_by_role('button', name='Show me how it works').count() == 2  # at the top and at the end
+                skip_btn = page.get_by_role('button', name='Skip to the app').first
+                note = page.locator('#' + skip_btn.get_attribute('aria-describedby'))
+                expect(note).to_contain_text('Skip goes to Today, your home screen.')
                 assert page.title() == 'Link · Remember the people you meet'
-                for gone in ('Already have a network?', 'Your context stays in your control', 'Remember the people you meet'):
+                for gone in ('Already have a network?', 'Your context stays in your control'):
                     assert gone not in visible_words(page), gone
 
                 # The welcome tip: shown once, spoken politely, closable.
@@ -129,6 +125,18 @@ def first_visit(port):
                 page.keyboard.press('Escape')  # …the second closes the search
                 assert not page.evaluate('!!document.querySelector("dialog.command-palette[open]")'), 'search closed'
                 assert not page.evaluate("document.getElementById('late').inert"), 'it is released when the chat closes'
+
+                # Into the app, then Reach out from Connect's three cards. "I don't know where to start" says it leads to
+                # concrete starting points (D55).
+                page.get_by_role('button', name='Skip to the app').first.click()
+                page.get_by_role('heading', name='Welcome to Link.').wait_for(state='detached')  # the skip has been saved
+                page.locator('#main h1').first.wait_for()
+                page.goto(page.url.split('#')[0] + '#connect')
+                page.get_by_role('heading', name='What do you need help with?').wait_for()
+                cards = page.locator('.connect-card')
+                assert [c.locator('strong').inner_text() for c in cards.all()] == ['I don’t know where to start', 'Reach out to someone', 'I just met someone']
+                helpers = [c.locator('small').inner_text() for c in cards.all()]
+                assert helpers[0].startswith('See three common ways to begin') and 'nothing is sent' in helpers[1] and 'remember them later' in helpers[2], helpers
 
                 # A starter card: one question, one box, one button that waits for words.
                 page.get_by_role('button', name='Reach out to someone').click()

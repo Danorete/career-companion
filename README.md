@@ -206,7 +206,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 
 ## Test results
 
-`381 passed` on Linux, Python 3.13, 2026-11-19. Not yet run on macOS. Coverage by acceptance criterion:
+`392 passed` on Linux, Python 3.13, 2026-11-19. Not yet run on macOS. Coverage by acceptance criterion:
 
 | Criterion | Tests |
 |---|---|
@@ -228,6 +228,7 @@ Keyboard: Tab reaches everything, a "Skip to main content" link comes first, Ent
 | LinkedIn CSV, message and calendar imports | `test_network_imports.py` |
 | Private advice is not an evidence audit | `test_conversation_scope.py`, `test_record_context.py` |
 | The companion identifies as Link | `test_identity.py` |
+| Progress tracker counts real records only, in any order | `test_journey.py` (11 tests) |
 
 Browser checks are in `scripts/check_*_browser.py`; see "Running the browser checks" at the end of this file.
 
@@ -413,7 +414,8 @@ it in headless Chromium, and writes screenshots to the `--output` folder:
 | `check_nudges_browser.py` | Settings: turn reminders on, quiet hours, test reminder, pause and resume, and the message on a computer that cannot show one |
 | `check_user_mode_browser.py` | User version uses plain words and hides spending and AI-mode controls; developer version keeps them |
 | `check_qol_browser.py` | Quick log recovery, undo, duplicate-name suggestions, reminders, reduced motion |
-| `check_avatar_browser.py` | Link character and the Meet Link walkthrough |
+| `check_avatar_browser.py` | Link character and the Meet Link walkthrough (developer version) |
+| `check_walkthrough_browser.py` | How Link works as the first screen, the progress tracker, every walkthrough step on practice data with nothing written, leaving, real progress, why-we-ask lines, phone (D55) |
 
 They need the Python `playwright` package (`.venv/bin/pip install playwright`), which is not part of
 `.[dev]`. Every script launches Chromium from `/usr/bin/chromium`, which suits the Linux machines they
@@ -436,10 +438,21 @@ button. Turn tips off with **Turn off tips** on any tip, or with the **Tips** sw
 
 ## Adding a person, step by step
 
-Decision D52. Choose **Walk me through it** on the welcome screen, **Add a person** in the Add menu, or **Add person**
-on the People page. Link asks four short questions (who, how you met, what you remember, one next step), shows what it
+Decision D52. Choose **Add a person** on How Link works or in the Add menu, or **Add person** on the People page. Link asks four short questions (who, how you met, what you remember, one next step), shows what it
 will save as you answer, and saves everything at once. Only the name is required. **Quick form** on the People page
 keeps the one-screen form.
+
+## How Link works, your progress, and the walkthrough
+
+Decision D55. A first visit opens **How Link works**: what Link is for, where your information is kept, why answers are
+samples in this version, three ways to begin when you don't know where to start, and why Link asks each question. The
+bar at the top, **How far you've come**, has four stages (Start here, Groundwork, People & notes, Reaching out) and fills
+in only from what you add yourself. It also sits at the top of Today until every stage is done.
+
+**Show me how it works** starts a walkthrough of about three minutes: Link moves through the real app with a practice
+person, typing and clicking for you and saying why each question is there. Nothing is saved and nobody is contacted.
+Pause, Back, Next, Replay step and Skip to the app work at any time; Esc leaves. Find the page again in Menu (More on a
+phone) or Settings, and replay the walkthrough from Menu with **Take the tour**.
 
 ## The web version (for remote testers)
 

@@ -52,3 +52,18 @@ corrected. Syntax and whitespace checks passed. No real-provider calls were made
 
 ### Today / Import differentiation
 199 Python tests pass. Updated `check_first_clicks_browser.py` verifies a real recommended action and compact shortcuts on Today at 1470×956 and 1280×800, absence of the import catalogue on Today, all three source tabs on Import, direct import/logging/preparation links, onboarding bypass and a guided no-contacts empty state. Today/Import screenshots visually inspected. Existing quality-of-life and Studio browser scripts pass with temporary synthetic records and mock AI, no JS errors. No macOS/Safari or real-provider calls in this update. Syntax and whitespace checks pass. Graphify update attempted but executable is unavailable.
+
+### How Link works, progress tracker and walkthrough (D55, 2026-11-19)
+392 Python tests pass on Linux, Python 3.13, including 11 new `tests/test_journey.py` tests: the tracker starts at
+stage 1, getting oriented finishes it, sample data never counts, each stage flips on its own and in any order, a
+suggestion alone is not "reaching out", and a deleted person takes the stage back.
+
+New `scripts/check_walkthrough_browser.py` passes in headless Chromium at 1280×860 (reduced motion) and 390×844
+(touch, motion on). It covers How Link works as the first screen and every one of the 33 walkthrough steps with the
+practice person, and confirms the agent's typing and clicks. It confirms that clicks and Tab stay out of the inert
+page. It counts zero non-GET requests and an unchanged database through the whole tour. It tests Back, Replay step,
+Pause and Play, and leaving: Back to How Link works writes nothing, and Esc sends only the orientation flag. Adding a
+real person then moves Today's tracker to 50% with a spoken "Stage done". It also covers the why-we-ask lines, the
+sample-answer wording with no "[MOCK]" tag, the Menu and Settings entries, and no sideways scrolling. The web check
+now walks the tour too and finds no Mac-only wording in any step. All 15 browser checks pass with no JavaScript
+errors.

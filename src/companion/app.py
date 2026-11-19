@@ -459,7 +459,7 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
         return {"demo": bool(db.one("SELECT 1 FROM kv WHERE key='demo_mode' AND value='1'")), "ui_mode": settings.ui_mode, "calendar": calendar_status(),
                 "hosted": settings.hosted, "csrf": csrf_of(request), "ai": gateway.availability(),
                 "budget": budget.status(), "onboarding": services.onboarding_state(db),
-                "setup": services.setup_progress(db),
+                "setup": services.setup_progress(db), "journey": services.journey(db),
                 "has_sample": bool(db.one("SELECT 1 FROM evidence WHERE is_sample=1 UNION SELECT 1 FROM actions WHERE is_sample=1")),
                 "enums": {"memory_private": store.PRIVATE_MEMORY_KINDS, "memory_public": store.PUBLIC_VOICE_KINDS,
                           "uses": store.USES, "evidence_statuses": store.EVIDENCE_STATUSES,
@@ -624,6 +624,16 @@ def create_app(settings: Settings, ai_client: AIClient | None = None, calendar=N
     def onboarding_skip() -> dict:
         db.run("INSERT INTO kv(key,value) VALUES('onboarding_step','2') ON CONFLICT(key) DO UPDATE SET value='2'")
         return services.onboarding_state(db)
+
+    # The starting page and its tracker (D55). Only real records count; the tour writes nothing.
+    @app.get("/api/journey")
+    def journey() -> dict:
+        return services.journey(db)
+
+    @app.post("/api/journey/oriented")
+    def journey_oriented() -> dict:
+        services.mark_oriented(db)
+        return services.journey(db)
 
     # One local unfinished recap; never used as coaching memory or drafting context.
     @app.get("/api/workspace/quicklog")

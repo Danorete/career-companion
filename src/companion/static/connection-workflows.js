@@ -4,11 +4,13 @@
 (function () {
   'use strict';
   window.LinkWorkflows = {
-    create({h, btn, field, select, disc, api, act, S, go, render, toast, orbSvg, connectionMotif, openSource, tip}) {
+    create({h, btn, field, select, disc, api, act, S, go, render, toast, orbSvg, connectionMotif, openSource, tip, whereToStart}) {
       let flow = null;
       const linkWrote = new Set();
       const remember = (text) => { linkWrote.add(text); return text; };
       const plain = (name) => String(name || '').replace(/^\[SAMPLE\]\s*/, '');
+      // A sample's "[MOCK]" tag is for builders. The user version says it is a sample in plain words instead (D55).
+      const said = (t) => (S.mode === 'dev' ? t : String(t || '').replace(/^\[MOCK[^\]]*\]\s*/, ''));
       const modes = {
         starting: ['Find a starting point', "You don't need a contact list. What would you like to explore, and where do you already spend time?", 'A field, class, workplace, interest or community. “I’m not sure” is a useful answer.'],
         reconnect: ['Approach someone', 'Who comes to mind, and what makes you interested in talking to them?', 'A name and fragments are enough. Include what you would genuinely like to learn.'],
@@ -27,15 +29,37 @@
         opportunity: ['What help would you like?', 'Be specific, and make it easy for them to say no.']
       };
       const ask = (mode) => (S.mode === 'dev' ? [modes[mode][1], modes[mode][2]] : SIMPLE[mode]);
+      // Why each question is asked (D55). Confused people asked for the reason, not just the question. These say what
+      // the answer is for, so they stay true whether answers come from Link's AI, a sample or the general guide.
+      const WHY = {
+        starting: 'Starting from something you already care about makes a first conversation easier to find.',
+        reconnect: 'A specific person and a real reason make the first message much easier to write.',
+        met: 'Writing it down now means you won’t have to remember it all later.',
+        prepare: 'Knowing what you want to learn turns a nervous chat into a few good questions.',
+        follow_up: 'A real update gives you a natural reason to write again.',
+        opportunity: 'A small, clear ask is easier to say yes to, and easier to decline kindly.'
+      };
+      const FIELD_WHY = {
+        why_person: 'A real reason makes reaching out feel natural, not random. For example: “She leads the data club I want to join.”',
+        goal: 'Keeps the next step small and right-sized. Private: it never goes into a message.',
+        approved_context: 'The only background Link may put in a message it drafts for you. Leave it empty if you’d rather add details yourself.',
+        example: 'A class project, a post or a sketch counts. You don’t need a polished portfolio.'
+      };
       // User version uses everyday words. Developer version keeps the original labels.
       const pick = (dev, user) => (S.mode === 'dev' ? dev : user);
       const PLAIN = {starting:'I don’t know where to start', reconnect:'Reach out to someone', met:'I just met someone',
         prepare:'Prepare for a conversation', follow_up:'Follow up with someone', opportunity:'Ask for help'};
       const title = mode => (S.mode === 'dev' ? modes[mode][0] : PLAIN[mode]);
       const asks = [['perspective','Career perspective'],['feedback','Feedback on my work'],['team','A team or role'],['introduction','An introduction'],['referral','Discuss a referral']];
-      const input = (label, key, values, max=1000, rows=2) => field(label, h('textarea', {
-        'aria-label':label, rows, maxlength:max, value:values[key]||'', oninput:e=>values[key]=e.target.value
-      }));
+      const input = (label, key, values, max=1000, rows=2, why) => {
+        const box = h('textarea', {'aria-label':label, rows, maxlength:max, value:values[key]||'', oninput:e=>values[key]=e.target.value});
+        if (!why) return field(label, box);
+        // The reason sits under the box, outside the label, so the box's name stays short and the reason is its description.
+        const id = 'why-' + key;
+        box.setAttribute('aria-describedby', id);
+        return h('div', {class:'field-with-why', 'data-tour':'field-'+key}, field(label, box), h('p', {id, class:'field-why', text:why}));
+      };
+      const why = (key) => (S.mode === 'dev' ? null : FIELD_WHY[key]);
       function open(options={}) { flow={inputs:{mode:'starting',...options},plan:null}; go('connect'); }
       async function skip(target='today') {
         if(await act(()=>api('POST','/api/onboarding/skip'))) {
@@ -48,12 +72,14 @@
       function startPath(mode, onboarding) {
         // The user version's "I just met someone" is the step-by-step guide; the developer version keeps the AI encounter flow.
         if (mode === 'met' && S.mode !== 'dev') { S.guideFirst = !!onboarding; if (onboarding) skip('add'); else go('add'); return; }
+        // "I don't know where to start" opens three concrete starting points on How Link works (D55), not one more question.
+        if (mode === 'starting' && S.mode !== 'dev' && whereToStart) { whereToStart(); return; }
         flow = {inputs: {mode}, plan: null};
         render();
       }
       function choose(root, onboarding) {
         const note = pick({starting:'Explore a direction, even with no contacts.',reconnect:'Find a genuine reason to start a conversation.',met:'Keep the fragments and decide what comes next.'},
-          {starting:'No contacts needed. Explore ideas and find one small first step.',
+          {starting:'See three common ways to begin, and pick the one that sounds like you.',
            reconnect:'Get help writing a first message. Start with just a name; nothing is sent.',
            met:'Save a few quick details now, so you remember them later.'});
         const page=h('section',{class:'page connect-simple'+(onboarding?' is-welcome':'')},
@@ -62,7 +88,7 @@
           // A first visit says what Link is for, in one line, right under the question (D54).
           onboarding?h('p',{class:'connect-lede',text:'Link remembers who you met, what you talked about, and what to say next.'}):null,
           // Each card is named by its title; the helper line is its description, so names stay short for screen readers.
-          h('div',{class:'connect-cards'},['starting','reconnect','met'].map(mode=>h('button',{type:'button',class:'connect-card',onclick:()=>startPath(mode,onboarding),
+          h('div',{class:'connect-cards'},['starting','reconnect','met'].map(mode=>h('button',{type:'button',class:'connect-card','data-tour':'card-'+mode,onclick:()=>startPath(mode,onboarding),
             'aria-labelledby':'connect-'+mode+'-title','aria-describedby':'connect-'+mode+'-note'},
             h('span',{class:'connect-card-text'},h('strong',{id:'connect-'+mode+'-title',text:title(mode)}),h('small',{id:'connect-'+mode+'-note',text:note[mode]})),h('span',{class:'path-arrow','aria-hidden':'true',text:'→'})))),
           onboarding?h('div',{class:'connect-skip-row'},
@@ -89,9 +115,10 @@
           if(values.approved_context===undefined)values.approved_context=person.context||'';
         }
         const [question, hint] = ask(values.mode);
-        page.append(h('h1',{id:'connect-question',text:question}),h('p',{class:'connect-hint',text:hint}));
+        page.append(h('h1',{id:'connect-question',text:question}),h('p',{class:'connect-hint',text:hint}),
+          S.mode==='dev'?null:h('p',{class:'connect-why',id:'connect-why'},h('strong',{text:'Why we ask: '}),WHY[values.mode]));
         const textKey=['prepare','opportunity'].includes(values.mode)?'learning_question':'recollection';
-        const main=h('textarea',{...(S.mode==='dev'?{}:{'aria-labelledby':'connect-question'}),rows:4,maxlength:textKey==='recollection'?4000:1000,value:values[textKey]||'',
+        const main=h('textarea',{...(S.mode==='dev'?{}:{'aria-labelledby':'connect-question','aria-describedby':'connect-why'}),rows:4,maxlength:textKey==='recollection'?4000:1000,value:values[textKey]||'',
           placeholder:'In your own words…',oninput:e=>{values[textKey]=e.target.value;submit.disabled=!e.target.value.trim();}});
         const submit=h('button',{type:'submit',class:'btn primary big connect-go'},S.ai.available?pick('Think it through with Link','Show me a next step'):pick('Build a plan without AI','Show me a next step'));
         submit.disabled=!(values[textKey]||'').trim();
@@ -109,7 +136,7 @@
         // Honest limits stay on the page in both versions.
         if(values.mode==='opportunity')form.append(h('p',{class:'muted small',text:pick('We can make the ask specific and easy to decline. An introduction or referral needs their agreement; Link cannot tell you whether someone will say yes.',
           'An introduction or referral needs their OK. Link can’t tell you whether someone will say yes.')}));
-        const goalField=input(pick('What are you hoping to work toward? (private planning)','What do you hope to get out of it?'), 'goal',values,600);
+        const goalField=input(pick('What are you hoping to work toward? (private planning)','What do you hope to get out of it?'), 'goal',values,600,2,why('goal'));
         const goalBox=goalField.querySelector('textarea');
         const goalAdded=h('p',{class:'muted small',role:'status'});
         if(values.mode==='starting')more.push(h('p',{class:'muted small',text:pick('A classmate, recent graduate, former supervisor, professor, volunteer group or professional community can be a starting point. No campus access? Start with a public community or open event; Link cannot verify availability.',
@@ -117,12 +144,14 @@
           h('div',{class:'row'},['Class or student group','Work or volunteering','Public community','No existing connection'].map(label=>btn(label,()=>{
             // The choice is written into the visible goal box and said on the page, not only in a tip.
             values.goal=label;goalBox.value=label;goalAdded.textContent=pick('Context added: '+label,'Added to your goal: '+label.toLowerCase()+'.');},'quiet'))),goalAdded);
-        more.push(input(pick('Why this person or setting?','Why them, or why there?'), 'why_person',values,800),
+        more.push(input(pick('Why this person or setting?','Why them, or why there?'), 'why_person',values,800,2,why('why_person')),
           goalField,
-          input(pick('Professional context approved for later messages','Anything you’re happy to mention to them'), 'approved_context',values,2000),
-          input(pick('An example of your work you are comfortable sharing','Something you made that you’d be glad to share'), 'example',values,1200));
-        form.append(submit,h('p',{class:'connect-promise',text:'Nobody gets contacted. You decide what to keep.'}),
-          disc('connection-extra',pick('More context','Add more detail'),'Optional',...more));
+          input(pick('Professional context approved for later messages','Anything you’re happy to mention to them'), 'approved_context',values,2000,2,why('approved_context')),
+          input(pick('An example of your work you are comfortable sharing','Something you made that you’d be glad to share'), 'example',values,1200,2,why('example')));
+        const extra=disc('connection-extra',pick('More context','Add more detail'),'Optional',...more);
+        extra.dataset.tour='more-detail';
+        if(S.mode!=='dev')extra.querySelector('.disc-body').prepend(h('p',{class:'field-why',text:'All optional. Each box says why Link asks it.'}));
+        form.append(submit,h('p',{class:'connect-promise',text:'Nobody gets contacted. You decide what to keep.'}),extra);
         page.append(form);  // the promise stays on the page, so turning tips off never hides it
         tip('connect-path-'+values.mode,'Tell me a little, and I’ll suggest one small next step.');
       }
@@ -131,11 +160,15 @@
         const story=h('section',{class:'plan-story'}), tools=h('section',{class:'plan-tools','aria-label':'Review and work on this plan'});
         root.append(h('div',{class:simple?'plan-column':'plan-spread'},story,tools));
         // Honest about where the answer came from, in plain words for the user version.
-        const source=simple?(plan.source==='live'?'Suggested by Link’s AI. Check it before you save.':plan.source==='mock'?'This is a sample answer, not advice written for you.':'A general guide, written without AI.')
-          :(plan.source==='live'?'AI proposal · review before saving':plan.source==='mock'?'Mock example · not personalized analysis':'AI unavailable · general guide');
+        // A sample answer is expected in this version, not a fault, so the user version says why it is a sample (D55).
+        const source=simple?(plan.source==='live'?'Suggested by Link’s AI. Check it before you save.'
+            :plan.source==='tour'?'Practice answer for the walkthrough. Nothing here is saved.'
+            :plan.source==='mock'?'Sample answer: Link’s AI isn’t switched on in this version, so this shows what a next step looks like. It wasn’t written from your answer.'
+            :'A general guide, written without AI. Link’s AI is off right now.')
+          :(plan.source==='live'?'AI proposal · review before saving':plan.source==='tour'?'Tour practice answer · nothing is saved':plan.source==='mock'?'Mock example · not personalized analysis':'AI unavailable · general guide');
         story.append(...[h('h1',{text:'Here’s a possible next step.'}),
           source?h('p',{class:simple?'connect-hint':'notice',text:source}):null,
-          h('p',{text:out.acknowledgment}),h('section',{class:'panel stack'},h('h2',{text:out.purpose}),h('p',{text:out.reason}),h('p',{text:out.next_step})),
+          h('p',{text:said(out.acknowledgment)}),h('section',{class:'panel stack'},h('h2',{text:out.purpose}),h('p',{text:out.reason}),h('p',{text:out.next_step})),
           out.questions.length?(simple?disc('plan-questions','Questions you could ask','',h('ul',{},out.questions.map(q=>h('li',{text:q}))))
             :h('section',{class:'stack'},h('h3',{text:'Questions to explore'}),h('ul',{},out.questions.map(q=>h('li',{text:q}))))):null,
           out.uncertainties.length?disc('plan-uncertainty','What remains uncertain','Keep these as questions',...out.uncertainties.map(t=>h('p',{text:t}))):null,
@@ -248,7 +281,7 @@
           h('p',{text:pick('This is a fictional rehearsal, not a prediction of what this person will say. Only approved professional context and your practice answer are used.','Practice only. They may answer differently.')}),
           field('Your introduction or answer',h('textarea',{'aria-label':'Your practice answer',rows:3,maxlength:3000,oninput:e=>answer=e.target.value})),
           btn('Practice with Link',async()=>{const result=await act(()=>api('POST','/api/connections/plans/'+plan.id+'/practice',{answer,previous_question}));
-            if(result){previous_question=result.next_question.slice(0,500);output.append(h('div',{class:'panel stack'},h('p',{class:'notice',text:'Fictional rehearsal'}),h('p',{text:result.simulated_reply}),h('p',{text:result.feedback}),h('p',{text:result.next_question})));}}),output);
+            if(result){previous_question=result.next_question.slice(0,500);output.append(h('div',{class:'panel stack'},h('p',{class:'notice',text:'Fictional rehearsal'}),h('p',{text:said(result.simulated_reply)}),h('p',{text:result.feedback}),h('p',{text:result.next_question})));}}),output);
       }
       async function history(root) {
         if(!root)return;
@@ -288,7 +321,9 @@
         ['What stood out?','Did either of you offer to do anything?','What would you like to ask next time?'].forEach(q=>prompt.append(btn(q,()=>{help.textContent=q+' Leave it unknown if you’re not sure.';note.focus();},'quiet')));
         return h('div',{},prompt,help);
       }
-      return {open,begin:()=>{flow=null;go('connect');},start,onboard:root=>start(root,true),personTools,todayTools,quickPrompts};
+      // The walkthrough (D55) puts a question or a plan on screen directly, so Back and Next can land anywhere.
+      const resume=(inputs,plan)=>{flow={inputs:{...inputs},plan:plan||null};go('connect');};
+      return {open,begin:()=>{flow=null;go('connect');},resume,start,onboard:root=>start(root,true),personTools,todayTools,quickPrompts};
     }
   };
 })();

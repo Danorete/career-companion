@@ -54,11 +54,12 @@ def sign_in(page):
     page.goto(PUBLIC + '/')
     page.get_by_role('link', name='Sign in with Google').click()
     expect(page.locator('body')).to_have_attribute('data-hosted', '1')  # the app has loaded, as the web version
-    explore = page.get_by_role('button', name='Skip for now')  # the welcome screen's skip (D53)
+    explore = page.get_by_role('button', name='Skip to the app')  # How Link works' skip into the app (D55)
     page.wait_for_timeout(500)
-    if explore.count():  # a brand-new account starts on the welcome screen
+    if explore.count():  # a brand-new account starts on How Link works
         no_mac_words(page, 'welcome screen')
-        explore.click()
+        assert 'Everything you add stays in your account' in page.locator('#main').inner_text()
+        explore.first.click()
     page.locator('#more-menu > summary').wait_for()
 
 
@@ -111,11 +112,29 @@ with tempfile.TemporaryDirectory(prefix='link-web-') as folder:
             menu = page.locator('#more-menu').inner_text()
             assert 'Sign out' in menu and 'Quit Link' not in menu and 'Link’s server' in menu, menu
             page.keyboard.press('Escape')
-            for route in ('settings', 'sources', 'today', 'quicklog'):
+            for route in ('settings', 'sources', 'today', 'quicklog', 'start'):
                 page.goto(f'{PUBLIC}/#{route}')
                 page.locator('#main').wait_for()
                 page.wait_for_timeout(400)
                 no_mac_words(page, route)
+            # The walkthrough says where things are kept on the web, in every step (D55).
+            page.goto(f'{PUBLIC}/#start')
+            page.get_by_role('button', name='Show me how it works').first.click()
+            said = []
+            for _ in range(60):
+                page.locator('.tour-card[data-ready="true"]').wait_for()
+                said.append(page.locator('.tour-card').inner_text())
+                if page.locator('.tour-finale').is_visible():
+                    break
+                step = page.locator('.tour-card').get_attribute('data-step')
+                page.locator('.tour-next').click()
+                page.locator(f'.tour-card:not([data-step="{step}"])').wait_for()
+            tour = '\n'.join(said)
+            assert 'Everything you add stays in your account' in tour, 'the tour says where things are kept on the web'
+            for words in MAC_WORDS:
+                assert words not in tour, ('tour', words)
+            page.keyboard.press('Escape')
+            page.locator('#main h1').first.wait_for()
             page.goto(f'{PUBLIC}/#settings')
             page.get_by_role('heading', name='Signing out').wait_for()
             assert page.get_by_role('heading', name='Starting and stopping Link').count() == 0

@@ -486,3 +486,65 @@ each card would do, or where "Skip for now" goes.
   before D53 (166) and below D53's 60% target, a trade made on purpose for clarity. The in-app #connect shares the new
   card lines and rises from 60 to 69, still 64% fewer than before (193). The developer version keeps its original
   card wording.
+
+## D55 — How Link works, a progress tracker, and a walkthrough on practice data (2026-11-19)
+Status: built and tested (`tests/test_journey.py`, `scripts/check_walkthrough_browser.py`; the older browser checks
+were updated for the new first screen).
+
+Why: a tester who used Link with no guidance asked for a starting page and a step-by-step tutorial, a more specific
+"I don't know where to start", and plain explanations of how everything works, what it is for, and why Link asks for
+each thing. People who arrive confused need the reason, not only the question.
+
+- **How Link works (`#start`) is the first screen** in the user version; the developer version keeps the D53/D54
+  welcome. It says what Link is; where things are kept (`here()` wording: "this computer" on the Mac, "your account"
+  on the web); that Link never contacts anyone; and how sample answers work when Link's AI is not on (expected, not an
+  error, and not advice written for you). It gives three concrete starting points:
+  - "I met or noticed someone recently…" leads to Add a person or Add a note.
+  - "I don't have a specific person in mind yet" leads to About me, What I've done or Jobs I'm looking at, or to
+    Explore ideas with Link. It also points to People and Today.
+  - "I want to see the whole thing first" starts the walkthrough.
+
+  The page then explains why Link asks each question, including the four optional boxes under Add more detail. Every
+  way in from a first visit finishes the first stage: `POST /api/journey/oriented` sets the same flag as Skip. Later,
+  the page is in Menu, More (phones), Settings, search, and the tracker on Today.
+- **How far you've come.** Four stages: Start here, Groundwork, People & notes, Reaching out. The server computes them
+  from real records only (`GET /api/journey`, also in bootstrap). Samples never count and the tour never writes.
+  - Groundwork: any memory, evidence, saved job or pasted text.
+  - People & notes: a person or a note.
+  - Reaching out: a kept plan, a drafted message, an outcome, or a finished outreach or follow-up step. A suggestion on
+    its own is not progress.
+
+  Stages can finish in any order; the current one is the first not done. The tracker shows on How Link works and, in a
+  compact form, at the top of Today until every stage is done (once more to mark the finish). When a stage finishes,
+  the bar grows from where this viewer last saw it, the dot draws its check, and Link says "Stage done: …" as a tip, or
+  through the live region when tips are off.
+- **The walkthrough** (`link-walkthrough.js`): 33 steps in the same four parts, over the real app, with a practice
+  person (Maya Chen). It follows embedded-uiux-walkthrough: real components, demo-only data, a no-write sandbox, a
+  pointer that moves and clicks, a spotlight, typed narration, and `data-tour` hooks. While it runs:
+  - every request goes through a sandbox. Lists answer with the practice person only, saves are answered in memory, and
+    nothing but a read reaches the server;
+  - the page is inert: clicks, typing, search (Cmd/Ctrl+K) and screen readers stay in the card;
+  - leaving reloads the page, so nothing from the tour lingers in memory. The tour won't start over a message with
+    unsaved changes.
+
+  Controls: Back, Pause/Play (moving on by itself, with a thin timer line), Replay step, Next, Skip to the app, Esc.
+  The last step offers Add my first person, Back to How Link works, Replay the tour, and Back. The tour's own tracker is
+  dashed and striped, says "Part n of 4" and "Practice only", and sits in a card marked "Practice tour · nothing is
+  saved", so it can't pass for real progress. With reduced motion the text appears at once and nothing moves on by
+  itself.
+- **Why we ask.** Reach out shows a "Why we ask:" line under each question and a reason under each optional box, linked
+  with `aria-describedby`. Each says what the answer is for, so it stays true whether the answer comes from Link's AI, a
+  sample or the general guide. Checked against `coaching.py`: the goal never reaches a drafted message, and "Anything
+  you're happy to mention" is the only background a drafted message may use.
+- **Sample answers.** The user version's review says "Sample answer: Link’s AI isn’t switched on in this version, so
+  this shows what a next step looks like. It wasn’t written from your answer." It no longer shows the "[MOCK]" tag; the
+  developer version keeps it.
+- **"I don't know where to start"** on Connect now leads to the three starting points. Its helper line: "See three
+  common ways to begin, and pick the one that sounds like you."
+- **Also:**
+  - Page titles match the menu in the user version: What I've done, Jobs I'm looking at, Things I pasted, My messages.
+  - Fixed: opening Add a person again from a menu after a save tried to draw a sixth question, and the page failed to
+    load.
+- **Motion.** transitions.dev tokens: 150, 250, 400 and 500 ms; ease-out for things entering, ease-in-out for things
+  moving. web-animation-design rules: transform and opacity only, interface changes under 300 ms, and a reduced-motion
+  rule for every animation. The pointer's glide and the typing are demonstrations, so they run longer.

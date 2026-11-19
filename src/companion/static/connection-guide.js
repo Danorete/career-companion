@@ -60,7 +60,9 @@
       }
 
       async function render(root) {
-        if (!draft) { draft = blank(); step = 0; }
+        // After a save the guide sits on its "saved" screen (step 5). Coming back later starts a new person; without
+        // this, opening Add a person again from a menu tried to draw a sixth question and the page failed to load.
+        if (!draft || step > QUESTIONS) { draft = blank(); step = 0; }
         [found, existing] = await Promise.all([suggestions(), api('GET', '/api/people').catch(() => [])]);
         root.append(page());
         show(step, 0);
@@ -360,7 +362,18 @@
         draft = blank();
       }
 
-      return { open, render };
+      // The walkthrough (D55) sets answers directly, so Back and Next can land on any question without typing again.
+      async function prefill(values, at) {
+        if (!draft || step > QUESTIONS) draft = blank();
+        Object.assign(draft, values);
+        S.guideFirst = false;
+        if (!els || !els.stage.isConnected) { step = at; return; }
+        for (let i = 0; moving && i < 40; i++) await new Promise((resolve) => setTimeout(resolve, 25));  // let a slide finish
+        moving = false;
+        show(at, 0);
+      }
+      function reset() { draft = blank(); step = 0; }
+      return { open, render, prefill, reset };
     }
   };
 })();

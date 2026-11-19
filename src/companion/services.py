@@ -395,6 +395,45 @@ SETUP_STEPS = [
 ]
 
 
+# ---- journey: the four stages on the starting page and its tracker (decision D55) -------
+
+JOURNEY_STAGES = [
+    ("start", "Start here", "See how Link works and pick a way in."),
+    ("groundwork", "Groundwork", "Add one thing about you: a goal, something you’ve done, or a job you’re curious about."),
+    ("people", "People & notes", "Save one person, or a note about someone you met."),
+    ("outreach", "Reaching out", "Get one small next step for someone, and keep it."),
+]
+
+
+def mark_oriented(db: Database) -> None:
+    """The first stage is done once the person has seen how Link works and picked a way in. Same flag as Skip."""
+    db.run("INSERT INTO kv(key,value) VALUES('onboarding_step',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+           (str(len(ONBOARDING)),))
+
+
+def journey(db: Database) -> dict:
+    """Real progress only. Sample rows never count, and the tour never writes, so practice can't fill the bar.
+    Stages can finish in any order; the current one is the first that isn't done yet."""
+    def has(sql: str) -> bool:
+        return db.one(sql) is not None
+
+    done = {
+        "start": onboarding_state(db)["done"],
+        "groundwork": has("SELECT 1 FROM memory WHERE is_sample=0") or has("SELECT 1 FROM evidence WHERE is_sample=0")
+        or has("SELECT 1 FROM items WHERE kind='opportunity' AND is_sample=0") or has("SELECT 1 FROM imports"),
+        "people": has("SELECT 1 FROM items WHERE kind='relationship' AND is_sample=0")
+        or has("SELECT 1 FROM interactions WHERE is_sample=0"),
+        "outreach": has("SELECT 1 FROM connection_plans WHERE status='confirmed'") or has("SELECT 1 FROM drafts")
+        or has("SELECT 1 FROM outcomes")
+        or has("SELECT 1 FROM actions WHERE is_sample=0 AND state='done' AND kind IN ('outreach','follow_up')"),
+    }
+    stages = [{"id": sid, "title": title, "detail": detail, "done": done[sid]} for sid, title, detail in JOURNEY_STAGES]
+    count = sum(1 for st in stages if st["done"])
+    current = next((st["id"] for st in stages if not st["done"]), None)
+    return {"stages": stages, "done": count, "total": len(stages), "percent": round(100 * count / len(stages)),
+            "current": current, "complete": current is None}
+
+
 def setup_progress(db: Database) -> dict:
     """Five milestones in the order that reaches a useful draft fastest. Sample rows never count,
     so loading the samples cannot make an empty account look finished."""

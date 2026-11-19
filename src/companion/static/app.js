@@ -20,6 +20,7 @@
   applyTheme();
   const draftWorkspaces = new Map();
   window.addEventListener("beforeunload", event => {
+    if (leaving) return;  // the walkthrough reloading the page on purpose (D55)
     if ([...draftWorkspaces.values()].some(w => w.dirty || w.saving)) { event.preventDefault(); event.returnValue = ""; }
   });
   const S = {
@@ -154,7 +155,13 @@
     return h("header", { class: "page-head" }, h("h2", { text: title }), lead ? h("p", { class: "lead", text: lead }) : null, extra);
   }
 
+  // While the walkthrough runs (D55), every request goes to its sandbox first: reads of practice data are answered
+  // there, and nothing but a read ever reaches the server. Outside the tour, requests go straight to send().
   async function api(method, path, body) {
+    if (S.tour) return S.tour.request(method, path, body, send);
+    return send(method, path, body);
+  }
+  async function send(method, path, body) {
     const opts = { method, headers: {} };
     if (method !== "GET") {
       opts.headers["X-CSRF-Token"] = S.csrf;
@@ -234,6 +241,7 @@
       if (window.LinkCompanion && window.LinkCompanion.isOpen()) window.LinkCompanion.close();  // one modal at a time
       trigger = document.activeElement; dialog.showModal(); input.value = ""; input.focus();
       records = NAV.concat(NAV_MINOR).map(([tab,label]) => ({label: "Open " + label, kind: "Section", run: () => go(tab)}));
+      if (!isDev()) records.push({label: "How Link works", kind: "Help", run: () => go("start")}, {label: "Take the tour", kind: "Help", run: takeTour});
       records.push({label: "New draft", kind: "Create", run: () => { S.draft.current = null; S.draft.action_id = null; draftWorkspaces.delete("new:unlinked"); go("drafts"); }},
         {label: "Add evidence", kind: "Create", run: () => { S.evidenceForm = true; go("evidence"); }});
       show();
@@ -253,7 +261,7 @@
   // ---- status, sidebar, session timer ---------------------------------------------------
   async function refreshStatus() {
     const b = await api("GET", "/api/bootstrap");
-    Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup, calendar: b.calendar, hosted: !!b.hosted });
+    Object.assign(S, { demo: b.demo, csrf: b.csrf, ai: b.ai, budget: b.budget, onboarding: b.onboarding, enums: b.enums, hasSample: b.has_sample, setup: b.setup, journey: b.journey, calendar: b.calendar, hosted: !!b.hosted });
     document.body.dataset.hosted = S.hosted ? "1" : "";
     applyMode(b.ui_mode);
     if (!S.contextItem) $("chat-input").placeholder = chatPlaceholder();
@@ -330,7 +338,8 @@
         cal.available ? h("button", { type: "button", class: "menu-item", onclick: go2(() => sources.open("calendar")), text: cal.connected ? "Your calendar" : "Connect your calendar" }) : null));
     const more = h("details", { class: "menu", id: "more-menu" }, h("summary", {}, "Menu"),
       h("div", { class: "menu-panel" }, page("me"), page("roles"), page("evidence"), page("drafts"), page("pasted"), page("settings"),
-        h("button", { type: "button", class: "menu-item", onclick: go2(() => window.LinkGuide.start()), text: "Take the tour" }),
+        h("a", { class: "menu-item", href: "#start", onclick: () => closeMenus(), text: "How Link works" }),
+        h("button", { type: "button", class: "menu-item", onclick: go2(takeTour), text: "Take the tour" }),
         h("button", { type: "button", class: "menu-item", onclick: go2(web() ? signOut : quitLink), text: web() ? "Sign out" : "Quit Link" }),
         aiNote ? h("p", { class: "menu-note", text: aiNote }) : null,
         h("p", { class: "menu-note", text: here("Everything you add stays on this computer.", "Kept on Link’s server during this test. Delete everything removes it.") })));
@@ -361,7 +370,8 @@
     fill($("mobile-more"), NAV_MINOR.map(([id, label, ic]) => h("a", {
       class: "mobile-more-link", href: "#" + id, "aria-current": S.tab === id ? "page" : null,
       onclick: () => closeMore()
-    }, icon(ic, 20), label)));
+    }, icon(ic, 20), label)), isDev() ? null : h("a", { class: "mobile-more-link", href: "#start", "aria-current": S.tab === "start" ? "page" : null,
+      onclick: () => closeMore() }, icon("help", 20), "How Link works"));
   }
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && moreOpen) { closeMore(true); event.stopImmediatePropagation(); }
@@ -537,7 +547,7 @@
   // replacing that save's toast; when it can't show, the caller shows the toast instead. Returns whether it showed.
   // kind "handoff": a nudge that directly follows the person's own choice, so it skips the 30 s spacing.
   function tip(key, text, kind = "nudge") {
-    if (!text || !tipsOn() || dockOpen || typing()) return false;
+    if (!text || S.tour || !tipsOn() || dockOpen || typing()) return false;  // the tour does the talking while it runs
     if (kind === "nudge" || kind === "handoff") {
       if (tipsSeen.has(key) || nudges >= NUDGES_PER_VISIT || (kind === "nudge" && Date.now() - lastNudge < NUDGE_GAP_MS)) return false;
       tipsSeen.add(key); nudges += 1; lastNudge = Date.now();
@@ -682,9 +692,15 @@
   }
 
   // ---- onboarding: the companion, one question at a time ---------------------------------
+  // A first visit starts on How Link works in the user version (D55); the developer version keeps the Connect welcome.
   async function renderOnboarding(root) {
-    await workflows.onboard(root);
-    setTimeout(() => tipEver("welcome", "Hi, I’m Link. Pick whatever fits. We’ll take it one small step at a time."), 600);
+    if (isDev()) {
+      await workflows.onboard(root);
+      setTimeout(() => tipEver("welcome", "Hi, I’m Link. Pick whatever fits. We’ll take it one small step at a time."), 600);
+      return;
+    }
+    await startPage.render(root, { welcome: true });
+    setTimeout(() => tipEver("welcome", "Hi, I’m Link. Read on, or choose Show me how it works and I’ll walk you through it."), 600);
   }
 
   // ---- Today ----------------------------------------------------------------------------
@@ -765,7 +781,7 @@
       h('div', { class: 'start-links row' },
         c.available ? btn('Add someone, step by step', () => guide.open(), 'quiet') : null,
         btn('I don’t know anyone yet', () => workflows.open({ mode: 'starting' }), 'quiet'),
-        btn('Take a one-minute tour', () => window.LinkGuide.start(), 'quiet')));
+        btn(pick('Take a one-minute tour', 'Take the tour'), takeTour, 'quiet')));
   }
   function dailyShortcuts() {
     return h('nav',{class:'daily-shortcuts','aria-label':'Quick actions'},
@@ -820,6 +836,7 @@
     const date = new Date(view.today + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
     const page = h("div", { class: "page today-page" }, h("div", { class: "briefing-date" }, h("span", {class: "workspace-label", text: pick("YOUR CONNECTION STUDIO", "")}), h("span", {text: date})), sampleNotice());
     root.append(page);
+    if (!isDev() && S.journey && !S.tour) { const track = startPage.compact(S.journey); if (track) page.append(track); }  // how far you've come (D55)
     const hasPeople=items.some(item=>item.kind==='relationship');
     if (!isDev() && !hasPeople) { page.append(startCard()); return; }
     page.append(...[todayHeader(hasPeople), isDev() ? dailyShortcuts() : setupLine()].filter(Boolean));  // append(null) would print "null"
@@ -930,7 +947,7 @@
   }
   async function renderRoles(root) {
     const [items, actions] = await Promise.all([api("GET", "/api/items"), api("GET", "/api/actions")]);
-    const page = h("div", { class: "page" }, pageHead("Roles", "Who you're talking to, what you're going for, and what happened.",
+    const page = h("div", { class: "page" }, pageHead(label("roles"), "Who you're talking to, what you're going for, and what happened.",
       help("What do outcomes mean?", "One click records what you observed: a reply, an interview, silence.", "It's a record, not proof that any particular wording caused it.")), sampleNotice());
     root.append(page);
     const f = { kind: "opportunity", title: "", org: "", posting: "" };
@@ -1158,11 +1175,11 @@
     if(!quickDirty)return quickWrite;
     const value=structuredClone(quickWorkspace);quickDirty=false;quickPending++;
     quickWrite=quickWrite.catch(()=>{}).then(()=>api('PUT','/api/workspace/quicklog',value)).then(()=>{
-      const status=$('quick-draft-status');if(status&&!quickDirty&&quickPending===1)status.textContent=here('Draft saved on this Mac','Draft saved');
+      const status=$('quick-draft-status');if(status&&!quickDirty&&quickPending===1)status.textContent=S.tour?'Tour: nothing you type here is saved.':here('Draft saved on this Mac','Draft saved');
     }).catch(()=>{quickDirty=true;const status=$('quick-draft-status');if(status)status.textContent='Draft not saved — keep this page open and try again.';}).finally(()=>{quickPending--;});
     return quickWrite;
   }
-  window.addEventListener('beforeunload',e=>{if(quickDirty||quickTimer||quickPending){e.preventDefault();e.returnValue='';}});
+  window.addEventListener('beforeunload',e=>{if(!leaving&&(quickDirty||quickTimer||quickPending)){e.preventDefault();e.returnValue='';}});
   document.addEventListener('visibilitychange',()=>{if(document.hidden)writeQuickWorkspace();});
   function offerUndo(message,restore) {
     let bar=$('undo-bar');if(!bar){bar=h('section',{id:'undo-bar',class:'undo-bar','aria-label':'Last change'});document.body.append(bar);}
@@ -1175,12 +1192,12 @@
     const page=h("div",{class:"page quicklog-page"},pageHead("Keep the moment.","A name, a thought, a rough memory. Start there."));root.append(page);
     let person=quickWorkspace.item_id||S.logPerson||"",kind=quickWorkspace.when?.kind||"unknown",exact=quickWorkspace.when?.date||"",rough=quickWorkspace.when?.text||"",keep=quickWorkspace.keep_exchange||false;
     if(person&&!people.some(p=>p.id===Number(person)))person="";
-    const draftStatus=h('p',{id:'quick-draft-status',class:'muted small',role:'status',text:quickWorkspace.note?here('Draft saved on this Mac','Draft saved'):here('Your unfinished recap is saved locally as you type.','Your unfinished recap is saved as you type.')});
+    const draftStatus=h('p',{id:'quick-draft-status',class:'muted small',role:'status',text:S.tour?'Tour: nothing you type here is saved.':quickWorkspace.note?here('Draft saved on this Mac','Draft saved'):here('Your unfinished recap is saved locally as you type.','Your unfinished recap is saved as you type.')});
     const note=h("textarea",{rows:4,maxlength:8000,value:quickWorkspace.note||"",required:false,placeholder:"Met someone at an event last week. Talked about…","aria-label":"What do you remember?"});
     const exchange=h("textarea",{rows:4,maxlength:12000,value:quickWorkspace.exchange||"","aria-label":"Optional pasted exchange"});
     const exactField=field("Date",h("input",{type:"date",value:exact,oninput:e=>exact=e.target.value})); exactField.hidden=kind!=="date";
     const roughField=field("Roughly when, in your own words",h("input",{maxlength:80,value:rough,placeholder:"Last week, sometime in October…",oninput:e=>rough=e.target.value}));roughField.hidden=kind!=="approx";
-    const remember=()=>{quickWorkspace={note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:keep?exchange.value:'',keep_exchange:keep};quickDirty=true;draftStatus.textContent='Saving draft…';clearTimeout(quickTimer);quickTimer=setTimeout(writeQuickWorkspace,280);};
+    const remember=()=>{quickWorkspace={note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:keep?exchange.value:'',keep_exchange:keep};quickDirty=true;draftStatus.textContent=S.tour?'Tour: nothing you type here is saved.':'Saving draft…';clearTimeout(quickTimer);quickTimer=setTimeout(writeQuickWorkspace,280);};
     const form=h("form",{class:"panel stack",onsubmit:async e=>{e.preventDefault();await writeQuickWorkspace();const snapshot=structuredClone(quickWorkspace);const saved=await act(()=>api("POST","/api/logs",{note:note.value,item_id:person?Number(person):null,when:{kind,date:exact,text:rough},exchange:exchange.value,keep_exchange:keep}),isDev()?"Saved. No tasks were created.":null);if(saved){await quickWrite;await api('DELETE','/api/workspace/quicklog');quickWorkspace={};quickDirty=false;S.logPerson=null;offerUndo('Quick log saved.',async()=>{await api('PUT','/api/workspace/quicklog',snapshot);await api('DELETE','/api/logs/'+saved.id);quickWorkspace=snapshot;});render();if(!isDev())confirmTip(S.ai.available?'Saved. Tap me if you’d like help turning it into a next step.':'Saved.','Saved.');}}},
       field("What do you remember?",note),draftStatus,workflows.quickPrompts(note),h("div",{class:"grid2"},field("Person (optional)",select([["","Not sure / choose later"],...people.map(p=>[p.id,p.name])],person,v=>person=v)),
       field("When (optional)",select([["unknown","Not sure"],["today","Today"],["yesterday","Yesterday"],["approx","Approximately"],["date","Exact date"]],kind,v=>{kind=v;exactField.hidden=v!=="date";roughField.hidden=v!=="approx";}))),exactField,roughField,
@@ -1257,7 +1274,7 @@
   }
   async function renderEvidence(root) {
     const list = await api("GET", "/api/evidence");
-    const page = h("div", { class: "page" }, pageHead("Evidence", "What you can truthfully say about your work. Every claim in a draft points here.",
+    const page = h("div", { class: "page" }, pageHead(label("evidence"), "What you can truthfully say about your work. Every claim in a draft points here.",
       help("How is this used?", "A draft can only state facts that link to an entry here. Numbers are checked against the value and unit you record.",
         "“Verified” means you've noted where the proof is. “Do not claim” entries are never sent to drafting. Confidential entries aren't either.")), sampleNotice());
     root.append(page);
@@ -1347,7 +1364,7 @@
     if (D.current) D.current = drafts.find(d => d.id === D.current.id) || D.current;
     const action = actions.find((a) => a.id === D.action_id) || null;
     if (!D.current && action) D.current = drafts.find((d) => d.action_id === action.id) || null;
-    const page = h("div", { class: "page" }, pageHead("Drafts", "Write it yourself or with Link. Either way, every save is checked against your evidence.",
+    const page = h("div", { class: "page" }, pageHead(label("drafts"), "Write it yourself or with Link. Either way, every save is checked against your evidence.",
       help("What can drafting see?", "Only this page: the evidence you tick, your voice notes for the audience, and what you type here.",
         "It never sees your private planning notes, your goals, or the chat.",
         S.ai.available && S.ai.mode === "live" ? "In live mode, those three things are sent to the AI provider." : here("In mock mode nothing leaves this Mac.", "In sample mode nothing is sent to an AI company."))));
@@ -1493,7 +1510,7 @@
   // ---- Pasted material ------------------------------------------------------------------
   async function renderPasted(root) {
     const list = await api("GET", "/api/imports");
-    const page = h("div", { class: "page" }, pageHead("Pasted material", "Job descriptions, messages, or your profile text, kept as reference.",
+    const page = h("div", { class: "page" }, pageHead(label("pasted"), "Job descriptions, messages, or your profile text, kept as reference.",
       help("Is pasting safe?", "Pasted text is treated as reference only. Nothing in it can change what Link remembers or does, and a chat message with pasted text attached can't save anything.",
         "This app never fetches web pages and never opens LinkedIn. You paste; it reads.")));
     root.append(page);
@@ -1606,7 +1623,8 @@
     const page = h("div", { class: "page" }, pageHead(pick("Settings & data", "Settings"), pick(here("Setup, AI mode, spending, and everything stored on this Mac.", "Setup, AI mode, spending, and everything stored in your account."), "Your data, and how the AI works.")));
     root.append(page);
     page.append(h("section",{class:"section"},h("h3",{text:pick("Your networking sources","Add contacts")}),h("p",{text:pick("Import a LinkedIn snapshot, choose conversation excerpts or prepare from a calendar file.","Bring in your LinkedIn contacts file, messages you choose, or a calendar file.")}),btn(pick("Open Sources & imports","Add contacts"),()=>go("sources"),"quiet")));
-    page.append(h("section", {class:"section"}, h("h3",{text:"Meet Link"}), btn("Take the guided walkthrough",()=>window.LinkGuide.start(),"quiet")));
+    page.append(h("section", {class:"section"}, h("h3",{text:"Meet Link"}), isDev() ? btn("Take the guided walkthrough",()=>window.LinkGuide.start(),"quiet")
+      : h("div", {class:"row"}, btn("How Link works", () => go("start"), "quiet"), btn("Take the tour", takeTour, "quiet"))));
     if (web()) {
       page.append(h("section", { class: "section" }, h("h3", { text: "Signing out" }),
         h("p", { text: "Signing out ends this session. Your information stays in your account until you delete it, or until 30 days pass without signing in." }),
@@ -1716,9 +1734,30 @@
 
   // ---- shell: routing, loading and error states -----------------------------------------
   const guide = window.LinkConnectionGuide.create({h,btn,field,api,S,go,orbSvg});
-  const workflows = window.LinkWorkflows.create({h,btn,field,select,disc,api,act,S,go,render,toast,orbSvg,connectionMotif,openSource:kind=>sources.open(kind),tip});
+  const workflows = window.LinkWorkflows.create({h,btn,field,select,disc,api,act,S,go,render,toast,orbSvg,connectionMotif,openSource:kind=>sources.open(kind),tip,
+    whereToStart:()=>startPage.showWhere()});
   const sources = window.LinkSources.create({h,btn,field,select,api,act,S,go,render,workflows});
-  const RENDERERS = { add: root=>guide.render(root), sources:root=>sources.start(root), connect: root=>workflows.start(root), today: renderToday, people: renderPeople, quicklog: renderQuickLog, roles: renderRoles, evidence: renderEvidence, drafts: renderDrafts, me: renderMe, pasted: renderPasted, settings: renderSettings };
+  // How Link works, its tracker, and the walkthrough (D55). The developer version keeps the original tour (LinkGuide).
+  const startPage = window.LinkStart.create({h,btn,api,act,S,go,here,orbSvg,workflows,guide,tip,store,walkthrough:()=>({start:takeTour})});
+  let leaving = false;  // set just before the tour reloads the page, so the unsaved-changes prompt doesn't stop it
+  const walkthrough = window.LinkWalkthrough.create({h,btn,S,go,here,orbSvg,tracker:startPage.tracker,hooks:{
+    guidePrefill:(values,at)=>guide.prefill(values,at), guideReset:()=>guide.reset(),
+    connectBegin:()=>workflows.begin(), connectResume:(inputs,plan)=>workflows.resume(inputs,plan),
+    openDisc:(key)=>S.open.add(key), closeDisc:(key)=>S.open.delete(key),
+    closeMenus:()=>{closeMenus();closeMore();}, clearPerson:()=>{S.selectedPerson=null;S.addPerson=false;},
+    closeCompanion:()=>{setDock(false);hideTip(true);},
+    flushQuick:()=>writeQuickWorkspace().catch(()=>{}),
+    resetQuick:()=>{clearTimeout(quickTimer);quickTimer=null;quickDirty=false;quickWorkspace=null;},
+    oriented:()=>send("POST","/api/journey/oriented",{}),
+    // Back to the top first: a reload restores the scroll position, and the next page should start at its beginning.
+    reload:(tab)=>{leaving=true;window.scrollTo(0,0);$("main").scrollTop=0;history.replaceState(null,"","#"+tab);window.location.reload();}}});
+  function takeTour() {
+    if (isDev()) { window.LinkGuide.start(); return; }
+    // The tour ends by reloading the page, so a message with unsaved changes is saved first, by the person.
+    if ([...draftWorkspaces.values()].some((w) => w.dirty || w.saving)) { toast("Save your message in My messages first, so the tour can’t lose it."); return; }
+    walkthrough.start();
+  }
+  const RENDERERS = { start: root=>startPage.render(root), add: root=>guide.render(root), sources:root=>sources.start(root), connect: root=>workflows.start(root), today: renderToday, people: renderPeople, quicklog: renderQuickLog, roles: renderRoles, evidence: renderEvidence, drafts: renderDrafts, me: renderMe, pasted: renderPasted, settings: renderSettings };
   function skeleton() {
     const bar = (w, ht) => { const s = h("span", {}); s.style.width = w; s.style.height = ht + "px"; return s; };
     return h("div", { class: "skeleton", "aria-busy": "true" }, h("span", { class: "sr", text: "Loading" }), bar("30%", 12), bar("85%", 40), bar("60%", 40), bar("70%", 16), bar("100%", 56), bar("45%", 56));
@@ -1771,7 +1810,7 @@
     if (!page) return;
     page.classList.add("studio-" + S.tab);
     if (S.tab === "settings") page.append(iconCredit());  // the CC BY credit stays reachable without sitting under every page
-    const sectionName = S.tab === "connect" ? "Build a connection" : S.tab === "add" ? "Add a person" : (NAV.concat(NAV_MINOR).find(([id]) => id === S.tab) || [, "Link"])[1];
+    const sectionName = S.tab === "connect" ? "Build a connection" : S.tab === "add" ? "Add a person" : S.tab === "start" ? "How Link works" : (NAV.concat(NAV_MINOR).find(([id]) => id === S.tab) || [, "Link"])[1];
     if(S.demo) page.prepend(h("div",{class:"demo-label",text:pick("Demo workspace · fictional people · mock AI","Demo with sample people")}));
     page.prepend(h("div", {class: "workspace-toolbar"},
       h("span", {class: "toolbar-breadcrumb"}, "Link", h("span", {"aria-hidden": "true", text: "/"}), h("strong", {text: sectionName})),
@@ -1829,6 +1868,8 @@
     }
   }
   let renderSeq = 0;
+  // The walkthrough (D55) waits for this to know a page is on screen.
+  const rendered = () => window.dispatchEvent(new CustomEvent("link:rendered", { detail: { tab: S.tab } }));
   async function render() {
     const seq = ++renderSeq, main = $("main");
     if (!S.onboarding.done) {
@@ -1837,6 +1878,7 @@
       await renderOnboarding(fresh);
       // the welcome screen carries no credit line; it is in Settings
       main.replaceChildren(...fresh.childNodes);
+      rendered();
       return;
     }
     renderSide();
@@ -1850,6 +1892,7 @@
       if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
         const page=main.querySelector('.page');if(page)page.animate([{opacity:.35,transform:'translateY(6px)'},{opacity:1,transform:'translateY(0)'}],{duration:220,easing:'cubic-bezier(.22,1,.36,1)'});
       }
+      rendered();
     }
   }
   function route() {

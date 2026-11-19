@@ -24,9 +24,12 @@ PORTS = {'user': 8891, 'dev': 8892}
 def check(mode, page, app, port, finished):
     page.goto(f'http://127.0.0.1:{port}/#t={app.state.security.launch_token}')
     if not finished:
-        page.get_by_role('button', name=('I just met someone' if mode == 'user' else 'Make sense of an encounter'), exact=True).wait_for()
-        heading = 'What do you need help with?' if mode == 'user' else 'Where shall we begin?'  # one column, one question (D53)
-        page.get_by_role('heading', name=heading, exact=True).wait_for()
+        if mode == 'user':  # How Link works is the first screen (D55)
+            page.get_by_role('heading', name='Welcome to Link.', exact=True).wait_for()
+            page.get_by_role('button', name='Show me how it works').first.wait_for()
+        else:  # the developer version keeps the original welcome: one column, one question (D53)
+            page.get_by_role('button', name='Make sense of an encounter', exact=True).wait_for()
+            page.get_by_role('heading', name='Where shall we begin?', exact=True).wait_for()
         return
     page.locator('#side').wait_for()
     side = page.locator('#side').inner_text()
@@ -42,7 +45,7 @@ def check(mode, page, app, port, finished):
         assert page.locator('.menu[open]').count() == 0
         page.locator('#more-menu > summary').click()
         menu = page.locator('#more-menu').inner_text()
-        for word in ('About me', 'Jobs I’m looking at', 'Settings', 'Take the tour', 'Quit Link', 'answers are samples', 'stays on this computer'):
+        for word in ('About me', 'Jobs I’m looking at', 'Settings', 'How Link works', 'Take the tour', 'Quit Link', 'answers are samples', 'stays on this computer'):
             assert word in menu, (word, menu)
         for word in ('Quick log', 'Career tools', 'AI budget', 'Mock AI', '$'):
             assert word not in menu + side, (word, menu)

@@ -77,12 +77,12 @@ def first_run(port):
                 page.on('pageerror', lambda e: errors.append(str(e)))
                 page.goto(f'http://127.0.0.1:{port}/#t={app.state.security.launch_token}')
 
-                # Two ways to begin (D51).
-                # Two ways to begin (D51), now as the welcome screen's cards (D53): the guide, or Skip for now.
-                page.get_by_role('button', name='I just met someone', exact=True).wait_for()
-                assert page.get_by_role('button', name='Skip for now').count() == 1
+                # Ways to begin (D51), now on How Link works (D55): "I met or noticed someone recently" leads to the guide,
+                # and Skip goes into the app.
+                page.get_by_role('heading', name='Welcome to Link.').wait_for()
+                assert page.get_by_role('button', name='Skip to the app').count() >= 1
                 shot(page, '0_welcome')
-                page.get_by_role('button', name='I just met someone', exact=True).click()
+                page.locator('[data-tour="where-met"]').get_by_role('button', name='Add a person', exact=True).click()
 
                 # 1. Who. Continue waits for a name; the preview answers as you type.
                 question(page, 'Who did you meet?')
