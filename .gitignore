@@ -22,6 +22,8 @@ Complete_LinkedInDataExport*
 
 # Graphify cache
 graphify-out/cache/
+# Graphify's dated backups of the previous graph (git history already keeps it)
+graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 
 # Google sign-in settings downloaded from the Cloud Console. Never commit these.
 client_secret*.json
